@@ -1,0 +1,8 @@
+# Non-secret machine-local overrides only.
+#
+# `./scripts/component-enable jcode` manages the optional jcode block here for you.
+#
+# Example:
+#
+# [projects."/absolute/path/to/a/project"]
+# trust_level = "trusted"

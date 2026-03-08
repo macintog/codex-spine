@@ -1,0 +1,96 @@
+[components.qmd_memory_stack]
+name = "qmd-memory-stack"
+summary = "Default retrieval and transcript-memory plumbing built around qmd-codex, codex-memory-mcp, and transcript sync."
+boundary_class = "public-core"
+public_candidate = true
+export_ready = false
+export_blockers = [
+  "Fresh-macOS QA matrix is not complete yet",
+]
+install_model = "First-party wrappers plus managed qmd acquisition"
+maintenance_model = "Shared component-maintenance harness with pinned qmd updates"
+upstream_source = "https://github.com/tobi/qmd"
+license_mode = "separate-upstream-open-source"
+license_source = "upstream qmd package terms"
+optionality = "default"
+formal_affiliation = "independent"
+notes = [
+  "Keep launchd, shell, and rendered config free of incubator-specific paths",
+]
+
+[components.jcode_integration]
+name = "jcode"
+summary = "Optional jCodeMunch MCP integration for indexed code navigation."
+boundary_class = "public-core"
+public_candidate = true
+export_ready = false
+export_blockers = [
+  "Fresh-macOS QA matrix is not complete yet",
+]
+install_model = "Managed optional install from upstream pinned artifact with local overlay wiring"
+maintenance_model = "Shared component-maintenance harness gated by fetched-term acknowledgement"
+upstream_source = "https://github.com/jgravelle/jcodemunch-mcp"
+license_mode = "separate-upstream-source-available"
+license_source = "retrieved upstream terms for the pinned version"
+optionality = "optional"
+formal_affiliation = "independent"
+notes = [
+  "Do not imply formal affiliation with the upstream project",
+  "Do not enable or update when exact upstream terms for the pinned version cannot be retrieved",
+]
+
+[components.component_maintenance_harness]
+name = "component-maintenance-harness"
+summary = "First-party control plane for pinned acquisition, health checks, drift reporting, and updates."
+boundary_class = "public-core"
+public_candidate = true
+export_ready = false
+export_blockers = [
+  "Fresh-macOS QA matrix is not complete yet",
+]
+install_model = "First-party Python scripts and manifest-driven backends"
+maintenance_model = "First-party"
+upstream_source = "none"
+license_mode = "first-party"
+license_source = "pending codex-spine repo license selection"
+optionality = "default"
+formal_affiliation = "not-applicable"
+notes = [
+  "Keep private-incubator-specific acquisition backends out of the standalone public repo",
+]
+
+[components.github_contributor]
+name = "github-contributor"
+summary = "Workflow skill for public maintenance, intake, documentation, and release discipline."
+boundary_class = "public-core"
+public_candidate = true
+export_ready = false
+export_blockers = [
+  "Fresh-macOS QA matrix is not complete yet",
+]
+install_model = "First-party skill symlinked into ~/.codex/skills"
+maintenance_model = "First-party"
+upstream_source = "none"
+license_mode = "first-party"
+license_source = "pending codex-spine repo license selection"
+optionality = "default"
+formal_affiliation = "not-applicable"
+notes = []
+
+[components.project_spine]
+name = "project-spine"
+summary = "Workflow skill and templates for multi-session project structure."
+boundary_class = "public-core"
+public_candidate = true
+export_ready = false
+export_blockers = [
+  "Fresh-macOS QA matrix is not complete yet",
+]
+install_model = "First-party skill symlinked into ~/.codex/skills"
+maintenance_model = "First-party"
+upstream_source = "none"
+license_mode = "first-party"
+license_source = "pending codex-spine repo license selection"
+optionality = "default"
+formal_affiliation = "not-applicable"
+notes = []

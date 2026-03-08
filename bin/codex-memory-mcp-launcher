@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+# Prefer Homebrew Node (kept current by brew upgrades), but allow sane fallback.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+SCRIPT="${CODEX_MEMORY_MCP_SCRIPT:-${HOME}/.local/bin/codex-memory-mcp}"
+if [[ ! -f "$SCRIPT" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd -P)"
+  SCRIPT="${SCRIPT_DIR}/codex-memory-mcp"
+fi
+
+if [[ ! -f "$SCRIPT" ]]; then
+  echo "codex-memory-mcp launcher error: missing script at $SCRIPT" >&2
+  exit 1
+fi
+
+if command -v node >/dev/null 2>&1; then
+  NODE_BIN="$(command -v node)"
+  exec "$NODE_BIN" "$SCRIPT"
+fi
+
+if command -v brew >/dev/null 2>&1; then
+  BREW_NODE="$(brew --prefix node 2>/dev/null || true)"
+  if [[ -n "$BREW_NODE" && -x "$BREW_NODE/bin/node" ]]; then
+    exec "$BREW_NODE/bin/node" "$SCRIPT"
+  fi
+fi
+
+echo "codex-memory-mcp launcher error: node runtime not found (expected Homebrew node)." >&2
+exit 1

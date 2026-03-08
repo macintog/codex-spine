@@ -1,0 +1,27 @@
+[profiles.codex_spine]
+components = ["qmd", "jcode"]
+description = "Public codex-spine installation profile."
+
+[components.qmd]
+summary = "Upstream qmd CLI package used by qmd-codex wrappers and transcript sync."
+default_enabled = true
+
+[components.qmd.backends.codex_spine]
+kind = "pnpm_global"
+package_name = "@tobilu/qmd"
+pinned_version = "1.1.5"
+executable = "~/Library/pnpm/qmd"
+version_args = ["--version"]
+
+[components.jcode]
+summary = "jCodeMunch MCP executable used for indexed code navigation."
+default_enabled = false
+
+[components.jcode.backends.codex_spine]
+kind = "uv_tool"
+package_name = "jcodemunch-mcp"
+pinned_version = "1.1.1"
+executable = "~/.local/bin/jcodemunch-mcp"
+version_args = ["--version"]
+license_source_url = "https://raw.githubusercontent.com/jgravelle/jcodemunch-mcp/v1.1.1/README.md"
+license_start_marker = "## License (Dual Use)"

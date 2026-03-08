@@ -1,0 +1,6 @@
+.DS_Store
+__pycache__/
+*.pyc
+.state/
+codex/config/90-local.toml
+shell/codex.local.env

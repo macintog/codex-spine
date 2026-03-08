@@ -1,0 +1,504 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { spawnSync } = require("child_process");
+
+const HOME = process.env.HOME || os.homedir();
+process.env.PATH = ["/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", process.env.PATH || ""]
+  .filter(Boolean)
+  .join(":");
+const PNPM_HOME = process.env.PNPM_HOME || path.join(HOME, "Library", "pnpm");
+const NATIVE_QMD_BIN = process.env.QMD_NATIVE_BIN || path.join(PNPM_HOME, "qmd");
+const SQLITE3_BIN = process.env.SQLITE3_BIN || "sqlite3";
+const DEFAULT_INDEX = process.env.QMD_DEFAULT_INDEX || "codex_chat";
+const PROJECT_CACHE_ROOT = path.join(HOME, ".cache", "qmd", DEFAULT_INDEX);
+
+let transportStyle = "framed";
+
+function writeMessage(message) {
+  if (transportStyle === "json") {
+    process.stdout.write(`${JSON.stringify(message)}\n`);
+    return;
+  }
+  const payload = Buffer.from(JSON.stringify(message), "utf8");
+  const header = Buffer.from(`Content-Length: ${payload.length}\r\n\r\n`, "utf8");
+  process.stdout.write(Buffer.concat([header, payload]));
+}
+
+function sendResponse(id, result) {
+  writeMessage({ jsonrpc: "2.0", id, result });
+}
+
+function sendError(id, code, message, data) {
+  const error = { code, message };
+  if (data !== undefined) {
+    error.data = data;
+  }
+  writeMessage({ jsonrpc: "2.0", id, error });
+}
+
+function runCommand(command, args, options = {}) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    env: process.env,
+    ...options,
+  });
+}
+
+function hasExplicitIndex(args) {
+  return args.some((arg) => arg === "--index" || arg.startsWith("--index="));
+}
+
+function withDefaultIndex(args) {
+  if (hasExplicitIndex(args)) {
+    return args.slice();
+  }
+  return ["--index", DEFAULT_INDEX, ...args];
+}
+
+function firstCommand(args) {
+  let skipNext = false;
+  for (const arg of args) {
+    if (skipNext) {
+      skipNext = false;
+      continue;
+    }
+    if (arg === "--index") {
+      skipNext = true;
+      continue;
+    }
+    if (arg.startsWith("--index=")) {
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      continue;
+    }
+    return arg;
+  }
+  return null;
+}
+
+function shouldServeEmbeddedMcp(args) {
+  if (process.env.QMD_USE_NATIVE_MCP === "1") {
+    return false;
+  }
+  if (firstCommand(args) !== "mcp") {
+    return false;
+  }
+  if (args.includes("--http") || args.includes("--daemon") || args.includes("stop")) {
+    return false;
+  }
+  return true;
+}
+
+function execNativeQmd(args) {
+  const result = runCommand(NATIVE_QMD_BIN, withDefaultIndex(args), { stdio: "inherit" });
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(1);
+  }
+  process.exit(result.status ?? 0);
+}
+
+function runQmd(args, { expectJson = false } = {}) {
+  const result = runCommand(NATIVE_QMD_BIN, withDefaultIndex(args));
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || `exit ${result.status}`).trim();
+    throw new Error(detail || "qmd command failed");
+  }
+  const stdout = (result.stdout || "").trim();
+  if (!expectJson) {
+    return stdout;
+  }
+  if (!stdout) {
+    return [];
+  }
+  return JSON.parse(stdout);
+}
+
+function readStatusText() {
+  return runQmd(["status"]);
+}
+
+function statusDbPath(statusText) {
+  const match = statusText.match(/^Index:\s+(.+)$/m);
+  return match ? match[1].trim() : `${PROJECT_CACHE_ROOT}.sqlite`;
+}
+
+function statusCollectionName(statusText) {
+  const match = statusText.match(/^\s{2}(.+?) \(qmd:\/\/.+\)$/m);
+  return match ? match[1].trim() : "codex-chat";
+}
+
+function statusDocumentCount(statusText) {
+  const match = statusText.match(/^\s*Total:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function statusVectorCount(statusText) {
+  const match = statusText.match(/^\s*Vectors:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function statusContextCount(statusText) {
+  const match = statusText.match(/^\s*Contexts:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function fileMtimeIso(file) {
+  try {
+    return fs.statSync(file).mtime.toISOString();
+  } catch {
+    return "";
+  }
+}
+
+function sqliteScalar(dbPath, sql) {
+  const result = runCommand(SQLITE3_BIN, [dbPath, sql]);
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || "sqlite query failed").trim());
+  }
+  return (result.stdout || "").trim();
+}
+
+function buildStatus() {
+  const statusText = readStatusText();
+  const dbPath = statusDbPath(statusText);
+  const totalDocuments = statusDocumentCount(statusText);
+  const vectorCount = statusVectorCount(statusText);
+  const contextCount = statusContextCount(statusText);
+  const collectionName = statusCollectionName(statusText);
+  const needsEmbeddingText = sqliteScalar(
+    dbPath,
+    "select count(distinct d.hash) from documents d where d.active = 1 and d.hash not in (select hash from content_vectors);",
+  );
+  const needsEmbedding = Number(needsEmbeddingText || "0");
+  return {
+    totalDocuments,
+    needsEmbedding,
+    hasVectorIndex: vectorCount > 0,
+    collections: [
+      {
+        name: collectionName,
+        path: PROJECT_CACHE_ROOT,
+        pattern: "**/*.md",
+        documents: totalDocuments,
+        lastUpdated: fileMtimeIso(dbPath),
+        contexts: contextCount,
+      },
+    ],
+  };
+}
+
+function buildSearchArgs(commandName, args) {
+  const query = String(args.query || "").trim();
+  if (!query) {
+    throw new Error("query is required");
+  }
+
+  const cliArgs = [commandName, query];
+  if (Number.isInteger(args.limit)) {
+    cliArgs.push("-n", String(args.limit));
+  }
+  if (typeof args.minScore === "number") {
+    cliArgs.push("--min-score", String(args.minScore));
+  }
+  if (typeof args.collection === "string" && args.collection.length > 0) {
+    cliArgs.push("-c", args.collection);
+  }
+  cliArgs.push("--json");
+  return cliArgs;
+}
+
+function callSearch(commandName, args) {
+  return { results: runQmd(buildSearchArgs(commandName, args), { expectJson: true }) };
+}
+
+function callGet(args) {
+  const file = String(args.file || "").trim();
+  if (!file) {
+    throw new Error("file is required");
+  }
+
+  const cliArgs = ["get", file];
+  if (Number.isInteger(args.fromLine)) {
+    cliArgs.push("--from", String(args.fromLine));
+  }
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return { file, text: runQmd(cliArgs) };
+}
+
+function callMultiGet(args) {
+  const pattern = String(args.pattern || "").trim();
+  if (!pattern) {
+    throw new Error("pattern is required");
+  }
+
+  const cliArgs = ["multi-get", pattern];
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (Number.isInteger(args.maxBytes)) {
+    cliArgs.push("--max-bytes", String(args.maxBytes));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return { pattern, text: runQmd(cliArgs) };
+}
+
+function toolListResult() {
+  return {
+    tools: [
+      {
+        name: "status",
+        description: "Show QMD index status for the codex_chat transcript index.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      },
+      {
+        name: "deep_search",
+        description: "Deep search using QMD query expansion and reranking.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "search",
+        description: "Keyword search across the codex_chat index.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "vector_search",
+        description: "Vector similarity search across the codex_chat index.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "get",
+        description: "Retrieve a single QMD document or a line-offset slice from it.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            file: { type: "string" },
+            fromLine: { type: "integer" },
+            lineNumbers: { type: "boolean" },
+            maxLines: { type: "integer" },
+          },
+          required: ["file"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "multi_get",
+        description: "Retrieve multiple QMD documents by glob or comma-separated list.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            pattern: { type: "string" },
+            lineNumbers: { type: "boolean" },
+            maxBytes: { type: "integer" },
+            maxLines: { type: "integer" },
+          },
+          required: ["pattern"],
+          additionalProperties: false,
+        },
+      },
+    ],
+  };
+}
+
+function toolSuccess(id, payload) {
+  return sendResponse(id, {
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload,
+  });
+}
+
+function toolFailure(id, name, err) {
+  const detail = err && err.message ? err.message : String(err);
+  return sendResponse(id, {
+    content: [{ type: "text", text: `${name} failed: ${detail}` }],
+    isError: true,
+  });
+}
+
+function handleRequest(message) {
+  const { id, method, params } = message;
+  if (method === "initialize") {
+    return sendResponse(id, {
+      protocolVersion: "2024-11-05",
+      capabilities: { tools: { listChanged: false } },
+      serverInfo: { name: "qmd-codex", version: "0.2.0" },
+    });
+  }
+
+  if (method === "tools/list") {
+    return sendResponse(id, toolListResult());
+  }
+
+  if (method === "tools/call") {
+    const name = params?.name;
+    const args = params?.arguments || {};
+    try {
+      switch (name) {
+        case "status":
+          return toolSuccess(id, buildStatus());
+        case "deep_search":
+          return toolSuccess(id, callSearch("query", args));
+        case "search":
+          return toolSuccess(id, callSearch("search", args));
+        case "vector_search":
+          return toolSuccess(id, callSearch("vsearch", args));
+        case "get":
+          return toolSuccess(id, callGet(args));
+        case "multi_get":
+          return toolSuccess(id, callMultiGet(args));
+        default:
+          return sendResponse(id, {
+            content: [{ type: "text", text: `Unknown tool: ${name}` }],
+            isError: true,
+          });
+      }
+    } catch (err) {
+      return toolFailure(id, name || "tool", err);
+    }
+  }
+
+  if (method === "ping") {
+    return sendResponse(id, {});
+  }
+
+  if (id !== undefined && id !== null) {
+    return sendError(id, -32601, `Method not found: ${method}`);
+  }
+  return null;
+}
+
+function runEmbeddedMcp() {
+  let buffer = Buffer.alloc(0);
+  process.stdin.on("data", (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+
+    while (true) {
+      let sep = buffer.indexOf("\r\n\r\n");
+      let headerLen = 4;
+      if (sep === -1) {
+        sep = buffer.indexOf("\n\n");
+        headerLen = 2;
+      }
+      if (sep !== -1) {
+        const headerRaw = buffer.slice(0, sep).toString("utf8");
+        const match = headerRaw.match(/Content-Length:\s*(\d+)/i);
+        if (!match) {
+          buffer = buffer.slice(sep + headerLen);
+          continue;
+        }
+
+        const contentLength = Number(match[1]);
+        const messageStart = sep + headerLen;
+        const messageEnd = messageStart + contentLength;
+        if (buffer.length < messageEnd) {
+          return;
+        }
+
+        const body = buffer.slice(messageStart, messageEnd).toString("utf8");
+        buffer = buffer.slice(messageEnd);
+
+        let parsed;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          continue;
+        }
+
+        if (parsed && parsed.method) {
+          transportStyle = "framed";
+          handleRequest(parsed);
+        }
+        continue;
+      }
+
+      const text = buffer.toString("utf8");
+      const firstChar = text.trimStart().charAt(0);
+      if (firstChar !== "{") {
+        return;
+      }
+
+      const newlineIndex = text.indexOf("\n");
+      if (newlineIndex !== -1) {
+        const line = text.slice(0, newlineIndex).trim();
+        if (line.length === 0) {
+          buffer = buffer.slice(newlineIndex + 1);
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(line);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (parsed && parsed.method) {
+            transportStyle = "json";
+            handleRequest(parsed);
+          }
+          continue;
+        } catch {
+          // Incomplete line; fall through to full-buffer parse.
+        }
+      }
+
+      try {
+        const parsed = JSON.parse(text.trim());
+        buffer = Buffer.alloc(0);
+        if (parsed && parsed.method) {
+          transportStyle = "json";
+          handleRequest(parsed);
+        }
+        continue;
+      } catch {
+        return;
+      }
+    }
+  });
+
+  process.stdin.resume();
+}
+
+const argv = process.argv.slice(2);
+if (shouldServeEmbeddedMcp(argv)) {
+  runEmbeddedMcp();
+} else {
+  execNativeQmd(argv);
+}

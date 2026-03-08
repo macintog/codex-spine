@@ -1,0 +1,14 @@
+[features]
+multi_agent = true
+
+[tui]
+status_line = ["git-branch", "used-tokens", "total-input-tokens", "total-output-tokens", "context-used"]
+
+[mcp_servers.qmd_codex]
+command = "__HOME__/.local/bin/qmd-codex"
+args = ["mcp"]
+enabled = true
+
+[mcp_servers.memory]
+command = "__HOME__/.local/bin/codex-memory-mcp-launcher"
+enabled = true

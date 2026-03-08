@@ -1,0 +1,446 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const crypto = require("crypto");
+const { spawnSync } = require("child_process");
+
+const HOME = process.env.HOME || os.homedir();
+const STATE_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat", ".state");
+const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
+const LATEST_PROJECT_KEY_FILE = path.join(STATE_ROOT, "latest_project_key.txt");
+const SYNC_SCRIPT = path.join(HOME, ".local", "bin", "sync-codex-chat-qmd.sh");
+const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
+let transportStyle = "framed";
+
+function writeMessage(message) {
+  if (transportStyle === "json") {
+    process.stdout.write(`${JSON.stringify(message)}\n`);
+    return;
+  }
+  const payload = Buffer.from(JSON.stringify(message), "utf8");
+  const header = Buffer.from(`Content-Length: ${payload.length}\r\n\r\n`, "utf8");
+  process.stdout.write(Buffer.concat([header, payload]));
+}
+
+function sendResponse(id, result) {
+  writeMessage({ jsonrpc: "2.0", id, result });
+}
+
+function sendError(id, code, message, data) {
+  const error = { code, message };
+  if (data !== undefined) {
+    error.data = data;
+  }
+  writeMessage({ jsonrpc: "2.0", id, error });
+}
+
+function readJsonIfExists(file) {
+  try {
+    if (!fs.existsSync(file)) {
+      return null;
+    }
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readTextIfExists(file) {
+  try {
+    if (!fs.existsSync(file)) {
+      return "";
+    }
+    return fs.readFileSync(file, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+function normalizePath(inputPath) {
+  try {
+    if (!inputPath) {
+      return process.cwd();
+    }
+    return fs.realpathSync(inputPath);
+  } catch {
+    return path.resolve(inputPath || process.cwd());
+  }
+}
+
+function canonicalProjectPath(cwd) {
+  const resolved = normalizePath(cwd);
+  const git = spawnSync("git", ["-C", resolved, "rev-parse", "--show-toplevel"], {
+    encoding: "utf8",
+  });
+  if (git.status === 0 && git.stdout && git.stdout.trim().length > 0) {
+    return git.stdout.trim();
+  }
+  return resolved;
+}
+
+function projectKeyForPath(projectPath) {
+  const base = path.basename(projectPath || "project")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "") || "project";
+  const hash = crypto.createHash("sha1").update(projectPath).digest("hex").slice(0, 12);
+  return `${base}-${hash}`;
+}
+
+function readBootstrapForKey(projectKey) {
+  if (!projectKey) {
+    return null;
+  }
+  const bootstrapFile = path.join(PROJECTS_DIR, projectKey, "bootstrap.json");
+  return readJsonIfExists(bootstrapFile);
+}
+
+function unixSecondsFromIso(value) {
+  const t = Date.parse(value || "");
+  if (!Number.isFinite(t)) {
+    return 0;
+  }
+  return Math.floor(t / 1000);
+}
+
+function refreshSync() {
+  if (!fs.existsSync(SYNC_SCRIPT)) {
+    return { ok: false, reason: `missing sync script: ${SYNC_SCRIPT}` };
+  }
+  const result = spawnSync(SYNC_SCRIPT, [], { encoding: "utf8" });
+  if (result.status === 0) {
+    return { ok: true };
+  }
+  const stderr = (result.stderr || "").trim();
+  const stdout = (result.stdout || "").trim();
+  const detail = stderr || stdout || `exit ${result.status}`;
+  return { ok: false, reason: detail };
+}
+
+function buildColdStart(projectPath, projectKey) {
+  const lastSync = new Date(0).toISOString();
+  const summary = [
+    `Project: ${projectPath}`,
+    "Current objective: (cold start)",
+    "",
+    "Intent pins:",
+    "- (none yet)",
+    "",
+    "Open loops:",
+    "- Run sync to generate project memory state",
+    "",
+    "Recent sessions:",
+    "- (none yet)",
+  ].join("\n");
+  return {
+    project_key: projectKey,
+    last_sync_utc: lastSync,
+    summary,
+    intent_pins: [],
+    open_loops: ["Run sync to generate project memory state"],
+    recent_sessions: [],
+    evidence_paths: [],
+  };
+}
+
+function coerceRecentSessions(list, maxCount) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list
+    .filter((item) => item && typeof item.path === "string")
+    .slice(0, maxCount)
+    .map((item) => ({
+      path: item.path,
+      started_utc: typeof item.started_utc === "string" ? item.started_utc : "",
+    }));
+}
+
+function buildSummaryFromBootstrap(bootstrap, maxRecent) {
+  const result = {
+    project_key: String(bootstrap.project_key || ""),
+    last_sync_utc: String(bootstrap.last_sync_utc || ""),
+    summary: String(bootstrap.summary || ""),
+    intent_pins: Array.isArray(bootstrap.intent_pins) ? bootstrap.intent_pins.slice(0, 20) : [],
+    open_loops: Array.isArray(bootstrap.open_loops) ? bootstrap.open_loops.slice(0, 20) : [],
+    recent_sessions: coerceRecentSessions(bootstrap.recent_sessions, maxRecent),
+    evidence_paths: Array.isArray(bootstrap.evidence_paths) ? bootstrap.evidence_paths.slice(0, 20) : [],
+  };
+
+  if (!result.summary) {
+    const lines = [];
+    lines.push(`Project: ${bootstrap.project_path || "(unknown)"}`);
+    lines.push(`Current objective: ${bootstrap.current_objective || "(not yet inferred)"}`);
+    lines.push("");
+    lines.push("Intent pins:");
+    if (result.intent_pins.length === 0) {
+      lines.push("- (none)");
+    } else {
+      for (const pin of result.intent_pins.slice(0, 8)) {
+        lines.push(`- ${pin}`);
+      }
+    }
+    lines.push("");
+    lines.push("Open loops:");
+    if (result.open_loops.length === 0) {
+      lines.push("- (none)");
+    } else {
+      for (const loop of result.open_loops.slice(0, 8)) {
+        lines.push(`- ${loop}`);
+      }
+    }
+    lines.push("");
+    lines.push("Recent sessions:");
+    if (result.recent_sessions.length === 0) {
+      lines.push("- (none)");
+    } else {
+      for (const session of result.recent_sessions) {
+        lines.push(`- ${session.started_utc || "unknown"} ${session.path}`);
+      }
+    }
+    result.summary = lines.join("\n");
+  }
+
+  return result;
+}
+
+function bootstrapContext(args) {
+  const cwd = typeof args.cwd === "string" && args.cwd.length > 0 ? args.cwd : process.cwd();
+  const refreshIfStale = args.refresh_if_stale !== false;
+  const maxRecent = Number.isInteger(args.max_recent_sessions)
+    ? Math.max(1, Math.min(20, args.max_recent_sessions))
+    : 3;
+
+  const projectPath = canonicalProjectPath(cwd);
+  const inferredProjectKey = projectKeyForPath(projectPath);
+
+  let bootstrap = readBootstrapForKey(inferredProjectKey);
+  let activeProjectKey = inferredProjectKey;
+
+  if (!bootstrap) {
+    const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+    if (latestProjectKey) {
+      const latestBootstrap = readBootstrapForKey(latestProjectKey);
+      if (latestBootstrap) {
+        bootstrap = latestBootstrap;
+        activeProjectKey = latestProjectKey;
+      }
+    }
+  }
+
+  const lastSyncSeconds = unixSecondsFromIso(bootstrap?.last_sync_utc || "");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const isStale = nowSeconds - lastSyncSeconds > STALE_SECONDS;
+
+  if (refreshIfStale && (isStale || !bootstrap)) {
+    const refresh = refreshSync();
+    if (refresh.ok) {
+      const freshBootstrap = readBootstrapForKey(inferredProjectKey);
+      if (freshBootstrap) {
+        bootstrap = freshBootstrap;
+        activeProjectKey = inferredProjectKey;
+      } else {
+        const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+        if (latestProjectKey) {
+          const latestBootstrap = readBootstrapForKey(latestProjectKey);
+          if (latestBootstrap) {
+            bootstrap = latestBootstrap;
+            activeProjectKey = latestProjectKey;
+          }
+        }
+      }
+    }
+  }
+
+  let result;
+  if (!bootstrap) {
+    result = buildColdStart(projectPath, inferredProjectKey);
+  } else {
+    result = buildSummaryFromBootstrap(bootstrap, maxRecent);
+    result.project_key = activeProjectKey;
+  }
+
+  return result;
+}
+
+function toolListResult() {
+  return {
+    tools: [
+      {
+        name: "bootstrap_context",
+        description:
+          "Return a compact, project-scoped memory brief for Codex startup context with optional stale refresh.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cwd: {
+              type: "string",
+              description: "Project working directory; defaults to current process cwd.",
+            },
+            refresh_if_stale: {
+              type: "boolean",
+              description: "When true, run sync if project state is older than the stale threshold.",
+              default: true,
+            },
+            max_recent_sessions: {
+              type: "integer",
+              minimum: 1,
+              maximum: 20,
+              description: "Maximum recent session references to include in the output.",
+              default: 3,
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+    ],
+  };
+}
+
+function handleRequest(message) {
+  const { id, method, params } = message;
+  if (method === "initialize") {
+    return sendResponse(id, {
+      protocolVersion: "2024-11-05",
+      capabilities: {
+        tools: {
+          listChanged: false,
+        },
+      },
+      serverInfo: {
+        name: "codex-memory-mcp",
+        version: "0.1.0",
+      },
+    });
+  }
+
+  if (method === "tools/list") {
+    return sendResponse(id, toolListResult());
+  }
+
+  if (method === "tools/call") {
+    const name = params?.name;
+    const args = params?.arguments || {};
+    if (name !== "bootstrap_context") {
+      return sendResponse(id, {
+        content: [{ type: "text", text: `Unknown tool: ${name}` }],
+        isError: true,
+      });
+    }
+
+    try {
+      const result = bootstrapContext(args);
+      return sendResponse(id, {
+        content: [{ type: "text", text: result.summary }],
+        structuredContent: result,
+      });
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      return sendResponse(id, {
+        content: [{ type: "text", text: `bootstrap_context failed: ${detail}` }],
+        isError: true,
+      });
+    }
+  }
+
+  if (method === "ping") {
+    return sendResponse(id, {});
+  }
+
+  if (id !== undefined && id !== null) {
+    return sendError(id, -32601, `Method not found: ${method}`);
+  }
+  return null;
+}
+
+let buffer = Buffer.alloc(0);
+process.stdin.on("data", (chunk) => {
+  buffer = Buffer.concat([buffer, chunk]);
+
+  while (true) {
+    // 1) Try LSP/MCP content-length framing.
+    let sep = buffer.indexOf("\r\n\r\n");
+    let headerLen = 4;
+    if (sep === -1) {
+      sep = buffer.indexOf("\n\n");
+      headerLen = 2;
+    }
+    if (sep !== -1) {
+      const headerRaw = buffer.slice(0, sep).toString("utf8");
+      const match = headerRaw.match(/Content-Length:\s*(\d+)/i);
+      if (!match) {
+        buffer = buffer.slice(sep + headerLen);
+        continue;
+      }
+
+      const contentLength = Number(match[1]);
+      const messageStart = sep + headerLen;
+      const messageEnd = messageStart + contentLength;
+      if (buffer.length < messageEnd) {
+        return;
+      }
+
+      const body = buffer.slice(messageStart, messageEnd).toString("utf8");
+      buffer = buffer.slice(messageEnd);
+
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (err) {
+        continue;
+      }
+
+      if (parsed && parsed.method) {
+        transportStyle = "framed";
+        handleRequest(parsed);
+      }
+      continue;
+    }
+
+    // 2) Fallback: NDJSON/plain JSON message framing (some MCP clients use this).
+    const text = buffer.toString("utf8");
+    const firstChar = text.trimStart().charAt(0);
+    if (firstChar !== "{") {
+      return;
+    }
+
+    const newlineIndex = text.indexOf("\n");
+    if (newlineIndex !== -1) {
+      const line = text.slice(0, newlineIndex).trim();
+      if (line.length === 0) {
+        buffer = buffer.slice(newlineIndex + 1);
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(line);
+        buffer = buffer.slice(newlineIndex + 1);
+        if (parsed && parsed.method) {
+          transportStyle = "json";
+          handleRequest(parsed);
+        }
+        continue;
+      } catch {
+        // If line parse fails, try full-buffer parse below.
+      }
+    }
+
+    try {
+      const parsed = JSON.parse(text.trim());
+      buffer = Buffer.alloc(0);
+      if (parsed && parsed.method) {
+        transportStyle = "json";
+        handleRequest(parsed);
+      }
+      continue;
+    } catch {
+      // Incomplete JSON; wait for more bytes.
+      return;
+    }
+  }
+});
+
+process.stdin.resume();

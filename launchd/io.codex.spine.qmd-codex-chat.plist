@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- macOS-first launchd job. Linux analog: systemd user timer. Windows analog: Task Scheduler. -->
+  <key>Label</key>
+  <string>__LAUNCH_AGENT_LABEL__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.local/bin/sync-codex-chat-qmd.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>240</integer>
+  <key>KeepAlive</key>
+  <false/>
+  <key>WorkingDirectory</key>
+  <string>__HOME__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/tmp/codex-spine-qmd-codex-chat.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/codex-spine-qmd-codex-chat.log</string>
+</dict>
+</plist>

@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "lib"))
+
+from codex_spine import (  # noqa: E402
+    BLOCK_END,
+    BLOCK_START,
+    COMPONENTS_PATH,
+    HOME,
+    LIVE_CONFIG_PATH,
+    LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
+    LOCAL_CONFIG_OVERLAY,
+    MAINTAINED_COMPONENTS_PATH,
+    REQUIRED_CLIS,
+    cli_available,
+    detect_private_reference_hits,
+    detect_secret_hits,
+    enabled_component_names,
+    enabled_component_record,
+    managed_links,
+    render_config_text,
+    render_launch_agent_text,
+    shell_source_targets,
+    text_file_paths,
+    validate_components_registry,
+)
+from component_manager import component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
+
+
+def fail(errors: list[str]) -> int:
+    for error in errors:
+        print(f"ERROR: {error}", file=sys.stderr)
+    return 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--repo-only", action="store_true")
+    args = parser.parse_args()
+
+    errors: list[str] = []
+    errors.extend(validate_components_registry(COMPONENTS_PATH))
+    errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
+
+    for path in text_file_paths(REPO_ROOT):
+        if path == LOCAL_CONFIG_OVERLAY:
+            continue
+        text = path.read_text(encoding="utf-8")
+        secret_hits = detect_secret_hits(text)
+        if secret_hits:
+            errors.append(f"tracked repo file appears to contain a secret: {path}")
+        private_hits = detect_private_reference_hits(text)
+        if private_hits:
+            errors.append(f"tracked repo file still contains private references: {path}: {', '.join(private_hits)}")
+
+    if args.repo_only:
+        if errors:
+            return fail(errors)
+        print("verify: ok (repo-only)")
+        return 0
+
+    for link in managed_links():
+        if not link.live_path.is_symlink():
+            errors.append(f"managed path is not a symlink: {link.live_path}")
+            continue
+        if link.live_path.resolve(strict=False) != link.repo_path.resolve():
+            errors.append(f"managed symlink points to the wrong target: {link.live_path}")
+
+    for dotfile, fragment in shell_source_targets().items():
+        if not dotfile.exists():
+            errors.append(f"missing shell file: {dotfile}")
+            continue
+        content = dotfile.read_text(encoding="utf-8")
+        if BLOCK_START not in content or BLOCK_END not in content or str(fragment) not in content:
+            errors.append(f"missing managed source block in {dotfile}")
+
+    if not LIVE_CONFIG_PATH.exists():
+        errors.append(f"missing generated config: {LIVE_CONFIG_PATH}")
+    else:
+        live_text = LIVE_CONFIG_PATH.read_text(encoding="utf-8")
+        if live_text != render_config_text():
+            errors.append(f"live config is out of sync with rendered output: {LIVE_CONFIG_PATH}")
+        if detect_private_reference_hits(live_text):
+            errors.append(f"generated config still contains private references: {LIVE_CONFIG_PATH}")
+
+    if not LIVE_QMD_CHAT_LAUNCH_AGENT_PATH.exists():
+        errors.append(f"missing launch agent: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")
+    else:
+        if LIVE_QMD_CHAT_LAUNCH_AGENT_PATH.read_text(encoding="utf-8") != render_launch_agent_text():
+            errors.append(f"launch agent is out of sync with rendered template: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")
+
+    enabled = enabled_component_names()
+    for component in resolve_components():
+        status = component_status(component)
+        if component.default_enabled and not status["healthy"]:
+            errors.append(f"default component is unhealthy: {component.name}: {status['detail']}")
+        if component.name in enabled and not status["healthy"]:
+            errors.append(f"enabled optional component is unhealthy: {component.name}: {status['detail']}")
+        if component.name in enabled:
+            record = enabled_component_record(component.name)
+            if component.backend.get("license_source_url") and not record.get("license_sha256"):
+                errors.append(f"enabled licensed component is missing license provenance: {component.name}")
+
+    for cli_name in REQUIRED_CLIS:
+        if not cli_available(cli_name):
+            errors.append(f"required CLI not found: {cli_name}")
+
+    if errors:
+        return fail(errors)
+
+    print("verify: ok")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
