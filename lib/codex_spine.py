@@ -31,8 +31,14 @@ MAINTAINED_COMPONENTS_PATH = REPO_ROOT / "MAINTAINED_COMPONENTS.toml"
 
 LIVE_CONFIG_PATH = HOME / ".codex/config.toml"
 LAUNCH_AGENTS_DIR = HOME / "Library/LaunchAgents"
-QMD_CHAT_LAUNCH_AGENT_NAME = "io.codex.spine.qmd-codex-chat.plist"
-QMD_CHAT_LAUNCH_AGENT_LABEL = "io.codex.spine.qmd-codex-chat"
+QMD_CHAT_LAUNCH_AGENT_NAME = "codex-spine.qmd-codex-chat.plist"
+QMD_CHAT_LAUNCH_AGENT_LABEL = "codex-spine.qmd-codex-chat"
+LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES = [
+    "io.codex.spine.qmd-codex-chat.plist",
+]
+LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS = [
+    "io.codex.spine.qmd-codex-chat",
+]
 LIVE_QMD_CHAT_LAUNCH_AGENT_PATH = LAUNCH_AGENTS_DIR / QMD_CHAT_LAUNCH_AGENT_NAME
 LAUNCH_AGENT_TEMPLATE_PATH = REPO_ROOT / "launchd" / QMD_CHAT_LAUNCH_AGENT_NAME
 
@@ -42,8 +48,8 @@ LICENSES_DIR = STATE_DIR / "licenses"
 
 BLOCK_START = "# >>> codex-spine managed >>>"
 BLOCK_END = "# <<< codex-spine managed <<<"
-JCODE_BLOCK_START = "# >>> codex-spine jcode managed >>>"
-JCODE_BLOCK_END = "# <<< codex-spine jcode managed <<<"
+JCODEMUNCH_MCP_BLOCK_START = "# >>> codex-spine jcodemunch-mcp managed >>>"
+JCODEMUNCH_MCP_BLOCK_END = "# <<< codex-spine jcodemunch-mcp managed <<<"
 
 REQUIRED_CLIS = [
     "git",
@@ -68,13 +74,36 @@ PRIVATE_REFERENCE_PATTERNS = [
     re.compile(r"\bcom\.ryand\b"),
 ]
 
+REQUIRED_PUBLIC_DOC_PATHS = [
+    REPO_ROOT / "README.md",
+    REPO_ROOT / "LICENSE",
+    REPO_ROOT / "ARCHITECTURE.md",
+    REPO_ROOT / "SECURITY.md",
+    REPO_ROOT / "CHANGELOG.md",
+    REPO_ROOT / "codex/AGENTS.md",
+]
+
+FORBIDDEN_PUBLIC_ROOT_PATHS = [
+    REPO_ROOT / "AGENTS.md",
+    REPO_ROOT / "PROJECT_SPINE.md",
+    REPO_ROOT / "CHECKPOINT.md",
+    REPO_ROOT / "QA_MATRIX.md",
+]
+
+FORBIDDEN_PUBLIC_DOC_PATTERNS = {
+    "PROJECT_SPINE.md": re.compile(r"\bPROJECT_SPINE\.md\b"),
+    "CHECKPOINT.md": re.compile(r"\bCHECKPOINT\.md\b"),
+    "QA_MATRIX.md": re.compile(r"\bQA_MATRIX\.md\b"),
+    "codex-env": re.compile(r"\bcodex-env\b"),
+    "private Gitea": re.compile(r"\bprivate Gitea\b", re.IGNORECASE),
+}
+
 REQUIRED_COMPONENT_FIELDS = {
     "name",
     "summary",
     "boundary_class",
-    "public_candidate",
-    "export_ready",
-    "export_blockers",
+    "release_ready",
+    "release_blockers",
     "install_model",
     "maintenance_model",
     "upstream_source",
@@ -85,7 +114,7 @@ REQUIRED_COMPONENT_FIELDS = {
     "notes",
 }
 
-ALLOWED_BOUNDARY_CLASSES = {"local-only", "private-incubator", "public-core"}
+ALLOWED_BOUNDARY_CLASSES = {"public-core"}
 
 
 @dataclass(frozen=True)
@@ -194,13 +223,11 @@ def validate_components_registry(path: Path = COMPONENTS_PATH) -> list[str]:
                 f"component entry has invalid boundary_class: components.{component_key}: {boundary_class!r}"
             )
 
-        for field_name in ("public_candidate", "export_ready"):
-            if not isinstance(raw_component.get(field_name), bool):
-                errors.append(
-                    f"component entry field must be boolean: components.{component_key}.{field_name}"
-                )
-
-        for field_name in ("export_blockers", "notes"):
+        if not isinstance(raw_component.get("release_ready"), bool):
+            errors.append(
+                f"component entry field must be boolean: components.{component_key}.release_ready"
+            )
+        for field_name in ("release_blockers", "notes"):
             value = raw_component.get(field_name)
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 errors.append(
@@ -457,6 +484,34 @@ def text_file_paths(root: Path) -> list[Path]:
         if path.suffix in exts or path.name in {"Makefile"}:
             results.append(path)
     return sorted(results)
+
+
+def public_doc_paths() -> list[Path]:
+    return list(REQUIRED_PUBLIC_DOC_PATHS)
+
+
+def validate_public_doc_surface() -> list[str]:
+    errors: list[str] = []
+
+    for path in REQUIRED_PUBLIC_DOC_PATHS:
+        if not path.exists():
+            errors.append(f"missing required public doc surface: {relative_to_repo(path)}")
+
+    for path in FORBIDDEN_PUBLIC_ROOT_PATHS:
+        if path.exists():
+            errors.append(f"internal control doc should not ship in the public repo: {relative_to_repo(path)}")
+
+    for path in public_doc_paths():
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for label, pattern in FORBIDDEN_PUBLIC_DOC_PATTERNS.items():
+            if pattern.search(text):
+                errors.append(
+                    f"public doc still references internal-only repo surface: {relative_to_repo(path)}: {label}"
+                )
+
+    return errors
 
 
 def detect_secret_hits(text: str) -> list[str]:

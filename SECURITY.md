@@ -1,23 +1,36 @@
 # Security Policy
 
-## Scope
+## Security Footprint
 
-`codex-spine` manages local environment state, generated config, shell hooks, and background transcript-sync behavior. Treat it as workstation infrastructure.
+`codex-spine` is a user-level macOS workstation bootstrap and maintenance tool. Its security-relevant behavior is:
 
-## Secret Handling
+- writing generated Codex config under `~/.codex/config.toml`
+- managing symlinks under `~/.codex/skills/` and `~/.local/bin/`
+- editing user shell startup files to source managed fragments
+- installing a user LaunchAgent at `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
+- installing or updating pinned third-party user-space tools such as the upstream `tobi/qmd` package and the optional `jgravelle/jcodemunch-mcp` package
 
-- Tracked files must remain secret-free.
-- `codex-spine` does not bundle plaintext secrets.
-- Users should continue to manage provider tokens through their normal Codex or OS secret mechanisms.
-- Optional components with separate licensing, such as `jcode`, store acknowledgement provenance only; they do not store secret credentials.
+`codex-spine` does not require root, install privileged daemons, expose a network service, or act as a sandbox for untrusted code.
+
+## Data And Secrets
+
+- The repo and generated public config are intended to remain secret-free.
+- Provider credentials should stay in the user’s normal Codex or operating-system secret mechanisms, not in tracked files.
+- The default QMD-backed memory flow stores local transcript and derived project-memory data under `~/.cache/qmd/codex_chat`. Treat that local index as sensitive if your Codex transcripts contain sensitive content.
+- Optional `jCodeMunch MCP` enablement stores retrieved upstream terms text and acknowledgement provenance under the repo-local `.state/` directory. It does not store credentials.
+
+## Trust Boundaries
+
+- Tracked repo files and generated local overlays are part of the trusted local installation surface.
+- Upstream package artifacts and fetched upstream terms text are external inputs. `codex-spine` reduces risk by pinning versions and by refusing optional `jCodeMunch MCP` enablement or update when the required upstream terms cannot be retrieved.
+- Indexed source trees, Codex transcripts, and project-memory material may contain arbitrary user or project content. `codex-spine` does not claim to sanitize that content for downstream tools.
+
+## Supported Assumptions
+
+- single-user workstation operation
+- user-space installation without elevated privileges
+- macOS-first automation; Linux and Windows analogs are documented inline but not supported as packaged automation in v1
 
 ## Reporting
 
-Until `codex-spine` is public on GitHub, report security concerns privately to the maintainer rather than opening a public issue with exploit details.
-
-## Review Priorities
-
-- accidental private-path or personal-service leakage into the public repo
-- secret material in tracked config, shell fragments, or docs
-- unsafe machine-state mutation during bootstrap or update
-- unbounded trust in downloaded or fetched third-party artifacts
+Report security concerns privately to the maintainer rather than opening a public issue with exploit details until a dedicated public reporting channel is published.

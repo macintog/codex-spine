@@ -25,6 +25,7 @@ from codex_spine import (  # noqa: E402
     enabled_component_names,
     enabled_component_record,
     managed_links,
+    validate_public_doc_surface,
     render_config_text,
     render_launch_agent_text,
     shell_source_targets,
@@ -48,6 +49,7 @@ def main() -> int:
     errors: list[str] = []
     errors.extend(validate_components_registry(COMPONENTS_PATH))
     errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
+    errors.extend(validate_public_doc_surface())
 
     for path in text_file_paths(REPO_ROOT):
         if path == LOCAL_CONFIG_OVERLAY:

@@ -12,8 +12,8 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 
 from codex_spine import (  # noqa: E402
     HOME,
-    JCODE_BLOCK_END,
-    JCODE_BLOCK_START,
+    JCODEMUNCH_MCP_BLOCK_END,
+    JCODEMUNCH_MCP_BLOCK_START,
     LIVE_CONFIG_PATH,
     LOCAL_CONFIG_EXAMPLE,
     LOCAL_CONFIG_OVERLAY,
@@ -30,7 +30,7 @@ from component_manager import (  # noqa: E402
 )
 
 
-def jcode_overlay_body() -> str:
+def jcodemunch_mcp_overlay_body() -> str:
     return """[mcp_servers.jcodemunch]
 command = "__HOME__/.local/bin/jcodemunch-mcp"
 args = []
@@ -62,8 +62,13 @@ def main() -> int:
     )
     update_component(component)
 
-    if component.name == "jcode":
-        replace_managed_block(LOCAL_CONFIG_OVERLAY, JCODE_BLOCK_START, JCODE_BLOCK_END, jcode_overlay_body())
+    if component.name == "jcodemunch-mcp":
+        replace_managed_block(
+            LOCAL_CONFIG_OVERLAY,
+            JCODEMUNCH_MCP_BLOCK_START,
+            JCODEMUNCH_MCP_BLOCK_END,
+            jcodemunch_mcp_overlay_body(),
+        )
 
     rendered = render_config_text()
     if LIVE_CONFIG_PATH.exists():

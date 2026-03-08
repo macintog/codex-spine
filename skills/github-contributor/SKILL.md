@@ -59,18 +59,20 @@ If the answers are weak, the component is not ready for `public-core`.
 
 Every new tool or public-facing integration must be classified before it lands.
 
+If you are working in the private source repo or incubator, use the full boundary model:
+
 - `local-only`: personal services, accounts, tokens, trust lists, or machine-specific infrastructure
 - `private-incubator`: promising for public use, but still wrong in structure for public inheritance
 - `public-core`: generally useful, structurally clean, and appropriate for future public export
 
 Default to `private-incubator` when a component is promising but not yet clean.
 
-Keep this distinction explicit:
+Keep this distinction explicit in the private source repo:
 
 - `private-incubator`: not yet public in design
-- `public-core` with `export_ready=false`: public in design, not yet ready to ship
+- `public-core` with separate release/export state: public in design, not yet ready to ship
 
-If publishing would still require changing what the component fundamentally is, it belongs in `private-incubator`, not `public-core`.
+If you are working in a standalone forwarded public repo, do not leak private source classifications into the public surface. Follow that repo's public-only schema instead.
 
 ## Phase 4: Leave A Durable Record
 
@@ -79,10 +81,8 @@ Do not rely on chat history for component governance.
 - If the repo has a component registry, update it.
 - If the repo lacks one and the project is long-lived, create one before more public-facing integration work proceeds.
 - Record at minimum:
-  - boundary class
-  - public-candidate status
-  - export-ready status
-  - export blockers
+  - boundary class if the repo models boundary classes
+  - the repo's chosen publication or release readiness fields
   - install model
   - maintenance model
   - upstream source
@@ -103,9 +103,20 @@ Shape the implementation so another user can inherit it without inheriting your 
 
 README cleanup is not a substitute for a structurally public design.
 
+### Forwarded Public Repos
+
+If the public repo is a forwarded or exported surface from a private source repo:
+
+- decide explicitly which side is canonical
+- edit the canonical source first
+- materialize the forwarded repo from that source
+- verify the forwarded repo matches the canonical source after export
+
+Do not treat the forwarded repo as a second authoring surface and sync back later by hand. That creates avoidable drift, especially in docs, manifests, and maintainer-facing references.
+
 ## Phase 6: Sweep The Full Public Surface
 
-Before calling anything export-ready, release-ready, or upstream-ready, inspect the adjacent surfaces.
+Before calling anything publication-ready, release-ready, or upstream-ready, inspect the adjacent surfaces.
 
 Default surfaces to inspect:
 
@@ -131,6 +142,14 @@ Possible surfaces include:
 - `CHANGELOG.md` for real release history and user-visible change tracking
 
 Create them when they have a real job. Do not create them just to imitate mature projects cosmetically.
+
+Internal startup and maintainer-control docs are different:
+
+- root `AGENTS.md`, `CHECKPOINT.md`, and `PROJECT_SPINE.md` are usually internal workflow surfaces, not public product docs
+- QA or release-matrix files are usually internal release-management surfaces, not public product docs
+- do not export those files into a public repo by default unless they are intentionally part of the shipped product or contributor workflow
+- shipped runtime policy files such as `codex/AGENTS.md` can still belong in a public repo when they are part of the product itself
+- when a forwarded public repo has a verifier, make it fail if those internal control files reappear or if public product docs start pointing back at internal source-repo surfaces
 
 Reference checklist:
 - `references/public-doc-surface-checklist.md`
@@ -184,7 +203,7 @@ Promotion from `private-incubator` to `public-core` requires:
 - no personal-service dependency
 - public docs can describe it honestly and clearly
 
-Setting `export_ready=true` requires:
+For any repo that tracks publication or release readiness, the ready state requires:
 
 - implementation complete enough to publish
 - validation appropriate for the component
@@ -193,7 +212,7 @@ Setting `export_ready=true` requires:
 - no private references in exported config, scripts, or docs
 - any optional third-party licensing UX in place
 
-It is acceptable for `public-core` work to have `export_ready=false`.
+It is acceptable for structurally public work to remain not-yet-ready in either a private source repo or a forwarded public repo.
 
 ## Phase 11: Upstream Contribution Mode
 
@@ -214,6 +233,8 @@ Watch for these anti-patterns:
 - treating "not polished yet" as the same thing as `private-incubator`
 - letting public-core accumulate private paths or personal services
 - assuming README cleanup can fix a structurally private design
+- treating a forwarded public repo as an independent authoring surface instead of a materialized export
+- leaking private-source governance vocabulary into a forwarded public repo whose schema is intentionally narrower
 - calling something public-ready while key optional dependencies still have unresolved license or affiliation posture
 - relying on chat memory instead of a durable component record
 - splitting GitHub-quality guidance across multiple skills until the standards drift

@@ -60,13 +60,19 @@ Create this when the internal shape is no longer obvious from the README and sou
 
 Use for:
 
+- the project's actual security footprint and attack surface
 - threat model and security posture
 - vulnerability reporting path
+- data handling and storage locations that matter for security
 - secret-handling rules
 - trust or sandbox boundaries
+- privileged versus user-space behavior
+- external artifact or dependency trust assumptions
 - supported deployment assumptions that affect security
 
 Create this when the project handles secrets, credentials, code execution, external content, storage/indexing of user data, or any workflow where responsible disclosure and security expectations should be explicit.
+
+Do not use it for maintainer process notes or repo-development hygiene unless those details materially affect the shipped product's security behavior.
 
 ### `CHANGELOG.md`
 
@@ -96,11 +102,16 @@ Ask these questions:
   - if yes, create `SECURITY.md`
 - Are releases and user-visible changes starting to matter over time?
   - if yes, create `CHANGELOG.md`
+- Are you reaching for root `AGENTS.md`, `CHECKPOINT.md`, `PROJECT_SPINE.md`, or a QA/release matrix in a public repo?
+  - if yes, stop and ask whether it is an internal maintainer or release-management doc that should stay out of the public export
+- Is this a forwarded public repo with a verifier?
+  - if yes, make the verifier reject reintroduction of internal control docs and obvious references back to the private source repo in shipped public product docs
 
 ## Anti-Patterns
 
 - duplicating the same content across README, guide, spec, and architecture docs
 - writing aspirational specs for unstable interfaces
 - writing security theater instead of concrete posture and reporting guidance
+- shipping internal maintainer or release-management docs as if they were public product documentation
 - creating a changelog before the project has real public release history
 - hiding important contracts in prose docs when they should be explicit in a spec

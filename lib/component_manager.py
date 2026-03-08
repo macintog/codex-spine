@@ -123,6 +123,11 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                     errors.append(
                         f"backend must define {field_name}: components.{component_name}.backends.{backend_name}.{field_name}"
                     )
+            if backend.get("license_source_url") and not backend.get("license_start_marker"):
+                errors.append(
+                    "licensed backend must define license_start_marker: "
+                    f"components.{component_name}.backends.{backend_name}.license_start_marker"
+                )
 
     return errors
 

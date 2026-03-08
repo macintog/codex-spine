@@ -12,6 +12,8 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 
 from codex_spine import (  # noqa: E402
     HOME,
+    LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS,
+    LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES,
     LIVE_CONFIG_PATH,
     LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
     LOCAL_CONFIG_EXAMPLE,
@@ -36,17 +38,17 @@ def run_script(script_name: str, *args: str) -> None:
     subprocess.run([str(REPO_ROOT / "scripts" / script_name), *args], check=True)
 
 
-def jcode_enabled() -> bool:
+def jcodemunch_mcp_enabled() -> bool:
     return LOCAL_CONFIG_OVERLAY.exists() and "[mcp_servers.jcodemunch]" in LOCAL_CONFIG_OVERLAY.read_text(encoding="utf-8")
 
 
-def maybe_offer_jcode() -> None:
-    if jcode_enabled() or not sys.stdin.isatty():
+def maybe_offer_jcodemunch_mcp() -> None:
+    if jcodemunch_mcp_enabled() or not sys.stdin.isatty():
         return
-    reply = input("Enable optional jcode integration now? [y/N] ").strip().lower()
+    reply = input("Enable optional jCodeMunch MCP integration now? [y/N] ").strip().lower()
     if reply not in {"y", "yes"}:
         return
-    run_script("component-enable", "jcode")
+    run_script("component-enable", "jcodemunch-mcp")
 
 
 def main() -> int:
@@ -81,14 +83,22 @@ def main() -> int:
             backup_existing(LIVE_CONFIG_PATH)
     write_text(LIVE_CONFIG_PATH, rendered, mode=0o600)
 
-    write_text(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text(), mode=0o644)
     uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
+    for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:
+        legacy_path = HOME / "Library/LaunchAgents" / legacy_name
+        subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(legacy_path)], check=False)
+        if legacy_path.exists():
+            legacy_path.unlink()
+
+    write_text(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text(), mode=0o644)
     subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], check=False)
+    for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
+        subprocess.run(["launchctl", "bootout", f"gui/{uid}/{legacy_label}"], check=False)
     subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], check=False)
-    subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/io.codex.spine.qmd-codex-chat"], check=False)
+    subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/codex-spine.qmd-codex-chat"], check=False)
 
     if not args.non_interactive:
-        maybe_offer_jcode()
+        maybe_offer_jcodemunch_mcp()
 
     run_script("verify")
     print("bootstrap: ok")
