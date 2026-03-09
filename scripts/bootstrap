@@ -81,13 +81,13 @@ ensure_bootstrap_python() {
             return 1
         fi
         installer_script=$(mktemp -t codex-spine-homebrew-install.XXXXXX.sh)
-        printf '$ curl -fL %s -o %s\n' "$installer_url" "$installer_script"
+        printf '$ curl -fL %s -o %s\n' "$installer_url" "$installer_script" >&2
         if ! curl -fL "$installer_url" -o "$installer_script"; then
             rm -f "$installer_script"
             printf '%s\n' "Homebrew installer download failed. See output above for details." >&2
             return 1
         fi
-        printf '$ /bin/bash %s\n' "$installer_script"
+        printf '$ /bin/bash %s\n' "$installer_script" >&2
         if ! /bin/bash "$installer_script"; then
             rm -f "$installer_script"
             printf '%s\n' "Homebrew installation failed. See output above for details." >&2
@@ -106,7 +106,7 @@ ensure_bootstrap_python() {
         return 1
     fi
 
-    printf '$ %s install python\n' "$brew_path"
+    printf '$ %s install python\n' "$brew_path" >&2
     if ! "$brew_path" install python; then
         if ! developer_tools_ready; then
             printf '%s\n' "Homebrew could not install Python because Apple Command Line Tools are missing or incomplete. Finish the Command Line Tools install, open a new shell, and rerun \`make bootstrap\`." >&2
