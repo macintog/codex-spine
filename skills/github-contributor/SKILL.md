@@ -122,6 +122,8 @@ If the public repo is a forwarded or exported surface from a private source repo
 - edit the canonical source first
 - materialize the forwarded repo from that source
 - verify the forwarded repo matches the canonical source after export
+- treat template-only or source-only fixes as incomplete until the exported public repo is regenerated, inspected, and validated directly
+- when behavior depends on shipped policy, startup guidance, manifests, or generated files, inspect the exported file that users actually inherit, not just the private template you meant to ship
 
 Do not treat the forwarded repo as a second authoring surface and sync back later by hand. That creates avoidable drift, especially in docs, manifests, and maintainer-facing references.
 

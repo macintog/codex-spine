@@ -47,12 +47,12 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 `make install` is the install step, not just a validation step. It:
 
+- checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
 - checks that Homebrew exists and installs any missing baseline packages needed by the managed runtime
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
 - renders `~/.codex/config.toml`
-- preserves an existing unmanaged `~/.codex/config.toml` by importing its settings into the local gitignored `codex/config/80-adopted.toml`, then backs up the previous live file before replacing only the codex-spine-managed sections
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installs or updates the default managed components
 - runs the first transcript sync and qmd index refresh so memory and transcript retrieval are warm before install finishes
@@ -60,6 +60,33 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 Optional `jCodeMunch MCP` enablement stays separate from first-run install.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
+
+## Existing Codex Configs
+
+Codex reads one live config file at `~/.codex/config.toml`. `codex-spine` does not patch that file in place table-by-table. Instead, it renders one final managed config from a small set of fragments so the result is predictable and repeatable.
+
+The relevant inputs are:
+
+- `codex/config/00-base.toml` for base `codex-spine` defaults
+- `codex/config/20-codex-spine-mcps.toml` for the `codex-spine`-managed `memory` and `qmd_codex` MCP entries
+- `codex/config/80-adopted.toml` for settings imported from a pre-existing unmanaged `~/.codex/config.toml`
+- `codex/config/90-local.toml` for your own local machine-specific overrides
+
+If `~/.codex/config.toml` already exists and is not already `codex-spine`-managed, install asks about it before broader system changes.
+
+If you accept:
+
+- `codex-spine` imports the non-`codex-spine` parts of the current live config into the local gitignored `codex/config/80-adopted.toml`
+- backs up the previous live `~/.codex/config.toml`
+- renders a new live config that includes the imported settings plus the `codex-spine`-managed MCP entries
+
+If you decline:
+
+- `~/.codex/config.toml` stays exactly as it was
+- `codex/config/80-adopted.toml` is not created
+- install stops before `codex-spine` changes Homebrew packages, managed wrappers, shell files, launchd, or the live Codex config
+
+The rationale is to keep `codex-spine` ownership narrow and explicit. It manages the MCP entries it owns, preserves the rest of an existing Codex config when you approve that import, and avoids hand-editing arbitrary live config in place.
 
 ## First-Run Success Criteria
 
