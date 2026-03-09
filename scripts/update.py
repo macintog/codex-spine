@@ -51,6 +51,8 @@ def main() -> int:
             accept_license=args.accept_license,
             non_interactive=args.non_interactive or not sys.stdin.isatty(),
         )
+        package_name = component.backend.get("package_name", component.name)
+        print(f"{component.name}: installing/updating {package_name}...", flush=True)
         for line in update_component(component):
             print(line)
 

@@ -264,6 +264,25 @@ def validate_memory_scope_isolation() -> list[str]:
     return errors
 
 
+def validate_public_agents_policy() -> list[str]:
+    agents_path = REPO_ROOT / "codex/AGENTS.md"
+    try:
+        text = agents_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [f"missing Codex policy file: {agents_path}"]
+
+    required_phrases = [
+        "memory.bootstrap_context",
+        "qmd_codex",
+        "max_recent_sessions=3",
+    ]
+    errors: list[str] = []
+    for phrase in required_phrases:
+        if phrase not in text:
+            errors.append(f"public Codex policy is missing required memory guidance: {agents_path}: {phrase}")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-only", action="store_true")
@@ -274,6 +293,7 @@ def main() -> int:
     errors.extend(validate_components_registry(COMPONENTS_PATH))
     errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
     errors.extend(validate_public_doc_surface())
+    errors.extend(validate_public_agents_policy())
     errors.extend(validate_memory_scope_isolation())
 
     for path in text_file_paths(REPO_ROOT):
