@@ -245,29 +245,6 @@ def run(
     )
 
 
-def run_streaming(
-    args: list[str],
-    *,
-    cwd: Path | None = None,
-    env: dict[str, str] | None = None,
-) -> tuple[int, str]:
-    process = subprocess.Popen(
-        args,
-        cwd=str(cwd) if cwd else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env,
-    )
-    output_chunks: list[str] = []
-    assert process.stdout is not None
-    for line in process.stdout:
-        print(line, end="", flush=True)
-        output_chunks.append(line)
-    process.wait()
-    return process.returncode, "".join(output_chunks)
-
-
 def prompt_yes_no(prompt: str, *, default: bool, non_interactive: bool) -> bool:
     if non_interactive or not sys.stdin.isatty():
         return default
@@ -300,6 +277,23 @@ def looks_like_clt_issue(text: str) -> bool:
     return any(needle in lowered for needle in needles)
 
 
+def developer_tools_ready() -> bool:
+    probes = [
+        ["/usr/bin/xcode-select", "-p"],
+        ["/usr/bin/xcrun", "--find", "git"],
+    ]
+    for args in probes:
+        result = subprocess.run(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return False
+    return True
+
+
 def ensure_homebrew(*, non_interactive: bool) -> Path:
     brew_path = homebrew_bin_path()
     if brew_path is not None:
@@ -316,12 +310,12 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
         )
 
     print(f"$ {install_command}")
-    returncode, output = run_streaming(
+    result = subprocess.run(
         ["/bin/bash", "-c", install_command],
+        check=False,
     )
-    if returncode != 0:
-        detail = first_nonempty_line(output) or f"exit {returncode}"
-        raise RuntimeError(f"Homebrew installation failed: {detail}")
+    if result.returncode != 0:
+        raise RuntimeError("Homebrew installation failed. See output above for details.")
 
     brew_path = homebrew_bin_path()
     if brew_path is None:
@@ -356,17 +350,17 @@ def install_missing_brew_formulas(
         )
 
     print(f"$ {shlex.join([str(brew_path), 'install', *missing])}")
-    returncode, output = run_streaming(
+    result = subprocess.run(
         [str(brew_path), "install", *missing],
+        check=False,
         env=runtime_env(),
     )
-    if returncode != 0:
-        detail = first_nonempty_line(output) or f"exit {returncode}"
-        if looks_like_clt_issue(output):
+    if result.returncode != 0:
+        if not developer_tools_ready():
             raise RuntimeError(
                 "Homebrew dependency install failed because Apple Command Line Tools are missing or still installing. Complete the CLT install, open a new shell if needed, and rerun `make bootstrap`."
             )
-        raise RuntimeError(f"Homebrew dependency install failed: {detail}")
+        raise RuntimeError("Homebrew dependency install failed. See output above for details.")
     return missing
 
 
