@@ -258,7 +258,9 @@ def prompt_yes_no(prompt: str, *, default: bool, non_interactive: bool) -> bool:
     if non_interactive or not sys.stdin.isatty():
         return default
 
-    suffix = "[Y/n]" if default else "[y/N]"
+    bold_on = "\033[1m" if sys.stdout.isatty() else ""
+    bold_off = "\033[0m" if bold_on else ""
+    suffix = f"[{bold_on}Y{bold_off}/n]" if default else f"[y/{bold_on}N{bold_off}]"
     reply = input(f"{prompt} {suffix} ").strip().lower()
     if not reply:
         return default

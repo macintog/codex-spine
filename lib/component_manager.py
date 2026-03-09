@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -73,6 +74,10 @@ def _run_live(
         text=True,
         env=env,
     )
+
+
+def _progress(message: str) -> None:
+    print(message, flush=True)
 
 
 def _prefixed_env(*prefixes: str) -> dict[str, str]:
@@ -154,7 +159,7 @@ def _rebuild_better_sqlite3() -> bool:
         for candidate in root.glob("**/.pnpm/better-sqlite3@*/node_modules/better-sqlite3"):
             if candidate in seen:
                 continue
-            _run(["pnpm", "rebuild"], cwd=candidate, check=True, env=_pnpm_env())
+            _run_live(["pnpm", "rebuild"], cwd=candidate, check=True, env=_pnpm_env())
             rebuilt = True
             seen.add(candidate)
     return rebuilt
@@ -368,14 +373,18 @@ def update_component(component: ResolvedComponent) -> list[str]:
         _prepare_pnpm_global_bin()
     action = component_status(component)["action"]
     _run_live(action, check=True, env=_pnpm_env())
+    _progress(f"{component.name}: verifying health...")
     status = component_status(component)
     if not status["healthy"]:
+        _progress(f"{component.name}: rebuilding native addons and rechecking health...")
         if _rebuild_better_sqlite3():
             status = component_status(component)
     if not status["healthy"]:
         workspace = _pnpm_global_workspace()
         if workspace is not None:
+            _progress(f"{component.name}: rebuilding the global pnpm workspace...")
             _run_live(["pnpm", "rebuild"], cwd=workspace, check=True, env=_pnpm_env())
+            _progress(f"{component.name}: rechecking health after workspace rebuild...")
             status = component_status(component)
     if not status["healthy"]:
         raise RuntimeError(f"{component.name} remains unhealthy after update: {status['detail']}")
@@ -418,6 +427,15 @@ def ensure_license_acknowledged(
     accept_license: bool,
     non_interactive: bool,
 ) -> dict | None:
+    if not component.backend.get("license_source_url"):
+        return None
+
+    if not accept_license and not non_interactive:
+        try:
+            input("Press Return to fetch and review the pinned upstream terms: ")
+        except EOFError as exc:
+            raise RuntimeError(f"Stopped before fetching the upstream terms. {component.name} was not enabled.") from exc
+    _progress(f"Fetching pinned upstream terms for {component.name}...")
     bundle = fetch_license_terms(component)
     if bundle is None:
         return None
@@ -443,10 +461,13 @@ def ensure_license_acknowledged(
 
     if not accept_license:
         print(f"Retrieved upstream terms for {component.name} {version} from {bundle['source_url']}\n")
-        print(bundle["text"])
-        reply = input("Type 'accept' to continue: ").strip().lower()
+        _page_terms_text(bundle["text"])
+        try:
+            reply = input("Type 'accept' to continue: ").strip().lower()
+        except EOFError as exc:
+            raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
         if reply != "accept":
-            raise RuntimeError(f"license acknowledgement declined for {component.name}")
+            raise RuntimeError(f"Did not receive 'accept'. {component.name} was not enabled.")
 
     state = load_component_state()
     enabled = state.setdefault("enabled", {})
@@ -459,3 +480,20 @@ def ensure_license_acknowledged(
     }
     write_component_state(state)
     return bundle
+
+
+def _page_terms_text(text: str) -> None:
+    lines = text.splitlines()
+    page_size = max(shutil.get_terminal_size(fallback=(80, 24)).lines - 4, 8)
+    total = len(lines) or 1
+    start = 0
+    while start < len(lines):
+        end = min(start + page_size, len(lines))
+        print(f"\n--- Terms {start + 1}-{end} of {total} ---")
+        print("\n".join(lines[start:end]))
+        start = end
+        if start >= len(lines):
+            break
+        reply = input("\nPress Return for more, or type 'q' to stop reviewing: ").strip().lower()
+        if reply in {"q", "quit", "stop"}:
+            raise RuntimeError("Stopped reviewing the upstream terms before the end. jCodeMunch MCP was not enabled.")

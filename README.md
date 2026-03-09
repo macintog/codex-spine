@@ -48,7 +48,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 `make install` is the install step, not just a validation step. It:
 
 - checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
-- for interactive installs, asks early whether you want to include the optional `jCodeMunch MCP` integration later in the same install
+- for interactive installs, asks early whether you want to include the optional `jCodeMunch MCP` integration later in the same install; that prompt defaults to yes
 - checks that Homebrew exists and installs any missing baseline packages needed by the managed runtime
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
@@ -60,7 +60,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 Optional `jCodeMunch MCP` stays out of the default core path, but interactive install can include it when you opt in.
 
-If you choose `jCodeMunch MCP` during interactive install, `codex-spine` remembers that choice early, then later in the install fetches the pinned upstream terms and requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
+If you choose `jCodeMunch MCP` during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 

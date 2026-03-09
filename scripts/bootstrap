@@ -66,10 +66,12 @@ prompt_yes_no() {
         return $?
     fi
 
+    bold_on=$(printf '\033[1m')
+    bold_off=$(printf '\033[0m')
     if [ "$default" -eq 1 ]; then
-        suffix="[Y/n]"
+        suffix="[$bold_on"'Y'"$bold_off/n]"
     else
-        suffix="[y/N]"
+        suffix="[y/$bold_on"'N'"$bold_off]"
     fi
 
     printf '%s %s ' "$prompt" "$suffix" >&2
@@ -163,7 +165,7 @@ for explicit acknowledgement before enabling it.
 
 Include jCodeMunch MCP in this install?
 EOF
-)" 0 "$non_interactive"; then
+)" 1 "$non_interactive"; then
         export CODEX_SPINE_JCODEMUNCH_CHOICE=enable
     else
         export CODEX_SPINE_JCODEMUNCH_CHOICE=skip

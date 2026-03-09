@@ -31,56 +31,64 @@ from component_manager import (  # noqa: E402
 )
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("component")
-    parser.add_argument("--accept-license", action="store_true")
-    parser.add_argument("--non-interactive", action="store_true")
-    args = parser.parse_args()
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("component")
+        parser.add_argument("--accept-license", action="store_true")
+        parser.add_argument("--non-interactive", action="store_true")
+        args = parser.parse_args()
 
-    components = {component.name: component for component in resolve_components()}
-    if args.component not in components:
-        print(f"ERROR: unknown component: {args.component}", file=sys.stderr)
-        return 1
+        components = {component.name: component for component in resolve_components()}
+        if args.component not in components:
+            print(f"ERROR: unknown component: {args.component}", file=sys.stderr)
+            return 1
 
-    component = components[args.component]
-    if component.default_enabled:
-        print(f"{component.name} is already enabled by default")
-        return 0
+        component = components[args.component]
+        if component.default_enabled:
+            print(f"{component.name} is already enabled by default")
+            return 0
 
-    ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
-    ensure_license_acknowledged(
-        component,
-        accept_license=args.accept_license,
-        non_interactive=args.non_interactive or not sys.stdin.isatty(),
-    )
-    update_component(component)
-
-    if component.name == "jcodemunch-mcp":
-        replace_managed_block(
-            LOCAL_CONFIG_OVERLAY,
-            JCODEMUNCH_MCP_BLOCK_START,
-            JCODEMUNCH_MCP_BLOCK_END,
-            jcodemunch_mcp_overlay_body(),
+        ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
+        ensure_license_acknowledged(
+            component,
+            accept_license=args.accept_license,
+            non_interactive=args.non_interactive or not sys.stdin.isatty(),
         )
+        update_component(component)
 
-    config_plan = prepare_generated_config_target(
-        LIVE_CONFIG_PATH,
-        non_interactive=args.non_interactive or not sys.stdin.isatty(),
-    )
-    rendered = render_config_text()
-    write_generated_config(
-        LIVE_CONFIG_PATH,
-        rendered,
-        allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
-    )
-    if config_plan.adopted_overlay_path is not None:
-        print(f"Imported the existing Codex config into {config_plan.adopted_overlay_path}")
-    if config_plan.backup_path is not None:
-        print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
+        if component.name == "jcodemunch-mcp":
+            replace_managed_block(
+                LOCAL_CONFIG_OVERLAY,
+                JCODEMUNCH_MCP_BLOCK_START,
+                JCODEMUNCH_MCP_BLOCK_END,
+                jcodemunch_mcp_overlay_body(),
+            )
 
-    subprocess.run([str(REPO_ROOT / "scripts" / "verify")], check=True)
-    print(f"{component.name}: enabled")
-    return 0
+        config_plan = prepare_generated_config_target(
+            LIVE_CONFIG_PATH,
+            non_interactive=args.non_interactive or not sys.stdin.isatty(),
+        )
+        rendered = render_config_text()
+        write_generated_config(
+            LIVE_CONFIG_PATH,
+            rendered,
+            allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
+        )
+        if config_plan.adopted_overlay_path is not None:
+            print(f"Imported the existing Codex config into {config_plan.adopted_overlay_path}")
+        if config_plan.backup_path is not None:
+            print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
+
+        subprocess.run([str(REPO_ROOT / "scripts" / "verify")], check=True)
+        print(f"{component.name}: enabled")
+        return 0
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: command failed with exit status {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
+        print("See output above for details.", file=sys.stderr)
+        return exc.returncode or 1
 
 
 if __name__ == "__main__":

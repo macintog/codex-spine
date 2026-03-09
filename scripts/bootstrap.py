@@ -76,11 +76,16 @@ def maybe_enable_jcodemunch(*, non_interactive: bool) -> bool:
 
     print("\nYou chose to include optional jCodeMunch MCP in this install.")
     print("codex-spine will fetch the pinned upstream terms now and ask for explicit acknowledgement before enabling it.")
-    ensure_license_acknowledged(
-        component,
-        accept_license=False,
-        non_interactive=non_interactive or not sys.stdin.isatty(),
-    )
+    try:
+        ensure_license_acknowledged(
+            component,
+            accept_license=False,
+            non_interactive=non_interactive or not sys.stdin.isatty(),
+        )
+    except RuntimeError as exc:
+        warn(str(exc))
+        print("Continuing install without optional jCodeMunch MCP.")
+        return False
     package_name = component.backend.get("package_name", component.name)
     print(f"{component.name}: installing/updating {package_name}...", flush=True)
     print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
@@ -130,89 +135,97 @@ def run_launchctl(args: list[str], *, label: str) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--non-interactive", action="store_true")
-    args = parser.parse_args()
-    non_interactive = args.non_interactive or not sys.stdin.isatty()
-    shell_plan = detect_shell_integration_plan()
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--non-interactive", action="store_true")
+        args = parser.parse_args()
+        non_interactive = args.non_interactive or not sys.stdin.isatty()
+        shell_plan = detect_shell_integration_plan()
 
-    if shell_plan.warning:
-        warn(shell_plan.warning)
+        if shell_plan.warning:
+            warn(shell_plan.warning)
 
-    brew_path = ensure_homebrew(non_interactive=non_interactive)
-    config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
-    installed_formulas = install_missing_brew_formulas(
-        brew_path,
-        non_interactive=non_interactive,
-    )
-    if installed_formulas:
-        print(f"Installed Homebrew packages: {', '.join(installed_formulas)}")
+        brew_path = ensure_homebrew(non_interactive=non_interactive)
+        config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
+        installed_formulas = install_missing_brew_formulas(
+            brew_path,
+            non_interactive=non_interactive,
+        )
+        if installed_formulas:
+            print(f"Installed Homebrew packages: {', '.join(installed_formulas)}")
 
-    ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
-    ensure_example_copy(LOCAL_ENV_EXAMPLE, LOCAL_ENV_FILE)
+        ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
+        ensure_example_copy(LOCAL_ENV_EXAMPLE, LOCAL_ENV_FILE)
 
-    for path in [
-        HOME / ".codex",
-        HOME / ".codex/skills",
-        HOME / ".local/bin",
-        HOME / "Library/LaunchAgents",
-    ]:
-        path.mkdir(parents=True, exist_ok=True)
+        for path in [
+            HOME / ".codex",
+            HOME / ".codex/skills",
+            HOME / ".local/bin",
+            HOME / "Library/LaunchAgents",
+        ]:
+            path.mkdir(parents=True, exist_ok=True)
 
-    for link in managed_links():
-        ensure_symlink(link.live_path, link.repo_path)
+        for link in managed_links():
+            ensure_symlink(link.live_path, link.repo_path)
 
-    if shell_plan.supported:
-        sanitize_zshenv(HOME / ".zshenv")
-        for dotfile, fragment in shell_source_targets(shell_plan).items():
-            upsert_source_block(dotfile, fragment)
+        if shell_plan.supported:
+            sanitize_zshenv(HOME / ".zshenv")
+            for dotfile, fragment in shell_source_targets(shell_plan).items():
+                upsert_source_block(dotfile, fragment)
 
-    print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
-    run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
-    maybe_enable_jcodemunch(non_interactive=non_interactive)
+        print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
+        run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
+        maybe_enable_jcodemunch(non_interactive=non_interactive)
 
-    rendered = render_config_text()
-    write_generated_config(
-        LIVE_CONFIG_PATH,
-        rendered,
-        allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
-    )
-    if config_plan.adopted_overlay_path is not None:
-        print(f"\nImported the existing Codex config into {config_plan.adopted_overlay_path}")
-    if config_plan.backup_path is not None:
-        print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
+        rendered = render_config_text()
+        write_generated_config(
+            LIVE_CONFIG_PATH,
+            rendered,
+            allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
+        )
+        if config_plan.adopted_overlay_path is not None:
+            print(f"\nImported the existing Codex config into {config_plan.adopted_overlay_path}")
+        if config_plan.backup_path is not None:
+            print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
 
-    uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
-    for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:
-        legacy_path = HOME / "Library/LaunchAgents" / legacy_name
-        run_bootout([f"gui/{uid}", str(legacy_path)], label=f"launchctl bootout {legacy_name}")
-        if legacy_path.exists():
-            legacy_path.unlink()
+        uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
+        for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:
+            legacy_path = HOME / "Library/LaunchAgents" / legacy_name
+            run_bootout([f"gui/{uid}", str(legacy_path)], label=f"launchctl bootout {legacy_name}")
+            if legacy_path.exists():
+                legacy_path.unlink()
 
-    write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
+        write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
 
-    # Warm the transcript projection and qmd index directly before loading the
-    # LaunchAgent. Otherwise RunAtLoad can steal the first sync and leave
-    # bootstrap showing only a lock wait instead of the real work.
-    print("\nNow we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
-    run_sync()
+        # Warm the transcript projection and qmd index directly before loading the
+        # LaunchAgent. Otherwise RunAtLoad can steal the first sync and leave
+        # bootstrap showing only a lock wait instead of the real work.
+        print("\nNow we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
+        run_sync()
 
-    run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist")
-    for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
-        run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}")
-    run_launchctl(
-        ["bootstrap", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)],
-        label="launchctl bootstrap",
-    )
+        run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist")
+        for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
+            run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}")
+        run_launchctl(
+            ["bootstrap", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)],
+            label="launchctl bootstrap",
+        )
 
-    run_script("verify")
-    if not shell_plan.supported:
-        print("Shell integration was skipped because the detected login shell is not zsh.")
-        print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
-    if os.environ.get("CODEX_SPINE_JCODEMUNCH_CHOICE") is None and "jcodemunch-mcp" not in enabled_component_names():
-        print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
-    print("install: ok")
-    return 0
+        run_script("verify")
+        if not shell_plan.supported:
+            print("Shell integration was skipped because the detected login shell is not zsh.")
+            print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
+        if os.environ.get("CODEX_SPINE_JCODEMUNCH_CHOICE") is None and "jcodemunch-mcp" not in enabled_component_names():
+            print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
+        print("install: ok")
+        return 0
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: command failed with exit status {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
+        print("See output above for details.", file=sys.stderr)
+        return exc.returncode or 1
 
 
 if __name__ == "__main__":
