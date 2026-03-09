@@ -103,6 +103,17 @@ Shape the implementation so another user can inherit it without inheriting your 
 
 README cleanup is not a substitute for a structurally public design.
 
+### Scope Isolation Is Mandatory
+
+Any feature described as project-scoped, repo-scoped, user-selected, tenant-scoped, or opt-in must enforce that scope mechanically.
+
+- Do not fall back from missing scoped state to "latest", "global", or unrelated cached state.
+- Cold-start and no-data paths must return an explicit empty or cold result, or a clear scoped error, not some other project's data.
+- Treat cross-scope fallback as a release-blocking security bug, not a polish issue.
+- When a tool indexes transcripts, caches context, or stores derived state, verify both positive and negative cases:
+  - matching in-scope data is returned when present
+  - unrelated out-of-scope data is not returned when the current scope is empty
+
 ### Forwarded Public Repos
 
 If the public repo is a forwarded or exported surface from a private source repo:
@@ -210,6 +221,8 @@ For any repo that tracks publication or release readiness, the ready state requi
 - README or public docs language ready
 - changelog updated when the public release includes notable user-visible change
 - no private references in exported config, scripts, or docs
+- no cross-scope fallback from scoped retrieval, cache, transcript, or memory features
+- explicit cold-start or no-state validation when scoped data features exist
 - any optional third-party licensing UX in place
 
 It is acceptable for structurally public work to remain not-yet-ready in either a private source repo or a forwarded public repo.
@@ -232,6 +245,7 @@ Watch for these anti-patterns:
 - adding a tool first and deciding the boundary later
 - treating "not polished yet" as the same thing as `private-incubator`
 - letting public-core accumulate private paths or personal services
+- using global latest-pointer files, shared caches, or convenience fallbacks to answer a scoped request with data from another repo, project, user selection, or tenant
 - assuming README cleanup can fix a structurally private design
 - treating a forwarded public repo as an independent authoring surface instead of a materialized export
 - leaking private-source governance vocabulary into a forwarded public repo whose schema is intentionally narrower
@@ -240,6 +254,7 @@ Watch for these anti-patterns:
 - splitting GitHub-quality guidance across multiple skills until the standards drift
 - expecting contributors to reverse-engineer architecture from code when a compact maintainer doc should exist
 - treating changelog maintenance as optional after a release already shipped
+- treating "some answer" as better than an empty answer when preserving scope would require returning no data
 
 ## Skill Feedback Loop
 

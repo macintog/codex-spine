@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +48,111 @@ def fail(errors: list[str]) -> int:
     return 1
 
 
+def validate_memory_scope_isolation() -> list[str]:
+    errors: list[str] = []
+    foreign_project_path = "/Users/test/Documents/ForeignRepo"
+    foreign_project_key = "foreign-repo-123456789abc"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        home = Path(tmp_dir)
+        current_repo = (home / "current-repo").resolve()
+        current_repo.mkdir(parents=True, exist_ok=True)
+
+        state_root = home / ".cache/qmd/codex_chat/.state"
+        foreign_bootstrap = state_root / "projects" / foreign_project_key / "bootstrap.json"
+        foreign_bootstrap.parent.mkdir(parents=True, exist_ok=True)
+        foreign_bootstrap.write_text(
+            json.dumps(
+                {
+                    "project_key": foreign_project_key,
+                    "project_path": foreign_project_path,
+                    "last_sync_utc": "2026-03-08T22:00:00Z",
+                    "summary": f"Project: {foreign_project_path}\nCurrent objective: leaked foreign project",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (state_root / "latest_project_key.txt").write_text(f"{foreign_project_key}\n", encoding="utf-8")
+
+        request = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "bootstrap_context",
+                    "arguments": {
+                        "cwd": str(current_repo),
+                        "refresh_if_stale": False,
+                    },
+                },
+            }
+        )
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        result = subprocess.run(
+            ["node", str(REPO_ROOT / "bin" / "codex-memory-mcp")],
+            input=f"{request}\n",
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+            errors.append(f"memory scope-isolation check failed to run: {detail}")
+        else:
+            try:
+                payload = json.loads(result.stdout.strip())
+                summary = payload["result"]["structuredContent"]["summary"]
+            except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                errors.append(f"memory scope-isolation check returned unparseable output: {exc}")
+            else:
+                current_repo_text = str(current_repo)
+                if current_repo_text not in summary:
+                    errors.append("memory scope-isolation check did not return the current project path")
+                if "(cold start)" not in summary:
+                    errors.append("memory scope-isolation check did not cold-start the current project")
+                if foreign_project_path in summary or "leaked foreign project" in summary:
+                    errors.append("memory scope-isolation check leaked foreign project context")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        home = Path(tmp_dir)
+        current_repo = (home / "current-repo").resolve()
+        current_repo.mkdir(parents=True, exist_ok=True)
+
+        local_bin = home / ".local/bin"
+        local_bin.mkdir(parents=True, exist_ok=True)
+        qmd_wrapper = local_bin / "qmd-codex"
+        qmd_wrapper.write_text("#!/bin/sh\necho stub-qmd \"$@\"\n", encoding="utf-8")
+        qmd_wrapper.chmod(0o755)
+
+        state_root = home / ".cache/qmd/codex_chat/.state"
+        state_root.mkdir(parents=True, exist_ok=True)
+        (state_root / "latest_projection.txt").write_text("/tmp/foreign.md\n", encoding="utf-8")
+
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        result = subprocess.run(
+            [str(REPO_ROOT / "bin" / "qmd-memory-latest.sh"), str(current_repo)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        stderr = result.stderr
+        if result.returncode == 0:
+            errors.append("qmd-memory-latest scope-isolation check unexpectedly succeeded without current project memory")
+        if str(current_repo) not in stderr:
+            errors.append("qmd-memory-latest scope-isolation check did not name the current project")
+        if foreign_project_path in stderr or "/tmp/foreign.md" in stderr:
+            errors.append("qmd-memory-latest scope-isolation check leaked foreign latest-pointer state")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-only", action="store_true")
@@ -55,6 +163,7 @@ def main() -> int:
     errors.extend(validate_components_registry(COMPONENTS_PATH))
     errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
     errors.extend(validate_public_doc_surface())
+    errors.extend(validate_memory_scope_isolation())
 
     for path in text_file_paths(REPO_ROOT):
         if path == LOCAL_CONFIG_OVERLAY:
