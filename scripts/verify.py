@@ -275,11 +275,14 @@ def validate_public_agents_policy() -> list[str]:
         "memory.bootstrap_context",
         "qmd_codex",
         "max_recent_sessions=3",
+        "jcodemunch",
+        "search_symbols",
+        "get_symbol",
     ]
     errors: list[str] = []
     for phrase in required_phrases:
         if phrase not in text:
-            errors.append(f"public Codex policy is missing required memory guidance: {agents_path}: {phrase}")
+            errors.append(f"public Codex policy is missing required MCP guidance: {agents_path}: {phrase}")
     return errors
 
 
