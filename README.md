@@ -10,6 +10,18 @@
 `make bootstrap` uses Homebrew as the baseline package manager for `git`, `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, bootstrap will offer to install it when run from an interactive TTY.
 Bootstrap starts from macOS-shipped shell tools and will provision Homebrew Python first when the machine's default `python3` is too old for the managed runtime.
 
+## Homebrew Packages
+
+When `make bootstrap` installs missing baseline formulas, it installs these Homebrew packages:
+
+- `git`
+- `ripgrep`
+- `python`
+- `node`
+- `pnpm`
+- `uv`
+- `jq`
+
 ## What It Includes
 
 - managed bootstrap, verify, update, and component status commands
