@@ -829,6 +829,13 @@ def write_component_state(data: dict) -> None:
     write_text(COMPONENT_STATE_PATH, serialize_toml(data), mode=0o600)
 
 
+def jcodemunch_mcp_overlay_body() -> str:
+    return """[mcp_servers.jcodemunch]
+command = "__HOME__/.local/bin/jcodemunch-mcp"
+args = []
+enabled = true"""
+
+
 def enabled_component_names() -> set[str]:
     enabled = load_component_state().get("enabled", {})
     if not isinstance(enabled, dict):

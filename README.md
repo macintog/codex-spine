@@ -36,7 +36,7 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 3. Restart Codex app.
 4. Open a new shell if install updated your zsh startup files.
 5. Run `make verify`.
-6. If you want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
+6. If you skipped the optional `jCodeMunch MCP` prompt during install and later want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
 `make install` is interactive when run from a TTY. It will explain the Homebrew packages it is about to install and ask for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
 Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local qmd index before the final verification step, so the first run can take noticeably longer than later runs.
@@ -48,6 +48,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 `make install` is the install step, not just a validation step. It:
 
 - checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
+- for interactive installs, asks early whether you want to include the optional `jCodeMunch MCP` integration later in the same install
 - checks that Homebrew exists and installs any missing baseline packages needed by the managed runtime
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
@@ -57,7 +58,9 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 - installs or updates the default managed components
 - runs the first transcript sync and qmd index refresh so memory and transcript retrieval are warm before install finishes
 
-Optional `jCodeMunch MCP` enablement stays separate from first-run install.
+Optional `jCodeMunch MCP` stays out of the default core path, but interactive install can include it when you opt in.
+
+If you choose `jCodeMunch MCP` during interactive install, `codex-spine` remembers that choice early, then later in the install fetches the pinned upstream terms and requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 

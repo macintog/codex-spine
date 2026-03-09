@@ -18,6 +18,7 @@ from codex_spine import (  # noqa: E402
     LOCAL_CONFIG_EXAMPLE,
     LOCAL_CONFIG_OVERLAY,
     ensure_example_copy,
+    jcodemunch_mcp_overlay_body,
     prepare_generated_config_target,
     render_config_text,
     replace_managed_block,
@@ -28,14 +29,6 @@ from component_manager import (  # noqa: E402
     resolve_components,
     update_component,
 )
-
-
-def jcodemunch_mcp_overlay_body() -> str:
-    return """[mcp_servers.jcodemunch]
-command = "__HOME__/.local/bin/jcodemunch-mcp"
-args = []
-enabled = true"""
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +14,8 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 
 from codex_spine import (  # noqa: E402
     HOME,
+    JCODEMUNCH_MCP_BLOCK_END,
+    JCODEMUNCH_MCP_BLOCK_START,
     LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS,
     LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES,
     LIVE_CONFIG_PATH,
@@ -27,8 +31,10 @@ from codex_spine import (  # noqa: E402
     enabled_component_names,
     first_nonempty_line,
     install_missing_brew_formulas,
+    jcodemunch_mcp_overlay_body,
     managed_links,
     prepare_generated_config_target,
+    replace_managed_block,
     render_config_text,
     render_launch_agent_text,
     sanitize_zshenv,
@@ -36,6 +42,12 @@ from codex_spine import (  # noqa: E402
     upsert_source_block,
     write_generated_config,
     write_managed_launch_agent,
+)
+from component_manager import (  # noqa: E402
+    component_status,
+    ensure_license_acknowledged,
+    resolve_components,
+    update_component,
 )
 
 
@@ -49,6 +61,38 @@ def run_sync() -> None:
 
 def warn(message: str) -> None:
     print(f"WARNING: {message}", file=sys.stderr)
+
+
+def maybe_enable_jcodemunch(*, non_interactive: bool) -> bool:
+    if os.environ.get("CODEX_SPINE_JCODEMUNCH_CHOICE") != "enable":
+        return False
+    if "jcodemunch-mcp" in enabled_component_names():
+        return False
+
+    components = {component.name: component for component in resolve_components()}
+    component = components.get("jcodemunch-mcp")
+    if component is None:
+        raise RuntimeError("missing optional component definition: jcodemunch-mcp")
+
+    print("\nYou chose to include optional jCodeMunch MCP in this install.")
+    print("codex-spine will fetch the pinned upstream terms now and ask for explicit acknowledgement before enabling it.")
+    ensure_license_acknowledged(
+        component,
+        accept_license=False,
+        non_interactive=non_interactive or not sys.stdin.isatty(),
+    )
+    package_name = component.backend.get("package_name", component.name)
+    print(f"{component.name}: installing/updating {package_name}...", flush=True)
+    print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
+    for line in update_component(component):
+        print(line)
+    replace_managed_block(
+        LOCAL_CONFIG_OVERLAY,
+        JCODEMUNCH_MCP_BLOCK_START,
+        JCODEMUNCH_MCP_BLOCK_END,
+        jcodemunch_mcp_overlay_body(),
+    )
+    return True
 
 
 def run_bootout(args: list[str], *, label: str) -> None:
@@ -125,6 +169,7 @@ def main() -> int:
 
     print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
+    maybe_enable_jcodemunch(non_interactive=non_interactive)
 
     rendered = render_config_text()
     write_generated_config(
@@ -164,7 +209,7 @@ def main() -> int:
     if not shell_plan.supported:
         print("Shell integration was skipped because the detected login shell is not zsh.")
         print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
-    if "jcodemunch-mcp" not in enabled_component_names():
+    if os.environ.get("CODEX_SPINE_JCODEMUNCH_CHOICE") is None and "jcodemunch-mcp" not in enabled_component_names():
         print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
     print("install: ok")
     return 0

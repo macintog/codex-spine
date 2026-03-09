@@ -8,6 +8,8 @@ BOOTSTRAP_PY="$SCRIPT_DIR/bootstrap.py"
 BOOTSTRAP_PYTHON=""
 LIVE_CONFIG_PATH="$HOME/.codex/config.toml"
 ADOPTED_CONFIG_PATH="$REPO_ROOT/codex/config/80-adopted.toml"
+LOCAL_CONFIG_OVERLAY_PATH="$REPO_ROOT/codex/config/90-local.toml"
+COMPONENT_STATE_PATH="$REPO_ROOT/.state/components.toml"
 
 find_brew() {
     if command -v brew >/dev/null 2>&1; then
@@ -128,6 +130,46 @@ EOF
     export CODEX_SPINE_CONFIG_ADOPTION_APPROVED=1
 }
 
+jcodemunch_already_enabled() {
+    if [ -f "$LOCAL_CONFIG_OVERLAY_PATH" ] && grep -q '\[mcp_servers\.jcodemunch\]' "$LOCAL_CONFIG_OVERLAY_PATH" 2>/dev/null; then
+        return 0
+    fi
+    if [ -f "$COMPONENT_STATE_PATH" ] && grep -q 'jcodemunch-mcp' "$COMPONENT_STATE_PATH" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+preflight_optional_jcodemunch() {
+    non_interactive=$1
+
+    if jcodemunch_already_enabled; then
+        return 0
+    fi
+
+    if [ "$non_interactive" -eq 1 ] || [ ! -t 0 ]; then
+        return 0
+    fi
+
+    if prompt_yes_no "$(cat <<'EOF'
+
+Optional component: jCodeMunch MCP
+
+If you want indexed code navigation, codex-spine can include the optional
+jCodeMunch MCP integration in this install.
+
+Later in the install, codex-spine will fetch the pinned upstream terms and ask
+for explicit acknowledgement before enabling it.
+
+Include jCodeMunch MCP in this install?
+EOF
+)" 0 "$non_interactive"; then
+        export CODEX_SPINE_JCODEMUNCH_CHOICE=enable
+    else
+        export CODEX_SPINE_JCODEMUNCH_CHOICE=skip
+    fi
+}
+
 ensure_bootstrap_python() {
     non_interactive=$1
 
@@ -197,5 +239,6 @@ if [ ! -t 0 ]; then
 fi
 
 preflight_existing_config "$non_interactive"
+preflight_optional_jcodemunch "$non_interactive"
 ensure_bootstrap_python "$non_interactive"
 exec "$BOOTSTRAP_PYTHON" "$BOOTSTRAP_PY" "$@"
