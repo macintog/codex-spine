@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import os
+import select
 import shutil
 import sys
+import termios
+import time
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 import tomllib
+import tty
 import urllib.request
 
 from codex_spine import (
@@ -76,6 +80,36 @@ def _run_live(
     )
 
 
+def _run_live_with_heartbeat(
+    args: list[str],
+    *,
+    heartbeat_message: str,
+    cwd: Path | None = None,
+    check: bool = True,
+    env: dict[str, str] | None = None,
+    heartbeat_interval: float = 5.0,
+) -> subprocess.CompletedProcess[str]:
+    process = subprocess.Popen(
+        args,
+        cwd=str(cwd) if cwd else None,
+        text=True,
+        env=env,
+    )
+    next_heartbeat = time.monotonic() + heartbeat_interval
+    while True:
+        try:
+            returncode = process.wait(timeout=1)
+            break
+        except subprocess.TimeoutExpired:
+            if time.monotonic() >= next_heartbeat:
+                _progress(heartbeat_message)
+                next_heartbeat = time.monotonic() + heartbeat_interval
+
+    if check and returncode != 0:
+        raise subprocess.CalledProcessError(returncode, args)
+    return subprocess.CompletedProcess(args, returncode)
+
+
 def _progress(message: str) -> None:
     print(message, flush=True)
 
@@ -88,6 +122,45 @@ def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
     if not reply:
         return default
     return reply in {"y", "yes"}
+
+
+def _read_accept_or_escape(prompt: str) -> str:
+    if not sys.stdin.isatty():
+        return input(prompt)
+
+    fd = sys.stdin.fileno()
+    original = termios.tcgetattr(fd)
+    typed: list[str] = []
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    try:
+        tty.setraw(fd)
+        while True:
+            ready, _, _ = select.select([sys.stdin], [], [])
+            if not ready:
+                continue
+            char = sys.stdin.read(1)
+            if char == "\x03":
+                raise KeyboardInterrupt
+            if char == "\x1b":
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return "\x1b"
+            if char in {"\r", "\n"}:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+                return "".join(typed)
+            if char in {"\x08", "\x7f"}:
+                if typed:
+                    typed.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                continue
+            typed.append(char)
+            sys.stdout.write(char)
+            sys.stdout.flush()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, original)
 
 
 def _prefixed_env(*prefixes: str) -> dict[str, str]:
@@ -155,7 +228,7 @@ def _prepare_pnpm_global_bin() -> None:
     _run(["pnpm", "config", "set", "global-bin-dir", str(pnpm_home)], check=True, env=_pnpm_env())
 
 
-def _rebuild_better_sqlite3() -> bool:
+def _rebuild_better_sqlite3(*, heartbeat_message: str) -> bool:
     search_roots: list[Path] = [HOME / "Library/pnpm/global"]
     workspace = _pnpm_global_workspace()
     if workspace is not None and workspace not in search_roots:
@@ -169,7 +242,13 @@ def _rebuild_better_sqlite3() -> bool:
         for candidate in root.glob("**/.pnpm/better-sqlite3@*/node_modules/better-sqlite3"):
             if candidate in seen:
                 continue
-            _run_live(["pnpm", "rebuild"], cwd=candidate, check=True, env=_pnpm_env())
+            _run_live_with_heartbeat(
+                ["pnpm", "rebuild"],
+                cwd=candidate,
+                check=True,
+                env=_pnpm_env(),
+                heartbeat_message=heartbeat_message,
+            )
             rebuilt = True
             seen.add(candidate)
     return rebuilt
@@ -387,13 +466,19 @@ def update_component(component: ResolvedComponent) -> list[str]:
     status = component_status(component)
     if not status["healthy"]:
         _progress(f"{component.name}: rebuilding native addons and rechecking health...")
-        if _rebuild_better_sqlite3():
+        if _rebuild_better_sqlite3(heartbeat_message=f"{component.name}: still rebuilding native addons..."):
             status = component_status(component)
     if not status["healthy"]:
         workspace = _pnpm_global_workspace()
         if workspace is not None:
             _progress(f"{component.name}: rebuilding the global pnpm workspace...")
-            _run_live(["pnpm", "rebuild"], cwd=workspace, check=True, env=_pnpm_env())
+            _run_live_with_heartbeat(
+                ["pnpm", "rebuild"],
+                cwd=workspace,
+                check=True,
+                env=_pnpm_env(),
+                heartbeat_message=f"{component.name}: still rebuilding the global pnpm workspace...",
+            )
             _progress(f"{component.name}: rechecking health after workspace rebuild...")
             status = component_status(component)
     if not status["healthy"]:
@@ -474,7 +559,9 @@ def ensure_license_acknowledged(
         _page_terms_text(bundle["text"])
         while True:
             try:
-                reply = input("Type 'accept' to continue, or 'skip' to continue without jCodeMunch MCP: ").strip().lower()
+                reply = _read_accept_or_escape(
+                    "Type 'accept' to continue, or press Esc to skip jCodeMunch MCP for now: "
+                ).strip().lower()
             except EOFError as exc:
                 raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
             if reply == "accept":
@@ -485,7 +572,7 @@ def ensure_license_acknowledged(
                 if _prompt_yes_no("Skip enabling jCodeMunch MCP for now?", default=False):
                     raise RuntimeError(f"Skipped enabling {component.name} for now.")
                 continue
-            print("Please type 'accept' or 'skip'.")
+            print("Please type 'accept' or press Esc.")
 
     state = load_component_state()
     enabled = state.setdefault("enabled", {})
