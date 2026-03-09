@@ -41,6 +41,10 @@ def run_script(script_name: str, *args: str) -> None:
     subprocess.run([str(REPO_ROOT / "scripts" / script_name), *args], check=True)
 
 
+def run_sync() -> None:
+    subprocess.run([str(REPO_ROOT / "bin" / "sync-codex-chat-qmd.sh")], check=True)
+
+
 def warn(message: str) -> None:
     print(f"WARNING: {message}", file=sys.stderr)
 
@@ -122,6 +126,9 @@ def main() -> int:
             ["kickstart", "-k", f"gui/{uid}/codex-spine.qmd-codex-chat"],
             label="launchctl kickstart",
         )
+
+    print("Running initial transcript sync and QMD index refresh. This may take a while on the first run.")
+    run_sync()
 
     run_script("verify")
     if not shell_plan.supported:

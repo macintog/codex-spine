@@ -28,6 +28,7 @@ Bootstrap starts from macOS-shipped shell tools and will provision Homebrew Pyth
 6. If you want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
 `make bootstrap` is interactive when run from a TTY. It will offer to install Homebrew if needed and will confirm any missing baseline Homebrew packages before installing them. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
+Bootstrap now also runs an initial transcript sync and QMD index refresh before the final verification step, so the first run can take noticeably longer than later runs.
 
 `zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, bootstrap warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
 
@@ -42,6 +43,7 @@ Bootstrap starts from macOS-shipped shell tools and will provision Homebrew Pyth
 - renders `~/.codex/config.toml`
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installs or updates the default managed components
+- runs the first transcript sync and QMD index refresh so memory and transcript retrieval are warm before bootstrap finishes
 
 Optional `jCodeMunch MCP` enablement stays separate from first-run bootstrap.
 
