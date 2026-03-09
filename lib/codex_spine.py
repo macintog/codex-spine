@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -299,7 +300,7 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
     if brew_path is not None:
         return brew_path
 
-    install_command = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    installer_url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
     if not prompt_yes_no(
         "Homebrew is required for codex-spine. Install Homebrew now?",
         default=False,
@@ -309,13 +310,26 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
             "Homebrew is required. Install it from https://brew.sh and rerun `make bootstrap`."
         )
 
-    print(f"$ {install_command}")
-    result = subprocess.run(
-        ["/bin/bash", "-c", install_command],
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError("Homebrew installation failed. See output above for details.")
+    with tempfile.NamedTemporaryFile(prefix="codex-spine-homebrew-", suffix=".sh", delete=False) as handle:
+        installer_path = Path(handle.name)
+    try:
+        print(f"$ {shlex.join(['curl', '-fL', installer_url, '-o', str(installer_path)])}")
+        download = subprocess.run(
+            ["curl", "-fL", installer_url, "-o", str(installer_path)],
+            check=False,
+        )
+        if download.returncode != 0:
+            raise RuntimeError("Homebrew installer download failed. See output above for details.")
+
+        print(f"$ {shlex.join(['/bin/bash', str(installer_path)])}")
+        result = subprocess.run(
+            ["/bin/bash", str(installer_path)],
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError("Homebrew installation failed. See output above for details.")
+    finally:
+        installer_path.unlink(missing_ok=True)
 
     brew_path = homebrew_bin_path()
     if brew_path is None:

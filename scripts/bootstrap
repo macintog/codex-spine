@@ -75,16 +75,25 @@ ensure_bootstrap_python() {
 
     brew_path=$(find_brew || true)
     if [ -z "$brew_path" ]; then
-        install_command='/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        installer_url='https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh'
         if ! prompt_yes_no "Homebrew is required to provision the Python runtime for codex-spine bootstrap. Install Homebrew now?" 0 "$non_interactive"; then
             printf '%s\n' "Homebrew is required. Install it from https://brew.sh and rerun \`make bootstrap\`." >&2
             return 1
         fi
-        printf '$ %s\n' "$install_command"
-        if ! /bin/bash -c "$install_command"; then
+        installer_script=$(mktemp -t codex-spine-homebrew-install.XXXXXX.sh)
+        printf '$ curl -fL %s -o %s\n' "$installer_url" "$installer_script"
+        if ! curl -fL "$installer_url" -o "$installer_script"; then
+            rm -f "$installer_script"
+            printf '%s\n' "Homebrew installer download failed. See output above for details." >&2
+            return 1
+        fi
+        printf '$ /bin/bash %s\n' "$installer_script"
+        if ! /bin/bash "$installer_script"; then
+            rm -f "$installer_script"
             printf '%s\n' "Homebrew installation failed. See output above for details." >&2
             return 1
         fi
+        rm -f "$installer_script"
         brew_path=$(find_brew || true)
         if [ -z "$brew_path" ]; then
             printf '%s\n' "Homebrew install completed, but \`brew\` is still not available. Open a new shell or run the Homebrew shellenv snippet, then rerun \`make bootstrap\`." >&2
