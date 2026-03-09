@@ -1,135 +1,131 @@
-#!/usr/bin/env python3
+#!/bin/sh
+set -eu
 
-from __future__ import annotations
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PYTHON_LAUNCHER="$REPO_ROOT/bin/codex-python"
+BOOTSTRAP_PY="$SCRIPT_DIR/bootstrap.py"
 
-import argparse
-import subprocess
-import sys
-from pathlib import Path
+first_nonempty_line() {
+    printf '%s\n' "$1" | sed -n '/[^[:space:]]/ { s/^[[:space:]]*//; p; q; }'
+}
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "lib"))
+find_brew() {
+    if command -v brew >/dev/null 2>&1; then
+        command -v brew
+        return 0
+    fi
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        if [ -x "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
 
-from codex_spine import (  # noqa: E402
-    HOME,
-    LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS,
-    LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES,
-    LIVE_CONFIG_PATH,
-    LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
-    LOCAL_CONFIG_EXAMPLE,
-    LOCAL_CONFIG_OVERLAY,
-    LOCAL_ENV_EXAMPLE,
-    LOCAL_ENV_FILE,
-    detect_shell_integration_plan,
-    ensure_example_copy,
-    ensure_homebrew,
-    ensure_symlink,
-    first_nonempty_line,
-    install_missing_brew_formulas,
-    managed_links,
-    render_config_text,
-    render_launch_agent_text,
-    sanitize_zshenv,
-    shell_source_targets,
-    upsert_source_block,
-    write_generated_config,
-    write_managed_launch_agent,
-)
+looks_like_clt_issue() {
+    lowered=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+    case "$lowered" in
+        *"xcode-select: note: no developer tools were found"*|*"command line tools"*|*"xcrun: error"*|*"active developer path"*)
+            return 0
+            ;;
+    esac
+    return 1
+}
 
+prompt_yes_no() {
+    prompt=$1
+    default=$2
+    non_interactive=$3
 
-def run_script(script_name: str, *args: str) -> None:
-    subprocess.run([str(REPO_ROOT / "scripts" / script_name), *args], check=True)
+    if [ "$non_interactive" -eq 1 ] || [ ! -t 0 ]; then
+        [ "$default" -eq 1 ]
+        return $?
+    fi
 
+    if [ "$default" -eq 1 ]; then
+        suffix="[Y/n]"
+    else
+        suffix="[y/N]"
+    fi
 
-def warn(message: str) -> None:
-    print(f"WARNING: {message}", file=sys.stderr)
+    printf '%s %s ' "$prompt" "$suffix" >&2
+    IFS= read -r reply || reply=""
+    reply=$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')
+    if [ -z "$reply" ]; then
+        [ "$default" -eq 1 ]
+        return $?
+    fi
+    case "$reply" in
+        y|yes)
+            return 0
+            ;;
+    esac
+    return 1
+}
 
+ensure_bootstrap_python() {
+    non_interactive=$1
 
-def run_launchctl(args: list[str], *, label: str) -> bool:
-    result = subprocess.run(
-        ["launchctl", *args],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode == 0:
-        return True
-    detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
-    warn(
-        f"{label} failed: {detail}. The LaunchAgent plist was still written; rerun `make bootstrap` from a normal macOS login session to load launchd state."
-    )
-    return False
+    if python_bin=$("$PYTHON_LAUNCHER" --resolve 2>/dev/null); then
+        printf '%s\n' "$python_bin"
+        return 0
+    fi
 
+    brew_path=$(find_brew || true)
+    if [ -z "$brew_path" ]; then
+        install_command='/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        if ! prompt_yes_no "Homebrew is required to provision the Python runtime for codex-spine bootstrap. Install Homebrew now?" 0 "$non_interactive"; then
+            printf '%s\n' "Homebrew is required. Install it from https://brew.sh and rerun \`make bootstrap\`." >&2
+            return 1
+        fi
+        printf '$ %s\n' "$install_command"
+        output=$(/bin/bash -c "$install_command" 2>&1) || {
+            detail=$(first_nonempty_line "$output")
+            printf '%s\n' "Homebrew installation failed: ${detail:-unknown error}" >&2
+            return 1
+        }
+        brew_path=$(find_brew || true)
+        if [ -z "$brew_path" ]; then
+            printf '%s\n' "Homebrew install completed, but \`brew\` is still not available. Open a new shell or run the Homebrew shellenv snippet, then rerun \`make bootstrap\`." >&2
+            return 1
+        fi
+    fi
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--non-interactive", action="store_true")
-    args = parser.parse_args()
-    non_interactive = args.non_interactive or not sys.stdin.isatty()
-    shell_plan = detect_shell_integration_plan()
+    if ! prompt_yes_no "Install Homebrew Python now so codex-spine bootstrap can run?" 1 "$non_interactive"; then
+        printf '%s\n' "Homebrew Python is required to run codex-spine bootstrap. Install it with \`brew install python\` and rerun \`make bootstrap\`." >&2
+        return 1
+    fi
 
-    if shell_plan.warning:
-        warn(shell_plan.warning)
+    output=$("$brew_path" install python 2>&1) || {
+        detail=$(first_nonempty_line "$output")
+        if looks_like_clt_issue "$output"; then
+            printf '%s\n' "Homebrew could not install Python because Apple Command Line Tools are missing or incomplete. Finish the Command Line Tools install, open a new shell, and rerun \`make bootstrap\`." >&2
+            return 1
+        fi
+        printf '%s\n' "Homebrew Python install failed: ${detail:-unknown error}" >&2
+        return 1
+    }
 
-    brew_path = ensure_homebrew(non_interactive=non_interactive)
-    installed_formulas = install_missing_brew_formulas(
-        brew_path,
-        non_interactive=non_interactive,
-    )
-    if installed_formulas:
-        print(f"Installed Homebrew packages: {', '.join(installed_formulas)}")
+    python_bin=$("$PYTHON_LAUNCHER" --resolve 2>/dev/null || true)
+    if [ -z "$python_bin" ]; then
+        printf '%s\n' "Homebrew Python installed, but codex-spine still could not locate Python 3.11+. Rerun \`make bootstrap\` after confirming Homebrew Python is installed." >&2
+        return 1
+    fi
 
-    ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
-    ensure_example_copy(LOCAL_ENV_EXAMPLE, LOCAL_ENV_FILE)
+    printf '%s\n' "$python_bin"
+}
 
-    for path in [
-        HOME / ".codex",
-        HOME / ".codex/skills",
-        HOME / ".local/bin",
-        HOME / "Library/LaunchAgents",
-    ]:
-        path.mkdir(parents=True, exist_ok=True)
+non_interactive=0
+for arg in "$@"; do
+    if [ "$arg" = "--non-interactive" ]; then
+        non_interactive=1
+    fi
+done
+if [ ! -t 0 ]; then
+    non_interactive=1
+fi
 
-    for link in managed_links():
-        ensure_symlink(link.live_path, link.repo_path)
-
-    if shell_plan.supported:
-        sanitize_zshenv(HOME / ".zshenv")
-        for dotfile, fragment in shell_source_targets(shell_plan).items():
-            upsert_source_block(dotfile, fragment)
-
-    run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
-
-    rendered = render_config_text()
-    write_generated_config(LIVE_CONFIG_PATH, rendered)
-
-    uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
-    for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:
-        legacy_path = HOME / "Library/LaunchAgents" / legacy_name
-        subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(legacy_path)], check=False)
-        if legacy_path.exists():
-            legacy_path.unlink()
-
-    write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
-    subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], check=False)
-    for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
-        subprocess.run(["launchctl", "bootout", f"gui/{uid}/{legacy_label}"], check=False)
-    if run_launchctl(
-        ["bootstrap", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)],
-        label="launchctl bootstrap",
-    ):
-        run_launchctl(
-            ["kickstart", "-k", f"gui/{uid}/codex-spine.qmd-codex-chat"],
-            label="launchctl kickstart",
-        )
-
-    run_script("verify")
-    if not shell_plan.supported:
-        print("Shell integration was skipped because the detected login shell is not zsh.")
-        print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
-    print("bootstrap: ok")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+python_bin=$(ensure_bootstrap_python "$non_interactive")
+exec "$python_bin" "$BOOTSTRAP_PY" "$@"
