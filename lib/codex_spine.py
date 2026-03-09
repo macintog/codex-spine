@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG_FRAGMENT_PATHS = [
     REPO_ROOT / "codex/config/00-base.toml",
+    REPO_ROOT / "codex/config/20-codex-spine-mcps.toml",
     REPO_ROOT / "codex/config/30-skills.toml",
 ]
 LOCAL_CONFIG_EXAMPLE = REPO_ROOT / "codex/config/90-local.toml.example"

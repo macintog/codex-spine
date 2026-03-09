@@ -1,0 +1,8 @@
+[mcp_servers.qmd_codex]
+command = "__HOME__/.local/bin/qmd-codex"
+args = ["mcp"]
+enabled = true
+
+[mcp_servers.memory]
+command = "__HOME__/.local/bin/codex-memory-mcp-launcher"
+enabled = true
