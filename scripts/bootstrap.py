@@ -76,6 +76,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool) -> bool:
 
     print("\nYou chose to include optional jCodeMunch MCP in this install.")
     print("codex-spine will fetch the pinned upstream terms now and ask for explicit acknowledgement before enabling it.")
+    print()
     try:
         ensure_license_acknowledged(
             component,

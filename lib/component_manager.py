@@ -80,6 +80,16 @@ def _progress(message: str) -> None:
     print(message, flush=True)
 
 
+def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
+    bold_on = "\033[1m" if sys.stdout.isatty() else ""
+    bold_off = "\033[0m" if bold_on else ""
+    suffix = f"[{bold_on}Y{bold_off}/n]" if default else f"[y/{bold_on}N{bold_off}]"
+    reply = input(f"{prompt} {suffix} ").strip().lower()
+    if not reply:
+        return default
+    return reply in {"y", "yes"}
+
+
 def _prefixed_env(*prefixes: str) -> dict[str, str]:
     env = os.environ.copy()
     seen: set[str] = set()
@@ -462,12 +472,20 @@ def ensure_license_acknowledged(
     if not accept_license:
         print(f"Retrieved upstream terms for {component.name} {version} from {bundle['source_url']}\n")
         _page_terms_text(bundle["text"])
-        try:
-            reply = input("Type 'accept' to continue: ").strip().lower()
-        except EOFError as exc:
-            raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
-        if reply != "accept":
-            raise RuntimeError(f"Did not receive 'accept'. {component.name} was not enabled.")
+        while True:
+            try:
+                reply = input("Type 'accept' to continue, or 'skip' to continue without jCodeMunch MCP: ").strip().lower()
+            except EOFError as exc:
+                raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
+            if reply == "accept":
+                break
+            if reply in {"skip", "s", "no", "n", "q", "quit", "\x1b"}:
+                raise RuntimeError(f"Skipped enabling {component.name} for now.")
+            if not reply:
+                if _prompt_yes_no("Skip enabling jCodeMunch MCP for now?", default=False):
+                    raise RuntimeError(f"Skipped enabling {component.name} for now.")
+                continue
+            print("Please type 'accept' or 'skip'.")
 
     state = load_component_state()
     enabled = state.setdefault("enabled", {})
@@ -494,6 +512,6 @@ def _page_terms_text(text: str) -> None:
         start = end
         if start >= len(lines):
             break
-        reply = input("\nPress Return for more, or type 'q' to stop reviewing: ").strip().lower()
+        reply = input("\nPress Return for more, or type 'q' to stop reviewing and skip installation: ").strip().lower()
         if reply in {"q", "quit", "stop"}:
             raise RuntimeError("Stopped reviewing the upstream terms before the end. jCodeMunch MCP was not enabled.")
