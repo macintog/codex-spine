@@ -24,6 +24,7 @@ from codex_spine import (  # noqa: E402
     ensure_example_copy,
     ensure_homebrew,
     ensure_symlink,
+    enabled_component_names,
     first_nonempty_line,
     install_missing_brew_formulas,
     managed_links,
@@ -163,6 +164,8 @@ def main() -> int:
     if not shell_plan.supported:
         print("Shell integration was skipped because the detected login shell is not zsh.")
         print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
+    if "jcodemunch-mcp" not in enabled_component_names():
+        print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
     print("install: ok")
     return 0
 

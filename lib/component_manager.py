@@ -59,6 +59,22 @@ def _run(
     )
 
 
+def _run_live(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    check: bool = True,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=str(cwd) if cwd else None,
+        check=check,
+        text=True,
+        env=env,
+    )
+
+
 def _prefixed_env(*prefixes: str) -> dict[str, str]:
     env = os.environ.copy()
     seen: set[str] = set()
@@ -351,7 +367,7 @@ def update_component(component: ResolvedComponent) -> list[str]:
     if component.backend["kind"] == "pnpm_global":
         _prepare_pnpm_global_bin()
     action = component_status(component)["action"]
-    _run(action, check=True, env=_pnpm_env())
+    _run_live(action, check=True, env=_pnpm_env())
     status = component_status(component)
     if not status["healthy"]:
         if _rebuild_better_sqlite3():
@@ -359,7 +375,7 @@ def update_component(component: ResolvedComponent) -> list[str]:
     if not status["healthy"]:
         workspace = _pnpm_global_workspace()
         if workspace is not None:
-            _run(["pnpm", "rebuild"], cwd=workspace, check=True, env=_pnpm_env())
+            _run_live(["pnpm", "rebuild"], cwd=workspace, check=True, env=_pnpm_env())
             status = component_status(component)
     if not status["healthy"]:
         raise RuntimeError(f"{component.name} remains unhealthy after update: {status['detail']}")

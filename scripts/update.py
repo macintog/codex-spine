@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 
 from codex_spine import enabled_component_names  # noqa: E402
 from component_manager import (  # noqa: E402
+    component_status,
     ensure_license_acknowledged,
     resolve_components,
     update_component,
@@ -53,6 +55,7 @@ def main() -> int:
         )
         package_name = component.backend.get("package_name", component.name)
         print(f"{component.name}: installing/updating {package_name}...", flush=True)
+        print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
         for line in update_component(component):
             print(line)
 
