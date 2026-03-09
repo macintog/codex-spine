@@ -18,6 +18,7 @@ from codex_spine import (  # noqa: E402
     LOCAL_CONFIG_EXAMPLE,
     LOCAL_CONFIG_OVERLAY,
     ensure_example_copy,
+    prepare_generated_config_target,
     render_config_text,
     replace_managed_block,
     write_generated_config,
@@ -70,7 +71,13 @@ def main() -> int:
         )
 
     rendered = render_config_text()
+    backup_path = prepare_generated_config_target(
+        LIVE_CONFIG_PATH,
+        non_interactive=args.non_interactive or not sys.stdin.isatty(),
+    )
     write_generated_config(LIVE_CONFIG_PATH, rendered)
+    if backup_path is not None:
+        print(f"Backed up the existing Codex config to {backup_path}")
 
     subprocess.run([str(REPO_ROOT / "scripts" / "verify")], check=True)
     print(f"{component.name}: enabled")

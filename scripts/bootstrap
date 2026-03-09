@@ -5,6 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 PYTHON_LAUNCHER="$REPO_ROOT/bin/codex-python"
 BOOTSTRAP_PY="$SCRIPT_DIR/bootstrap.py"
+BOOTSTRAP_PYTHON=""
 
 find_brew() {
     if command -v brew >/dev/null 2>&1; then
@@ -22,9 +23,9 @@ find_brew() {
 
 brew_install_plan_prompt() {
     if [ -z "${1:-}" ]; then
-        printf '%s' "First we'll install Homebrew, then install the Homebrew packages codex-spine uses: python, git, ripgrep, node, pnpm, uv, and jq. Continue?"
+        printf '%s' "First we'll install Homebrew, then install the Homebrew packages codex-spine uses: python, ripgrep, node, pnpm, uv, and jq. Continue?"
     else
-        printf '%s' "We'll install the Homebrew packages codex-spine uses: python, git, ripgrep, node, pnpm, uv, and jq. Continue?"
+        printf '%s' "We'll install the Homebrew packages codex-spine uses: python, ripgrep, node, pnpm, uv, and jq. Continue?"
     fi
 }
 
@@ -63,7 +64,7 @@ ensure_bootstrap_python() {
     non_interactive=$1
 
     if python_bin=$("$PYTHON_LAUNCHER" --resolve 2>/dev/null); then
-        printf '%s\n' "$python_bin"
+        BOOTSTRAP_PYTHON="$python_bin"
         return 0
     fi
 
@@ -114,7 +115,7 @@ ensure_bootstrap_python() {
         return 1
     fi
 
-    printf '%s\n' "$python_bin"
+    BOOTSTRAP_PYTHON="$python_bin"
 }
 
 non_interactive=0
@@ -127,5 +128,5 @@ if [ ! -t 0 ]; then
     non_interactive=1
 fi
 
-python_bin=$(ensure_bootstrap_python "$non_interactive")
-exec "$python_bin" "$BOOTSTRAP_PY" "$@"
+ensure_bootstrap_python "$non_interactive"
+exec "$BOOTSTRAP_PYTHON" "$BOOTSTRAP_PY" "$@"

@@ -27,6 +27,7 @@ from codex_spine import (  # noqa: E402
     first_nonempty_line,
     install_missing_brew_formulas,
     managed_links,
+    prepare_generated_config_target,
     render_config_text,
     render_launch_agent_text,
     sanitize_zshenv,
@@ -124,7 +125,10 @@ def main() -> int:
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
 
     rendered = render_config_text()
+    config_backup = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
     write_generated_config(LIVE_CONFIG_PATH, rendered)
+    if config_backup is not None:
+        print(f"Backed up the existing Codex config to {config_backup}")
 
     uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
     for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:

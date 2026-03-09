@@ -7,14 +7,13 @@
 - macOS with a user-space Codex installation under `~/.codex`
 - Homebrew
 
-`make install` uses Homebrew as the baseline package manager for `git`, `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
+`make install` uses Homebrew as the baseline package manager for `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
 Install starts from macOS-shipped shell tools and will provision Homebrew Python first when the machine's default `python3` is too old for the managed runtime.
 
 ## Homebrew Packages
 
 When `make install` installs missing baseline formulas, it installs these Homebrew packages:
 
-- `git`
 - `ripgrep`
 - `python`
 - `node`
@@ -53,6 +52,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 - manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
 - renders `~/.codex/config.toml`
+- offers to back up an existing unmanaged `~/.codex/config.toml` before replacing it with the managed config
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installs or updates the default managed components
 - runs the first transcript sync and qmd index refresh so memory and transcript retrieval are warm before install finishes
