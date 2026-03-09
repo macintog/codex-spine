@@ -70,11 +70,11 @@ def main() -> int:
             jcodemunch_mcp_overlay_body(),
         )
 
-    rendered = render_config_text()
     config_plan = prepare_generated_config_target(
         LIVE_CONFIG_PATH,
         non_interactive=args.non_interactive or not sys.stdin.isatty(),
     )
+    rendered = render_config_text()
     write_generated_config(
         LIVE_CONFIG_PATH,
         rendered,

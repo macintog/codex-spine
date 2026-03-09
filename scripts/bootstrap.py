@@ -124,8 +124,8 @@ def main() -> int:
     print("Now we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
 
-    rendered = render_config_text()
     config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
+    rendered = render_config_text()
     write_generated_config(
         LIVE_CONFIG_PATH,
         rendered,

@@ -22,8 +22,8 @@ def main() -> int:
     parser.add_argument("--stdout", action="store_true")
     args = parser.parse_args()
 
-    rendered = render_config_text()
     if args.stdout:
+        rendered = render_config_text()
         sys.stdout.write(rendered)
         return 0
 
@@ -31,6 +31,7 @@ def main() -> int:
         LIVE_CONFIG_PATH,
         non_interactive=not sys.stdin.isatty(),
     )
+    rendered = render_config_text()
     write_generated_config(
         LIVE_CONFIG_PATH,
         rendered,
