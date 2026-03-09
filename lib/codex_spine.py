@@ -275,7 +275,7 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
     installer_url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
     if not prompt_yes_no(
         "Homebrew is required for codex-spine. Install Homebrew now?",
-        default=False,
+        default=True,
         non_interactive=non_interactive,
     ):
         raise RuntimeError(

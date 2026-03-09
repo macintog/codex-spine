@@ -62,7 +62,7 @@ ensure_bootstrap_python() {
     brew_path=$(find_brew || true)
     if [ -z "$brew_path" ]; then
         installer_url='https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh'
-        if ! prompt_yes_no "Homebrew is required to provision the Python runtime for codex-spine bootstrap. Install Homebrew now?" 0 "$non_interactive"; then
+        if ! prompt_yes_no "Homebrew is required to provision the Python runtime for codex-spine bootstrap. Install Homebrew now?" 1 "$non_interactive"; then
             printf '%s\n' "Homebrew is required. Install it from https://brew.sh and rerun \`make bootstrap\`." >&2
             return 1
         fi

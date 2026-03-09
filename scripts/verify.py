@@ -88,7 +88,7 @@ def validate_memory_scope_isolation() -> list[str]:
                 },
             }
         )
-        env = os.environ.copy()
+        env = runtime_env()
         env["HOME"] = str(home)
         result = subprocess.run(
             ["node", str(REPO_ROOT / "bin" / "codex-memory-mcp")],
@@ -132,7 +132,7 @@ def validate_memory_scope_isolation() -> list[str]:
         state_root.mkdir(parents=True, exist_ok=True)
         (state_root / "latest_projection.txt").write_text("/tmp/foreign.md\n", encoding="utf-8")
 
-        env = os.environ.copy()
+        env = runtime_env()
         env["HOME"] = str(home)
         result = subprocess.run(
             [str(REPO_ROOT / "bin" / "qmd-memory-latest.sh"), str(current_repo)],

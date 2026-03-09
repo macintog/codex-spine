@@ -102,6 +102,7 @@ def main() -> int:
         for dotfile, fragment in shell_source_targets(shell_plan).items():
             upsert_source_block(dotfile, fragment)
 
+    print("Installing or updating default managed components. This can take a while on the first run.", flush=True)
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
 
     rendered = render_config_text()
@@ -115,20 +116,20 @@ def main() -> int:
             legacy_path.unlink()
 
     write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
+
+    # Warm the transcript projection and QMD index directly before loading the
+    # LaunchAgent. Otherwise RunAtLoad can steal the first sync and leave
+    # bootstrap showing only a lock wait instead of the real work.
+    print("Running initial transcript sync and QMD index refresh. This may take a while on the first run.")
+    run_sync()
+
     subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], check=False)
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
         subprocess.run(["launchctl", "bootout", f"gui/{uid}/{legacy_label}"], check=False)
-    if run_launchctl(
+    run_launchctl(
         ["bootstrap", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)],
         label="launchctl bootstrap",
-    ):
-        run_launchctl(
-            ["kickstart", "-k", f"gui/{uid}/codex-spine.qmd-codex-chat"],
-            label="launchctl kickstart",
-        )
-
-    print("Running initial transcript sync and QMD index refresh. This may take a while on the first run.")
-    run_sync()
+    )
 
     run_script("verify")
     if not shell_plan.supported:
