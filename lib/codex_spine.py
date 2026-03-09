@@ -269,13 +269,13 @@ def format_package_plan_prompt(
     *,
     include_homebrew: bool,
 ) -> str:
-    lines: list[str] = []
+    lines: list[str] = [""]
     if include_homebrew:
         lines.append("First we'll install Homebrew.")
         lines.append("Then we'll install these Homebrew packages for codex-spine:")
     else:
         lines.append("We'll install these Homebrew packages for codex-spine:")
-    lines.extend(f"- {package}" for package in packages)
+    lines.extend(f"  - {package}" for package in packages)
     lines.append("")
     lines.append("Continue?")
     return "\n".join(lines)
@@ -312,7 +312,7 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
     with tempfile.NamedTemporaryFile(prefix="codex-spine-homebrew-", suffix=".sh", delete=False) as handle:
         installer_path = Path(handle.name)
     try:
-        print(f"$ {shlex.join(['curl', '-fL', installer_url, '-o', str(installer_path)])}")
+        print(f"\n$ {shlex.join(['curl', '-fL', installer_url, '-o', str(installer_path)])}")
         download = subprocess.run(
             ["curl", "-fL", installer_url, "-o", str(installer_path)],
             check=False,
@@ -320,7 +320,7 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
         if download.returncode != 0:
             raise RuntimeError("Homebrew installer download failed. See output above for details.")
 
-        print(f"$ {shlex.join(['/bin/bash', str(installer_path)])}")
+        print(f"\n$ {shlex.join(['/bin/bash', str(installer_path)])}")
         result = subprocess.run(
             ["/bin/bash", str(installer_path)],
             check=False,
@@ -363,7 +363,7 @@ def install_missing_brew_formulas(
             f"Missing required Homebrew packages: {pretty}. Install them and rerun `make install`."
         )
 
-    print(f"$ {shlex.join([str(brew_path), 'install', *missing])}")
+    print(f"\n$ {shlex.join([str(brew_path), 'install', *missing])}")
     result = subprocess.run(
         [str(brew_path), "install", *missing],
         check=False,
@@ -779,13 +779,15 @@ def prepare_generated_config_target(path: Path, *, non_interactive: bool) -> Con
     if not prompt_yes_no(
         "\n".join(
             [
+                "",
                 "Found an existing Codex config:",
                 f"  {path}",
                 "",
-                "codex-spine can preserve its current settings by importing them into:",
+                "codex-spine manages the memory and qmd_codex entries itself.",
+                "To preserve the rest of your current Codex settings, it will import them into:",
                 f"  {ADOPTED_CONFIG_OVERLAY}",
                 "",
-                "Then it will replace only the codex-spine-managed sections.",
+                "Then it will render a new live config that includes those imported settings.",
                 "Continue?",
             ]
         ),

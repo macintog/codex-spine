@@ -121,7 +121,7 @@ def main() -> int:
         for dotfile, fragment in shell_source_targets(shell_plan).items():
             upsert_source_block(dotfile, fragment)
 
-    print("Now we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
+    print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
 
     config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
@@ -132,7 +132,7 @@ def main() -> int:
         allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
     )
     if config_plan.adopted_overlay_path is not None:
-        print(f"Imported the existing Codex config into {config_plan.adopted_overlay_path}")
+        print(f"\nImported the existing Codex config into {config_plan.adopted_overlay_path}")
     if config_plan.backup_path is not None:
         print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
 
@@ -148,7 +148,7 @@ def main() -> int:
     # Warm the transcript projection and qmd index directly before loading the
     # LaunchAgent. Otherwise RunAtLoad can steal the first sync and leave
     # bootstrap showing only a lock wait instead of the real work.
-    print("Now we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
+    print("\nNow we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
     run_sync()
 
     run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist")

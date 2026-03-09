@@ -24,26 +24,28 @@ find_brew() {
 brew_install_plan_prompt() {
     if [ -z "${1:-}" ]; then
         cat <<'EOF'
+
 First we'll install Homebrew.
 Then we'll install these Homebrew packages for codex-spine:
-- python
-- ripgrep
-- node
-- pnpm
-- uv
-- jq
+  - python
+  - ripgrep
+  - node
+  - pnpm
+  - uv
+  - jq
 
 Continue?
 EOF
     else
         cat <<'EOF'
+
 We'll install these Homebrew packages for codex-spine:
-- python
-- ripgrep
-- node
-- pnpm
-- uv
-- jq
+  - python
+  - ripgrep
+  - node
+  - pnpm
+  - uv
+  - jq
 
 Continue?
 EOF
@@ -98,13 +100,13 @@ ensure_bootstrap_python() {
         fi
         export CODEX_SPINE_BREW_INSTALL_APPROVED=1
         installer_script=$(mktemp -t codex-spine-homebrew-install.XXXXXX.sh)
-        printf '$ curl -fL %s -o %s\n' "$installer_url" "$installer_script" >&2
+        printf '\n$ curl -fL %s -o %s\n' "$installer_url" "$installer_script" >&2
         if ! curl -fL "$installer_url" -o "$installer_script" >&2; then
             rm -f "$installer_script"
             printf '%s\n' "Homebrew installer download failed. See output above for details." >&2
             return 1
         fi
-        printf '$ /bin/bash %s\n' "$installer_script" >&2
+        printf '\n$ /bin/bash %s\n' "$installer_script" >&2
         if ! /bin/bash "$installer_script" >&2; then
             rm -f "$installer_script"
             printf '%s\n' "Homebrew installation failed. See output above for details." >&2
@@ -124,7 +126,7 @@ ensure_bootstrap_python() {
         export CODEX_SPINE_BREW_INSTALL_APPROVED=1
     fi
 
-    printf '$ %s install python\n' "$brew_path" >&2
+    printf '\n$ %s install python\n' "$brew_path" >&2
     if ! "$brew_path" install python >&2; then
         printf '%s\n' "Homebrew Python install failed. See output above for details." >&2
         return 1

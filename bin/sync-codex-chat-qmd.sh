@@ -23,6 +23,7 @@ DECISION_LIMIT="${DECISION_LIMIT:-10}"
 RECENT_SESSION_LIMIT="${RECENT_SESSION_LIMIT:-10}"
 PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 QMD_INDEX_CHANGED=0
+EMBED_HEARTBEAT_SECONDS="${EMBED_HEARTBEAT_SECONDS:-15}"
 
 log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -943,9 +944,33 @@ qmd_collection_exists() {
     printf '%s\n' "$list_output" | grep -Eq "qmd://$COLLECTION_NAME/|(^|[[:space:]])$COLLECTION_NAME([[:space:]]|$)"
 }
 
+run_with_heartbeat() {
+    local label="$1"
+    shift
+    local started_at
+    local elapsed=0
+    local cmd_pid=0
+
+    started_at="$(date +%s)"
+    "$@" &
+    cmd_pid=$!
+
+    while kill -0 "$cmd_pid" 2>/dev/null; do
+        sleep "$EMBED_HEARTBEAT_SECONDS"
+        if ! kill -0 "$cmd_pid" 2>/dev/null; then
+            break
+        fi
+        elapsed=$(( $(date +%s) - started_at ))
+        log "$label is still running (${elapsed}s elapsed)"
+    done
+
+    wait "$cmd_pid"
+}
+
 embed_qmd_index() {
     log "Embedding index: $INDEX_NAME"
-    if "$QMD" --index "$INDEX_NAME" embed; then
+    log "qmd can pause for a while after it prints the model name. The install is still working."
+    if run_with_heartbeat "Embedding for $INDEX_NAME" "$QMD" --index "$INDEX_NAME" embed; then
         log "Embedding complete: $INDEX_NAME"
     else
         log "ERROR embedding failed for index: $INDEX_NAME"
