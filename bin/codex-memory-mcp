@@ -8,8 +8,10 @@ const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
 const HOME = process.env.HOME || os.homedir();
+const INDEX_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat");
 const STATE_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat", ".state");
 const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
+const PROJECT_DOCS_DIR = path.join(INDEX_ROOT, "projects");
 const SYNC_SCRIPT = path.join(HOME, ".local", "bin", "sync-codex-chat-qmd.sh");
 const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
 let transportStyle = "framed";
@@ -58,6 +60,23 @@ function readTextIfExists(file) {
   }
 }
 
+function safeRealpath(file) {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    return "";
+  }
+}
+
+function isWithinRoot(file, root) {
+  const resolvedFile = safeRealpath(file);
+  const resolvedRoot = safeRealpath(root);
+  if (!resolvedFile || !resolvedRoot) {
+    return false;
+  }
+  return resolvedFile === resolvedRoot || resolvedFile.startsWith(`${resolvedRoot}${path.sep}`);
+}
+
 function normalizePath(inputPath) {
   try {
     if (!inputPath) {
@@ -96,6 +115,14 @@ function readBootstrapForKey(projectKey) {
   }
   const bootstrapFile = path.join(PROJECTS_DIR, projectKey, "bootstrap.json");
   return readJsonIfExists(bootstrapFile);
+}
+
+function readSessionIndexForKey(projectKey) {
+  if (!projectKey) {
+    return null;
+  }
+  const indexFile = path.join(PROJECTS_DIR, projectKey, "session_index.json");
+  return readJsonIfExists(indexFile);
 }
 
 function unixSecondsFromIso(value) {
@@ -207,6 +234,100 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
   return result;
 }
 
+function resourceTemplatesResult() {
+  return {
+    resourceTemplates: [
+      {
+        uriTemplate: "memory://{project_key}/{resource_path}",
+        name: "codex-memory resources",
+        description:
+          "Read-only project-memory and projected session markdown already indexed by codex-memory-mcp.",
+        mimeType: "text/markdown",
+      },
+    ],
+  };
+}
+
+function resourcesListResult() {
+  // Keep list enumeration empty to avoid cross-project discovery. The desktop
+  // client can still open explicit memory:// URIs returned from project-scoped
+  // bootstrap_context results.
+  return { resources: [] };
+}
+
+function parseMemoryUri(uri) {
+  try {
+    const parsed = new URL(String(uri || ""));
+    if (parsed.protocol !== "memory:") {
+      return null;
+    }
+    const projectKey = parsed.hostname || "";
+    const resourcePath = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    if (!projectKey || !resourcePath) {
+      return null;
+    }
+    return { projectKey, resourcePath, uri: parsed.toString() };
+  } catch {
+    return null;
+  }
+}
+
+function resolveProjectMemoryDoc(projectKey) {
+  const file = path.join(PROJECT_DOCS_DIR, projectKey, "project-memory.md");
+  if (!isWithinRoot(file, PROJECT_DOCS_DIR) || !fs.existsSync(file)) {
+    return null;
+  }
+  return file;
+}
+
+function resolveProjectedSessionDoc(projectKey, resourcePath) {
+  const sessionIndex = readSessionIndexForKey(projectKey);
+  const sessions = Array.isArray(sessionIndex?.sessions) ? sessionIndex.sessions : [];
+  const match = sessions.find((session) => (
+    session
+    && session.projected === true
+    && typeof session.projection_rel === "string"
+    && session.projection_rel === resourcePath
+    && typeof session.projection_abs === "string"
+  ));
+  if (!match) {
+    return null;
+  }
+  const file = match.projection_abs;
+  if (!isWithinRoot(file, INDEX_ROOT) || !fs.existsSync(file)) {
+    return null;
+  }
+  return file;
+}
+
+function readResource(uri) {
+  const parsed = parseMemoryUri(uri);
+  if (!parsed) {
+    throw new Error(`unsupported memory resource URI: ${uri}`);
+  }
+
+  let file = null;
+  if (parsed.resourcePath === "project-memory.md") {
+    file = resolveProjectMemoryDoc(parsed.projectKey);
+  } else {
+    file = resolveProjectedSessionDoc(parsed.projectKey, parsed.resourcePath);
+  }
+
+  if (!file) {
+    throw new Error(`memory resource not found: ${uri}`);
+  }
+
+  return {
+    contents: [
+      {
+        uri: parsed.uri,
+        mimeType: "text/markdown",
+        text: fs.readFileSync(file, "utf8"),
+      },
+    ],
+  };
+}
+
 function bootstrapContext(args) {
   const cwd = typeof args.cwd === "string" && args.cwd.length > 0 ? args.cwd : process.cwd();
   const refreshIfStale = args.refresh_if_stale !== false;
@@ -287,6 +408,9 @@ function handleRequest(message) {
         tools: {
           listChanged: false,
         },
+        resources: {
+          listChanged: false,
+        },
       },
       serverInfo: {
         name: "codex-memory-mcp",
@@ -297,6 +421,23 @@ function handleRequest(message) {
 
   if (method === "tools/list") {
     return sendResponse(id, toolListResult());
+  }
+
+  if (method === "resources/list") {
+    return sendResponse(id, resourcesListResult());
+  }
+
+  if (method === "resources/templates/list") {
+    return sendResponse(id, resourceTemplatesResult());
+  }
+
+  if (method === "resources/read") {
+    try {
+      return sendResponse(id, readResource(params?.uri));
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      return sendError(id, -32002, detail);
+    }
   }
 
   if (method === "tools/call") {

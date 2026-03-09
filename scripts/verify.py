@@ -150,6 +150,117 @@ def validate_memory_scope_isolation() -> list[str]:
         if foreign_project_path in stderr or "/tmp/foreign.md" in stderr:
             errors.append("qmd-memory-latest scope-isolation check leaked foreign latest-pointer state")
 
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        home = Path(tmp_dir)
+        project_key = "current-repo-123456789abc"
+        projection_rel = "2026/03/09/rollout-2026-03-09T10-53-40-019cd316-ec35-7e72-8af8-4aac4e555b3b.md"
+        projection_abs = home / ".cache/qmd/codex_chat" / projection_rel
+        projection_abs.parent.mkdir(parents=True, exist_ok=True)
+        projection_abs.write_text("# Session Memory\n\nRemember the rollout note.\n", encoding="utf-8")
+
+        project_memory = home / ".cache/qmd/codex_chat/projects" / project_key / "project-memory.md"
+        project_memory.parent.mkdir(parents=True, exist_ok=True)
+        project_memory.write_text("# Project Memory\n\nCurrent objective: verify resources.\n", encoding="utf-8")
+
+        state_root = home / ".cache/qmd/codex_chat/.state/projects" / project_key
+        state_root.mkdir(parents=True, exist_ok=True)
+        (state_root / "session_index.json").write_text(
+            json.dumps(
+                {
+                    "project_key": project_key,
+                    "sessions": [
+                        {
+                            "projected": True,
+                            "projection_rel": projection_rel,
+                            "projection_abs": str(projection_abs),
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        env = runtime_env()
+        env["HOME"] = str(home)
+
+        def rpc(method: str, params: dict | None = None) -> dict:
+            request = json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": method,
+                    "params": params or {},
+                }
+            )
+            result = subprocess.run(
+                ["node", str(REPO_ROOT / "bin" / "codex-memory-mcp")],
+                input=f"{request}\n",
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+                raise RuntimeError(detail)
+            return json.loads(result.stdout.strip())
+
+        try:
+            resources_list = rpc("resources/list")
+        except Exception as exc:
+            errors.append(f"memory resources/list failed: {exc}")
+        else:
+            if resources_list.get("error"):
+                errors.append(f"memory resources/list returned error: {resources_list['error']}")
+            elif not isinstance(resources_list.get("result", {}).get("resources"), list):
+                errors.append("memory resources/list did not return a resources list")
+
+        try:
+            templates_list = rpc("resources/templates/list")
+        except Exception as exc:
+            errors.append(f"memory resources/templates/list failed: {exc}")
+        else:
+            templates = templates_list.get("result", {}).get("resourceTemplates", [])
+            if not templates:
+                errors.append("memory resources/templates/list returned no templates")
+            elif "memory://" not in json.dumps(templates):
+                errors.append("memory resources/templates/list did not advertise memory:// support")
+
+        try:
+            session_read = rpc("resources/read", {"uri": f"memory://{project_key}/{projection_rel}"})
+        except Exception as exc:
+            errors.append(f"memory resources/read failed for projected session: {exc}")
+        else:
+            try:
+                session_text = session_read["result"]["contents"][0]["text"]
+            except (KeyError, IndexError, TypeError) as exc:
+                errors.append(f"memory resources/read returned unparseable projected session output: {exc}")
+            else:
+                if "Remember the rollout note." not in session_text:
+                    errors.append("memory resources/read did not return projected session content")
+
+        try:
+            project_read = rpc("resources/read", {"uri": f"memory://{project_key}/project-memory.md"})
+        except Exception as exc:
+            errors.append(f"memory resources/read failed for project-memory doc: {exc}")
+        else:
+            try:
+                project_text = project_read["result"]["contents"][0]["text"]
+            except (KeyError, IndexError, TypeError) as exc:
+                errors.append(f"memory resources/read returned unparseable project-memory output: {exc}")
+            else:
+                if "Current objective: verify resources." not in project_text:
+                    errors.append("memory resources/read did not return project-memory content")
+
+        try:
+            missing_read = rpc("resources/read", {"uri": f"memory://{project_key}/missing.md"})
+        except Exception as exc:
+            errors.append(f"memory resources/read missing-path check failed to run: {exc}")
+        else:
+            if "error" not in missing_read:
+                errors.append("memory resources/read missing-path check unexpectedly succeeded")
+
     return errors
 
 
