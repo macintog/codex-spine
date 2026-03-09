@@ -16,7 +16,7 @@
 
 - The repo and generated public config are intended to remain secret-free.
 - Provider credentials should stay in the user’s normal Codex or operating-system secret mechanisms, not in tracked files.
-- The default QMD-backed memory flow stores local transcript and derived project-memory data under `~/.cache/qmd/codex_chat`. Treat that local index as sensitive if your Codex transcripts contain sensitive content.
+- The default qmd-backed memory flow stores local transcript and derived project-memory data under `~/.cache/qmd/codex_chat`. Treat that local index as sensitive if your Codex transcripts contain sensitive content.
 - Optional `jCodeMunch MCP` enablement stores retrieved upstream terms text and acknowledgement provenance under the repo-local `.state/` directory. It does not store credentials.
 
 ## Trust Boundaries

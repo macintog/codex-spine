@@ -274,12 +274,12 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
 
     installer_url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
     if not prompt_yes_no(
-        "Homebrew is required for codex-spine. Install Homebrew now?",
+        "First we'll install Homebrew, then install the Homebrew packages codex-spine uses: python, git, ripgrep, node, pnpm, uv, and jq. Continue?",
         default=True,
         non_interactive=non_interactive,
     ):
         raise RuntimeError(
-            "Homebrew is required. Install it from https://brew.sh and rerun `make bootstrap`."
+            "codex-spine needs Homebrew plus a small set of Homebrew packages. Install Homebrew from https://brew.sh, then rerun `make install`."
         )
 
     with tempfile.NamedTemporaryFile(prefix="codex-spine-homebrew-", suffix=".sh", delete=False) as handle:
@@ -306,7 +306,7 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
     brew_path = homebrew_bin_path()
     if brew_path is None:
         raise RuntimeError(
-            "Homebrew install completed, but `brew` is still not available. Open a new shell or run the Homebrew shellenv snippet, then rerun `make bootstrap`."
+            "Homebrew finished installing, but `brew` is still not available in this shell. Open a new shell or run the Homebrew shellenv snippet, then rerun `make install`."
         )
     return brew_path
 
@@ -326,13 +326,14 @@ def install_missing_brew_formulas(
         return []
 
     pretty = ", ".join(missing)
-    if not prompt_yes_no(
-        f"Install missing Homebrew packages now? {pretty}",
+    auto_approved = os.environ.get("CODEX_SPINE_BREW_INSTALL_APPROVED") == "1"
+    if not auto_approved and not prompt_yes_no(
+        f"We'll install the Homebrew packages codex-spine uses: {pretty}. Continue?",
         default=True,
         non_interactive=non_interactive,
     ):
         raise RuntimeError(
-            f"Missing required Homebrew packages: {pretty}. Install them and rerun `make bootstrap`."
+            f"Missing required Homebrew packages: {pretty}. Install them and rerun `make install`."
         )
 
     print(f"$ {shlex.join([str(brew_path), 'install', *missing])}")

@@ -7,12 +7,12 @@
 - macOS with a user-space Codex installation under `~/.codex`
 - Homebrew
 
-`make bootstrap` uses Homebrew as the baseline package manager for `git`, `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, bootstrap will offer to install it when run from an interactive TTY.
-Bootstrap starts from macOS-shipped shell tools and will provision Homebrew Python first when the machine's default `python3` is too old for the managed runtime.
+`make install` uses Homebrew as the baseline package manager for `git`, `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
+Install starts from macOS-shipped shell tools and will provision Homebrew Python first when the machine's default `python3` is too old for the managed runtime.
 
 ## Homebrew Packages
 
-When `make bootstrap` installs missing baseline formulas, it installs these Homebrew packages:
+When `make install` installs missing baseline formulas, it installs these Homebrew packages:
 
 - `git`
 - `ripgrep`
@@ -24,29 +24,29 @@ When `make bootstrap` installs missing baseline formulas, it installs these Home
 
 ## What It Includes
 
-- managed bootstrap, verify, update, and component status commands
+- managed install, verify, update, and component status commands
 - generated Codex config for the public core
 - shell integration and launchd-backed transcript sync on macOS
-- QMD-backed memory and retrieval plumbing by default
+- qmd-backed memory and retrieval plumbing by default
 - optional `jCodeMunch MCP` integration through a managed enablement flow
 
 ## Quick Start
 
 1. Clone the repo wherever you want to keep the managed environment.
-2. Run `make bootstrap`.
+2. Run `make install`.
 3. Restart Codex app.
-4. Open a new shell if bootstrap updated your zsh startup files.
+4. Open a new shell if install updated your zsh startup files.
 5. Run `make verify`.
 6. If you want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
-`make bootstrap` is interactive when run from a TTY. It will offer to install Homebrew if needed and will confirm any missing baseline Homebrew packages before installing them. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
-Bootstrap now also runs an initial transcript sync and QMD index refresh before the final verification step, so the first run can take noticeably longer than later runs.
+`make install` is interactive when run from a TTY. It will explain the Homebrew packages it is about to install and ask for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
+Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local qmd index before the final verification step, so the first run can take noticeably longer than later runs.
 
-`zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, bootstrap warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
+`zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, install warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
 
-## What Bootstrap Changes
+## What Install Changes
 
-`make bootstrap` is the install step, not just a validation step. It:
+`make install` is the install step, not just a validation step. It:
 
 - checks that Homebrew exists and installs any missing baseline packages needed by the managed runtime
 - creates example local overlay files when they do not exist yet
@@ -55,17 +55,17 @@ Bootstrap now also runs an initial transcript sync and QMD index refresh before 
 - renders `~/.codex/config.toml`
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installs or updates the default managed components
-- runs the first transcript sync and QMD index refresh so memory and transcript retrieval are warm before bootstrap finishes
+- runs the first transcript sync and qmd index refresh so memory and transcript retrieval are warm before install finishes
 
-Optional `jCodeMunch MCP` enablement stays separate from first-run bootstrap.
+Optional `jCodeMunch MCP` enablement stays separate from first-run install.
 
-Current terminals do not automatically pick up shell changes. Open a new shell after bootstrap when you want the refreshed shell environment. If bootstrap skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
+Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 
 ## First-Run Success Criteria
 
 After a successful first run:
 
-- `make bootstrap` ends with `bootstrap: ok`
+- `make install` ends with `install: ok`
 - `make verify` ends with `verify: ok`
 - `./scripts/component-status` reports the default components as healthy
 - `make verify` proves both the native components and the Codex-facing wrapper layer (`qmd-codex` and the memory MCP launcher)
@@ -82,11 +82,11 @@ After a successful first run:
 
 ## Troubleshooting
 
-- If `make verify` says the live config is stale, run `make bootstrap`.
-- If transcript sync is missing, check `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` and re-run `make bootstrap`.
-- If bootstrap warns that your login shell is not `zsh`, add `~/.local/bin` to that shell's startup and source the repo fragments manually if you want shell integration.
-- If `launchctl` warnings appear during bootstrap, rerun `make bootstrap` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load or kickstart fails.
-- If shell changes do not appear in your current terminal, open a new shell session after bootstrap.
+- If `make verify` says the live config is stale, run `make install`.
+- If transcript sync is missing, check `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` and re-run `make install`.
+- If install warns that your login shell is not `zsh`, add `~/.local/bin` to that shell's startup and source the repo fragments manually if you want shell integration.
+- If `launchctl` warnings appear during install, rerun `make install` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load fails.
+- If shell changes do not appear in your current terminal, open a new shell session after install.
 - If `jCodeMunch MCP` will not enable, inspect the stored upstream terms retrieval error first; the enable flow intentionally hard-fails when it cannot verify the upstream terms for the pinned version.
 
 ## Docs

@@ -20,6 +20,14 @@ find_brew() {
     return 1
 }
 
+brew_install_plan_prompt() {
+    if [ -z "${1:-}" ]; then
+        printf '%s' "First we'll install Homebrew, then install the Homebrew packages codex-spine uses: python, git, ripgrep, node, pnpm, uv, and jq. Continue?"
+    else
+        printf '%s' "We'll install the Homebrew packages codex-spine uses: python, git, ripgrep, node, pnpm, uv, and jq. Continue?"
+    fi
+}
+
 prompt_yes_no() {
     prompt=$1
     default=$2
@@ -62,10 +70,11 @@ ensure_bootstrap_python() {
     brew_path=$(find_brew || true)
     if [ -z "$brew_path" ]; then
         installer_url='https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh'
-        if ! prompt_yes_no "Homebrew is required to provision the Python runtime for codex-spine bootstrap. Install Homebrew now?" 1 "$non_interactive"; then
-            printf '%s\n' "Homebrew is required. Install it from https://brew.sh and rerun \`make bootstrap\`." >&2
+        if ! prompt_yes_no "$(brew_install_plan_prompt missing)" 1 "$non_interactive"; then
+            printf '%s\n' "codex-spine needs Homebrew plus a small set of Homebrew packages. Install Homebrew from https://brew.sh, then run \`make install\` again." >&2
             return 1
         fi
+        export CODEX_SPINE_BREW_INSTALL_APPROVED=1
         installer_script=$(mktemp -t codex-spine-homebrew-install.XXXXXX.sh)
         printf '$ curl -fL %s -o %s\n' "$installer_url" "$installer_script" >&2
         if ! curl -fL "$installer_url" -o "$installer_script" >&2; then
@@ -82,14 +91,15 @@ ensure_bootstrap_python() {
         rm -f "$installer_script"
         brew_path=$(find_brew || true)
         if [ -z "$brew_path" ]; then
-            printf '%s\n' "Homebrew install completed, but \`brew\` is still not available. Open a new shell or run the Homebrew shellenv snippet, then rerun \`make bootstrap\`." >&2
+            printf '%s\n' "Homebrew finished installing, but \`brew\` is still not available in this shell. Open a new shell or run the Homebrew shellenv snippet, then rerun \`make install\`." >&2
             return 1
         fi
-    fi
-
-    if ! prompt_yes_no "Install Homebrew Python now so codex-spine bootstrap can run?" 1 "$non_interactive"; then
-        printf '%s\n' "Homebrew Python is required to run codex-spine bootstrap. Install it with \`brew install python\` and rerun \`make bootstrap\`." >&2
-        return 1
+    elif [ "${CODEX_SPINE_BREW_INSTALL_APPROVED:-0}" != "1" ]; then
+        if ! prompt_yes_no "$(brew_install_plan_prompt)" 1 "$non_interactive"; then
+            printf '%s\n' "codex-spine needs a small set of Homebrew packages to continue. Install them, then rerun \`make install\`." >&2
+            return 1
+        fi
+        export CODEX_SPINE_BREW_INSTALL_APPROVED=1
     fi
 
     printf '$ %s install python\n' "$brew_path" >&2
@@ -100,7 +110,7 @@ ensure_bootstrap_python() {
 
     python_bin=$("$PYTHON_LAUNCHER" --resolve 2>/dev/null || true)
     if [ -z "$python_bin" ]; then
-        printf '%s\n' "Homebrew Python installed, but codex-spine still could not locate Python 3.11+. Rerun \`make bootstrap\` after confirming Homebrew Python is installed." >&2
+        printf '%s\n' "Homebrew Python installed, but codex-spine still could not locate Python 3.11+. Rerun \`make install\` after confirming Homebrew Python is installed." >&2
         return 1
     fi
 

@@ -49,6 +49,24 @@ def warn(message: str) -> None:
     print(f"WARNING: {message}", file=sys.stderr)
 
 
+def run_bootout(args: list[str], *, label: str) -> None:
+    result = subprocess.run(
+        ["launchctl", "bootout", *args],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return
+    detail = first_nonempty_line(result.stderr, result.stdout)
+    if result.returncode in {3, 5}:
+        return
+    if detail and any(text in detail for text in ("No such process", "Input/output error")):
+        return
+    if detail:
+        warn(f"{label} failed: {detail}")
+
+
 def run_launchctl(args: list[str], *, label: str) -> bool:
     result = subprocess.run(
         ["launchctl", *args],
@@ -60,7 +78,7 @@ def run_launchctl(args: list[str], *, label: str) -> bool:
         return True
     detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
     warn(
-        f"{label} failed: {detail}. The LaunchAgent plist was still written; rerun `make bootstrap` from a normal macOS login session to load launchd state."
+        f"{label} failed: {detail}. The LaunchAgent plist was still written; rerun `make install` from a normal macOS login session to load launchd state."
     )
     return False
 
@@ -102,7 +120,7 @@ def main() -> int:
         for dotfile, fragment in shell_source_targets(shell_plan).items():
             upsert_source_block(dotfile, fragment)
 
-    print("Installing or updating default managed components. This can take a while on the first run.", flush=True)
+    print("Now we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
 
     rendered = render_config_text()
@@ -111,21 +129,21 @@ def main() -> int:
     uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
     for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:
         legacy_path = HOME / "Library/LaunchAgents" / legacy_name
-        subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(legacy_path)], check=False)
+        run_bootout([f"gui/{uid}", str(legacy_path)], label=f"launchctl bootout {legacy_name}")
         if legacy_path.exists():
             legacy_path.unlink()
 
     write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
 
-    # Warm the transcript projection and QMD index directly before loading the
+    # Warm the transcript projection and qmd index directly before loading the
     # LaunchAgent. Otherwise RunAtLoad can steal the first sync and leave
     # bootstrap showing only a lock wait instead of the real work.
-    print("Running initial transcript sync and QMD index refresh. This may take a while on the first run.")
+    print("Now we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
     run_sync()
 
-    subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], check=False)
+    run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist")
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
-        subprocess.run(["launchctl", "bootout", f"gui/{uid}/{legacy_label}"], check=False)
+        run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}")
     run_launchctl(
         ["bootstrap", f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)],
         label="launchctl bootstrap",
@@ -135,7 +153,7 @@ def main() -> int:
     if not shell_plan.supported:
         print("Shell integration was skipped because the detected login shell is not zsh.")
         print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
-    print("bootstrap: ok")
+    print("install: ok")
     return 0
 
 

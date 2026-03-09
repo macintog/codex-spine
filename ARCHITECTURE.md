@@ -17,7 +17,7 @@ codex-spine/
 │   ├── codex_spine.py          # Shared bootstrap/verify/config helpers and registry validation
 │   └── component_manager.py    # Pinned acquisition, status, and license-aware component flow
 ├── scripts/
-│   ├── bootstrap               # Refreshes live managed environment state
+│   ├── bootstrap               # Powers the managed install command and refreshes live state
 │   ├── verify                  # Validates repo shape and live machine drift
 │   ├── render-config           # Renders ~/.codex/config.toml from tracked fragments
 │   ├── update                  # Installs or refreshes default and enabled optional components
@@ -34,7 +34,7 @@ codex-spine/
 
 ## Core Control Flows
 
-### Managed Bootstrap
+### Managed Install
 
 ```text
 tracked repo policy + config fragments + wrappers
@@ -47,7 +47,7 @@ tracked repo policy + config fragments + wrappers
     -> LaunchAgent render + reload
 ```
 
-`bootstrap` is the mechanism that turns tracked repo state into live user-level machine state. A change to config fragments, wrappers, shell hooks, or LaunchAgent behavior is not really installed until `bootstrap` runs successfully.
+`install` is the mechanism that turns tracked repo state into live user-level machine state. A change to config fragments, wrappers, shell hooks, or LaunchAgent behavior is not really installed until `make install` runs successfully.
 
 ### Verification
 

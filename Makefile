@@ -1,7 +1,9 @@
-.PHONY: bootstrap verify render-config update component-status
+.PHONY: install bootstrap verify render-config update component-status
 
-bootstrap:
+install:
 	./scripts/bootstrap
+
+bootstrap: install
 
 verify:
 	./scripts/verify

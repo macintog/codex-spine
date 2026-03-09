@@ -38,7 +38,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 python_bin=$(resolve_python) || {
-    printf '%s\n' "codex-spine requires Python 3.11+ at runtime. Run \`make bootstrap\` first or install Homebrew Python." >&2
+    printf '%s\n' "codex-spine requires Python 3.11+ at runtime. Run \`make install\` first or install Homebrew Python." >&2
     exit 1
 }
 
