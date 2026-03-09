@@ -10,7 +10,6 @@ const { spawnSync } = require("child_process");
 const HOME = process.env.HOME || os.homedir();
 const STATE_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat", ".state");
 const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
-const LATEST_PROJECT_KEY_FILE = path.join(STATE_ROOT, "latest_project_key.txt");
 const SYNC_SCRIPT = path.join(HOME, ".local", "bin", "sync-codex-chat-qmd.sh");
 const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
 let transportStyle = "framed";
@@ -219,18 +218,6 @@ function bootstrapContext(args) {
   const inferredProjectKey = projectKeyForPath(projectPath);
 
   let bootstrap = readBootstrapForKey(inferredProjectKey);
-  let activeProjectKey = inferredProjectKey;
-
-  if (!bootstrap) {
-    const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
-    if (latestProjectKey) {
-      const latestBootstrap = readBootstrapForKey(latestProjectKey);
-      if (latestBootstrap) {
-        bootstrap = latestBootstrap;
-        activeProjectKey = latestProjectKey;
-      }
-    }
-  }
 
   const lastSyncSeconds = unixSecondsFromIso(bootstrap?.last_sync_utc || "");
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -242,16 +229,6 @@ function bootstrapContext(args) {
       const freshBootstrap = readBootstrapForKey(inferredProjectKey);
       if (freshBootstrap) {
         bootstrap = freshBootstrap;
-        activeProjectKey = inferredProjectKey;
-      } else {
-        const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
-        if (latestProjectKey) {
-          const latestBootstrap = readBootstrapForKey(latestProjectKey);
-          if (latestBootstrap) {
-            bootstrap = latestBootstrap;
-            activeProjectKey = latestProjectKey;
-          }
-        }
       }
     }
   }
@@ -261,7 +238,7 @@ function bootstrapContext(args) {
     result = buildColdStart(projectPath, inferredProjectKey);
   } else {
     result = buildSummaryFromBootstrap(bootstrap, maxRecent);
-    result.project_key = activeProjectKey;
+    result.project_key = inferredProjectKey;
   }
 
   return result;
