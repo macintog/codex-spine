@@ -10,6 +10,26 @@ first_nonempty_line() {
     printf '%s\n' "$1" | sed -n '/[^[:space:]]/ { s/^[[:space:]]*//; p; q; }'
 }
 
+run_and_capture() {
+    log_file=$1
+    shift
+
+    tmp_dir=$(mktemp -d -t codex-spine-bootstrap)
+    fifo="$tmp_dir/output"
+    mkfifo "$fifo"
+
+    tee "$log_file" <"$fifo" &
+    tee_pid=$!
+
+    "$@" >"$fifo" 2>&1
+    status=$?
+
+    wait "$tee_pid" || true
+    rm -f "$fifo"
+    rmdir "$tmp_dir"
+    return "$status"
+}
+
 find_brew() {
     if command -v brew >/dev/null 2>&1; then
         command -v brew
@@ -81,11 +101,15 @@ ensure_bootstrap_python() {
             return 1
         fi
         printf '$ %s\n' "$install_command"
-        output=$(/bin/bash -c "$install_command" 2>&1) || {
+        log_file=$(mktemp -t codex-spine-homebrew-install)
+        if ! run_and_capture "$log_file" /bin/bash -c "$install_command"; then
+            output=$(cat "$log_file")
+            rm -f "$log_file"
             detail=$(first_nonempty_line "$output")
             printf '%s\n' "Homebrew installation failed: ${detail:-unknown error}" >&2
             return 1
-        }
+        fi
+        rm -f "$log_file"
         brew_path=$(find_brew || true)
         if [ -z "$brew_path" ]; then
             printf '%s\n' "Homebrew install completed, but \`brew\` is still not available. Open a new shell or run the Homebrew shellenv snippet, then rerun \`make bootstrap\`." >&2
@@ -98,7 +122,11 @@ ensure_bootstrap_python() {
         return 1
     fi
 
-    output=$("$brew_path" install python 2>&1) || {
+    printf '$ %s install python\n' "$brew_path"
+    log_file=$(mktemp -t codex-spine-python-install)
+    if ! run_and_capture "$log_file" "$brew_path" install python; then
+        output=$(cat "$log_file")
+        rm -f "$log_file"
         detail=$(first_nonempty_line "$output")
         if looks_like_clt_issue "$output"; then
             printf '%s\n' "Homebrew could not install Python because Apple Command Line Tools are missing or incomplete. Finish the Command Line Tools install, open a new shell, and rerun \`make bootstrap\`." >&2
@@ -106,7 +134,8 @@ ensure_bootstrap_python() {
         fi
         printf '%s\n' "Homebrew Python install failed: ${detail:-unknown error}" >&2
         return 1
-    }
+    fi
+    rm -f "$log_file"
 
     python_bin=$("$PYTHON_LAUNCHER" --resolve 2>/dev/null || true)
     if [ -z "$python_bin" ]; then

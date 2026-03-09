@@ -245,6 +245,29 @@ def run(
     )
 
 
+def run_streaming(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[int, str]:
+    process = subprocess.Popen(
+        args,
+        cwd=str(cwd) if cwd else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=env,
+    )
+    output_chunks: list[str] = []
+    assert process.stdout is not None
+    for line in process.stdout:
+        print(line, end="", flush=True)
+        output_chunks.append(line)
+    process.wait()
+    return process.returncode, "".join(output_chunks)
+
+
 def prompt_yes_no(prompt: str, *, default: bool, non_interactive: bool) -> bool:
     if non_interactive or not sys.stdin.isatty():
         return default
@@ -293,14 +316,11 @@ def ensure_homebrew(*, non_interactive: bool) -> Path:
         )
 
     print(f"$ {install_command}")
-    result = subprocess.run(
+    returncode, output = run_streaming(
         ["/bin/bash", "-c", install_command],
-        check=False,
-        capture_output=True,
-        text=True,
     )
-    if result.returncode != 0:
-        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+    if returncode != 0:
+        detail = first_nonempty_line(output) or f"exit {returncode}"
         raise RuntimeError(f"Homebrew installation failed: {detail}")
 
     brew_path = homebrew_bin_path()
@@ -335,14 +355,14 @@ def install_missing_brew_formulas(
             f"Missing required Homebrew packages: {pretty}. Install them and rerun `make bootstrap`."
         )
 
-    result = run(
+    print(f"$ {shlex.join([str(brew_path), 'install', *missing])}")
+    returncode, output = run_streaming(
         [str(brew_path), "install", *missing],
-        check=False,
         env=runtime_env(),
     )
-    if result.returncode != 0:
-        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
-        if looks_like_clt_issue((result.stderr or "") + "\n" + (result.stdout or "")):
+    if returncode != 0:
+        detail = first_nonempty_line(output) or f"exit {returncode}"
+        if looks_like_clt_issue(output):
             raise RuntimeError(
                 "Homebrew dependency install failed because Apple Command Line Tools are missing or still installing. Complete the CLT install, open a new shell if needed, and rerun `make bootstrap`."
             )
