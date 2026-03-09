@@ -6,10 +6,6 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 PYTHON_LAUNCHER="$REPO_ROOT/bin/codex-python"
 BOOTSTRAP_PY="$SCRIPT_DIR/bootstrap.py"
 
-developer_tools_ready() {
-    /usr/bin/xcode-select -p >/dev/null 2>&1 && /usr/bin/xcrun --find git >/dev/null 2>&1
-}
-
 find_brew() {
     if command -v brew >/dev/null 2>&1; then
         command -v brew
@@ -21,16 +17,6 @@ find_brew() {
             return 0
         fi
     done
-    return 1
-}
-
-looks_like_clt_issue() {
-    lowered=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
-    case "$lowered" in
-        *"xcode-select: note: no developer tools were found"*|*"command line tools"*|*"xcrun: error"*|*"active developer path"*)
-            return 0
-            ;;
-    esac
     return 1
 }
 
@@ -108,10 +94,6 @@ ensure_bootstrap_python() {
 
     printf '$ %s install python\n' "$brew_path" >&2
     if ! "$brew_path" install python >&2; then
-        if ! developer_tools_ready; then
-            printf '%s\n' "Homebrew could not install Python because Apple Command Line Tools are missing or incomplete. Finish the Command Line Tools install, open a new shell, and rerun \`make bootstrap\`." >&2
-            return 1
-        fi
         printf '%s\n' "Homebrew Python install failed. See output above for details." >&2
         return 1
     fi

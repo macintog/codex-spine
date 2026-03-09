@@ -267,34 +267,6 @@ def homebrew_bin_path() -> Path | None:
     return None
 
 
-def looks_like_clt_issue(text: str) -> bool:
-    lowered = text.lower()
-    needles = [
-        "xcode-select: note: no developer tools were found",
-        "command line tools",
-        "xcrun: error",
-        "active developer path",
-    ]
-    return any(needle in lowered for needle in needles)
-
-
-def developer_tools_ready() -> bool:
-    probes = [
-        ["/usr/bin/xcode-select", "-p"],
-        ["/usr/bin/xcrun", "--find", "git"],
-    ]
-    for args in probes:
-        result = subprocess.run(
-            args,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            return False
-    return True
-
-
 def ensure_homebrew(*, non_interactive: bool) -> Path:
     brew_path = homebrew_bin_path()
     if brew_path is not None:
@@ -370,10 +342,6 @@ def install_missing_brew_formulas(
         env=runtime_env(),
     )
     if result.returncode != 0:
-        if not developer_tools_ready():
-            raise RuntimeError(
-                "Homebrew dependency install failed because Apple Command Line Tools are missing or still installing. Complete the CLT install, open a new shell if needed, and rerun `make bootstrap`."
-            )
         raise RuntimeError("Homebrew dependency install failed. See output above for details.")
     return missing
 
