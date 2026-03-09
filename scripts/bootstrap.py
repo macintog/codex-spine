@@ -125,10 +125,16 @@ def main() -> int:
     run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
 
     rendered = render_config_text()
-    config_backup = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
-    write_generated_config(LIVE_CONFIG_PATH, rendered)
-    if config_backup is not None:
-        print(f"Backed up the existing Codex config to {config_backup}")
+    config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
+    write_generated_config(
+        LIVE_CONFIG_PATH,
+        rendered,
+        allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
+    )
+    if config_plan.adopted_overlay_path is not None:
+        print(f"Imported the existing Codex config into {config_plan.adopted_overlay_path}")
+    if config_plan.backup_path is not None:
+        print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
 
     uid = subprocess.run(["id", "-u"], check=True, capture_output=True, text=True).stdout.strip()
     for legacy_name in LEGACY_QMD_CHAT_LAUNCH_AGENT_NAMES:

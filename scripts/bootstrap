@@ -23,9 +23,30 @@ find_brew() {
 
 brew_install_plan_prompt() {
     if [ -z "${1:-}" ]; then
-        printf '%s' "First we'll install Homebrew, then install the Homebrew packages codex-spine uses: python, ripgrep, node, pnpm, uv, and jq. Continue?"
+        cat <<'EOF'
+First we'll install Homebrew.
+Then we'll install these Homebrew packages for codex-spine:
+- python
+- ripgrep
+- node
+- pnpm
+- uv
+- jq
+
+Continue?
+EOF
     else
-        printf '%s' "We'll install the Homebrew packages codex-spine uses: python, ripgrep, node, pnpm, uv, and jq. Continue?"
+        cat <<'EOF'
+We'll install these Homebrew packages for codex-spine:
+- python
+- ripgrep
+- node
+- pnpm
+- uv
+- jq
+
+Continue?
+EOF
     fi
 }
 

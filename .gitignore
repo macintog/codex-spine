@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 .state/
+codex/config/80-adopted.toml
 codex/config/90-local.toml
 shell/codex.local.env

@@ -27,13 +27,19 @@ def main() -> int:
         sys.stdout.write(rendered)
         return 0
 
-    backup_path = prepare_generated_config_target(
+    config_plan = prepare_generated_config_target(
         LIVE_CONFIG_PATH,
         non_interactive=not sys.stdin.isatty(),
     )
-    write_generated_config(LIVE_CONFIG_PATH, rendered)
-    if backup_path is not None:
-        print(f"Backed up the existing Codex config to {backup_path}")
+    write_generated_config(
+        LIVE_CONFIG_PATH,
+        rendered,
+        allow_unmanaged_replace=config_plan.allow_unmanaged_replace,
+    )
+    if config_plan.adopted_overlay_path is not None:
+        print(f"Imported the existing Codex config into {config_plan.adopted_overlay_path}")
+    if config_plan.backup_path is not None:
+        print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
     print(LIVE_CONFIG_PATH)
     return 0
 
