@@ -39,12 +39,12 @@ codex-spine/
 ```text
 tracked repo policy + config fragments + wrappers
     -> scripts/bootstrap
+    -> Homebrew presence + baseline package checks
     -> default managed component install/update
     -> managed symlinks under ~/.codex and ~/.local/bin
-    -> shell source blocks
+    -> zsh-only managed shell source blocks
     -> rendered ~/.codex/config.toml
     -> LaunchAgent render + reload
-    -> optional jCodeMunch MCP enablement offer
 ```
 
 `bootstrap` is the mechanism that turns tracked repo state into live user-level machine state. A change to config fragments, wrappers, shell hooks, or LaunchAgent behavior is not really installed until `bootstrap` runs successfully.
@@ -92,8 +92,10 @@ The upstream `jgravelle/jcodemunch-mcp` project stays a separate license boundar
 
 - `qmd` and memory are part of the default public core.
 - `jCodeMunch MCP` is optional but first-class.
+- `zsh` is the only tested shell integration path. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation.
 - launchd, shell, and config surfaces must remain free of private paths and personal-service assumptions.
 - `MAINTAINED_COMPONENTS.toml` owns acquisition/update shape; `COMPONENTS.toml` owns boundary and licensing posture.
+- Managed update paths must fail closed when post-update health is red instead of accepting version-only success.
 
 ## Security and Trust Boundaries
 
@@ -108,7 +110,7 @@ The upstream `jgravelle/jcodemunch-mcp` project stays a separate license boundar
 - Live integration points are mostly symlink-based so tracked repo changes can propagate through `bootstrap`.
 - LaunchAgent state is managed from tracked plist definitions and reloaded during bootstrap.
 - Repo-local `.state/` stores optional component enablement records and retrieved upstream terms provenance.
-- `update` refreshes default components and any already-enabled optional components to the repo’s pinned versions.
+- `update` refreshes default components and any already-enabled optional components to the repo’s pinned versions and stops with an error if the component remains unhealthy afterward.
 
 ## Why This Doc Exists
 

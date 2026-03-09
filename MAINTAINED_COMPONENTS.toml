@@ -12,6 +12,7 @@ package_name = "@tobilu/qmd"
 pinned_version = "1.1.5"
 executable = "~/Library/pnpm/qmd"
 version_args = ["--version"]
+health_args = ["status"]
 
 [components."jcodemunch-mcp"]
 summary = "jCodeMunch MCP executable used for indexed code navigation."

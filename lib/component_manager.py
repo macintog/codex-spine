@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,19 @@ from codex_spine import (
 
 
 SUPPORTED_BACKENDS = {"pnpm_global", "uv_tool"}
+HOME = Path.home()
+PREFERRED_NODE_PATHS = [
+    str(HOME / ".local/bin"),
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    str(HOME / "Library/pnpm"),
+    "/usr/local/bin",
+    "/usr/local/sbin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+]
 
 
 def _expand_path(raw_path: str) -> Path:
@@ -33,6 +47,7 @@ def _run(
     *,
     cwd: Path | None = None,
     check: bool = True,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -40,7 +55,93 @@ def _run(
         check=check,
         capture_output=True,
         text=True,
+        env=env,
     )
+
+
+def _prefixed_env(*prefixes: str) -> dict[str, str]:
+    env = os.environ.copy()
+    seen: set[str] = set()
+    parts: list[str] = []
+    for part in [*prefixes, *(env.get("PATH", "").split(":"))]:
+        if not part or part in seen:
+            continue
+        parts.append(part)
+        seen.add(part)
+    env["PATH"] = ":".join(parts)
+    return env
+
+
+def _pnpm_env() -> dict[str, str]:
+    env = _prefixed_env(*PREFERRED_NODE_PATHS)
+    env["PNPM_HOME"] = str(HOME / "Library/pnpm")
+    return env
+
+
+def _first_nonempty_line(*chunks: str) -> str:
+    for chunk in chunks:
+        for line in chunk.splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped
+    return ""
+
+
+def _pnpm_global_workspace() -> Path | None:
+    result = _run(["pnpm", "root", "-g"], check=False, env=_pnpm_env())
+    if result.returncode != 0:
+        return None
+    root = Path((result.stdout or "").strip()).expanduser()
+    if root.name == "node_modules":
+        return root.parent
+    return root if str(root) else None
+
+
+def _command_probe(
+    executable: Path,
+    args: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> dict[str, str | bool]:
+    result = _run([str(executable), *args], check=False, env=env)
+    output = (result.stdout or "").strip()
+    error = (result.stderr or "").strip()
+    detail = _first_nonempty_line(output, error) or f"exit {result.returncode}"
+    return {
+        "ok": result.returncode == 0,
+        "output": output or error,
+        "detail": detail,
+    }
+
+
+def _combine_detail(*parts: str) -> str:
+    return "; ".join(part for part in parts if part)
+
+
+def _prepare_pnpm_global_bin() -> None:
+    pnpm_home = HOME / "Library/pnpm"
+    pnpm_home.mkdir(parents=True, exist_ok=True)
+    _run(["pnpm", "config", "set", "global-bin-dir", str(pnpm_home)], check=True, env=_pnpm_env())
+
+
+def _rebuild_better_sqlite3() -> bool:
+    search_roots: list[Path] = [HOME / "Library/pnpm/global"]
+    workspace = _pnpm_global_workspace()
+    if workspace is not None and workspace not in search_roots:
+        search_roots.append(workspace)
+
+    rebuilt = False
+    seen: set[Path] = set()
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for candidate in root.glob("**/.pnpm/better-sqlite3@*/node_modules/better-sqlite3"):
+            if candidate in seen:
+                continue
+            _run(["pnpm", "rebuild"], cwd=candidate, check=True, env=_pnpm_env())
+            rebuilt = True
+            seen.add(candidate)
+    return rebuilt
 
 
 @dataclass(frozen=True)
@@ -123,6 +224,16 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                     errors.append(
                         f"backend must define {field_name}: components.{component_name}.backends.{backend_name}.{field_name}"
                     )
+            for optional_field in ("version_args", "health_args"):
+                optional_value = backend.get(optional_field)
+                if optional_value is not None and (
+                    not isinstance(optional_value, list)
+                    or not all(isinstance(item, str) for item in optional_value)
+                ):
+                    errors.append(
+                        "backend optional field must be a list of strings: "
+                        f"components.{component_name}.backends.{backend_name}.{optional_field}"
+                    )
             if backend.get("license_source_url") and not backend.get("license_start_marker"):
                 errors.append(
                     "licensed backend must define license_start_marker: "
@@ -154,7 +265,7 @@ def resolve_components(profile_name: str = "codex_spine", path: Path = MAINTAINE
 def _command_version(executable: Path, args: list[str] | None = None) -> str:
     if not executable.exists():
         return ""
-    result = _run([str(executable), *(args or ["--version"])], check=False)
+    result = _run([str(executable), *(args or ["--version"])], check=False, env=_pnpm_env())
     if result.returncode != 0:
         return ""
     return (result.stdout or result.stderr).strip()
@@ -166,21 +277,52 @@ def _status_pnpm(component: ResolvedComponent) -> dict:
     desired = component.backend["pinned_version"]
     installed = executable.exists()
     healthy = installed and desired in version
+    health_detail = ""
+    health_args = component.backend.get("health_args")
+    if installed and health_args:
+        health_result = _run([str(executable), *health_args], check=False, env=_pnpm_env())
+        if health_result.returncode != 0:
+            healthy = False
+            health_detail = _first_nonempty_line(health_result.stderr, health_result.stdout) or "health check failed"
     return {
         "installed": installed,
         "healthy": healthy,
-        "detail": version or f"missing executable: {executable}",
+        "detail": (
+            f"{version}; {health_detail}"
+            if version and health_detail
+            else version or health_detail or f"missing executable: {executable}"
+        ),
         "action": ["pnpm", "add", "-g", f'{component.backend["package_name"]}@{desired}'],
     }
 
 
 def _status_uv_tool(component: ResolvedComponent) -> dict:
     executable = component.executable_path
-    version = _command_version(executable, component.backend.get("version_args", ["--version"]))
     desired = component.backend["pinned_version"]
     installed = executable.exists()
-    healthy = installed and (not version or desired in version)
-    detail = version or f"missing executable: {executable}; expected {component.backend['package_name']}=={desired}"
+    version_text = ""
+    probe_detail = ""
+    healthy = installed
+    version_args = component.backend.get("version_args")
+    if installed and version_args:
+        probe = _command_probe(executable, version_args, env=_pnpm_env())
+        version_text = str(probe["output"])
+        if not bool(probe["ok"]):
+            healthy = False
+            probe_detail = str(probe["detail"])
+        elif desired not in version_text:
+            healthy = False
+            probe_detail = f"expected {component.backend['package_name']}=={desired}, got {version_text or 'unknown version'}"
+    health_args = component.backend.get("health_args")
+    if healthy and installed and health_args:
+        probe = _command_probe(executable, health_args, env=_pnpm_env())
+        if not bool(probe["ok"]):
+            healthy = False
+            probe_detail = str(probe["detail"])
+    expected = f"expected {component.backend['package_name']}=={desired}"
+    detail = _combine_detail(version_text, probe_detail) or (
+        expected if installed else f"missing executable: {executable}; {expected}"
+    )
     return {
         "installed": installed,
         "healthy": healthy,
@@ -206,8 +348,21 @@ def component_status(component: ResolvedComponent) -> dict:
 
 
 def update_component(component: ResolvedComponent) -> list[str]:
+    if component.backend["kind"] == "pnpm_global":
+        _prepare_pnpm_global_bin()
     action = component_status(component)["action"]
-    _run(action, check=True)
+    _run(action, check=True, env=_pnpm_env())
+    status = component_status(component)
+    if not status["healthy"]:
+        if _rebuild_better_sqlite3():
+            status = component_status(component)
+    if not status["healthy"]:
+        workspace = _pnpm_global_workspace()
+        if workspace is not None:
+            _run(["pnpm", "rebuild"], cwd=workspace, check=True, env=_pnpm_env())
+            status = component_status(component)
+    if not status["healthy"]:
+        raise RuntimeError(f"{component.name} remains unhealthy after update: {status['detail']}")
     return [f"{component.name}: installed/updated"]
 
 

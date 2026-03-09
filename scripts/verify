@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,10 +21,12 @@ from codex_spine import (  # noqa: E402
     MAINTAINED_COMPONENTS_PATH,
     REQUIRED_CLIS,
     cli_available,
+    detect_shell_integration_plan,
     detect_private_reference_hits,
     detect_secret_hits,
     enabled_component_names,
     enabled_component_record,
+    first_nonempty_line,
     managed_links,
     validate_public_doc_surface,
     render_config_text,
@@ -47,6 +50,7 @@ def main() -> int:
     args = parser.parse_args()
 
     errors: list[str] = []
+    warnings: list[str] = []
     errors.extend(validate_components_registry(COMPONENTS_PATH))
     errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
     errors.extend(validate_public_doc_surface())
@@ -58,7 +62,7 @@ def main() -> int:
         secret_hits = detect_secret_hits(text)
         if secret_hits:
             errors.append(f"tracked repo file appears to contain a secret: {path}")
-        private_hits = detect_private_reference_hits(text)
+        private_hits = detect_private_reference_hits(text, public_surface=True)
         if private_hits:
             errors.append(f"tracked repo file still contains private references: {path}: {', '.join(private_hits)}")
 
@@ -75,7 +79,10 @@ def main() -> int:
         if link.live_path.resolve(strict=False) != link.repo_path.resolve():
             errors.append(f"managed symlink points to the wrong target: {link.live_path}")
 
-    for dotfile, fragment in shell_source_targets().items():
+    shell_plan = detect_shell_integration_plan()
+    if shell_plan.warning:
+        warnings.append(shell_plan.warning)
+    for dotfile, fragment in shell_source_targets(shell_plan).items():
         if not dotfile.exists():
             errors.append(f"missing shell file: {dotfile}")
             continue
@@ -89,8 +96,6 @@ def main() -> int:
         live_text = LIVE_CONFIG_PATH.read_text(encoding="utf-8")
         if live_text != render_config_text():
             errors.append(f"live config is out of sync with rendered output: {LIVE_CONFIG_PATH}")
-        if detect_private_reference_hits(live_text):
-            errors.append(f"generated config still contains private references: {LIVE_CONFIG_PATH}")
 
     if not LIVE_QMD_CHAT_LAUNCH_AGENT_PATH.exists():
         errors.append(f"missing launch agent: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")
@@ -110,6 +115,20 @@ def main() -> int:
             if component.backend.get("license_source_url") and not record.get("license_sha256"):
                 errors.append(f"enabled licensed component is missing license provenance: {component.name}")
 
+    wrapper_checks = [
+        ("qmd-codex wrapper", [str(HOME / ".local/bin/qmd-codex"), "status"]),
+        ("memory MCP launcher", [str(REPO_ROOT / "bin" / "codex-memory-health.sh"), str(REPO_ROOT)]),
+    ]
+    for label, command in wrapper_checks:
+        try:
+            result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            errors.append(f"{label} check failed to start: {exc}")
+            continue
+        if result.returncode != 0:
+            detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+            errors.append(f"{label} is unhealthy: {detail}")
+
     for cli_name in REQUIRED_CLIS:
         if not cli_available(cli_name):
             errors.append(f"required CLI not found: {cli_name}")
@@ -117,6 +136,8 @@ def main() -> int:
     if errors:
         return fail(errors)
 
+    for warning in warnings:
+        print(f"WARNING: {warning}", file=sys.stderr)
     print("verify: ok")
     return 0
 

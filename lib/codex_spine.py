@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import re
 import shlex
 import shutil
 import subprocess
+import sys
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -61,6 +63,30 @@ REQUIRED_CLIS = [
     "jq",
 ]
 
+BrewFormula = tuple[str, str]
+REQUIRED_BREW_FORMULAS: list[BrewFormula] = [
+    ("git", "git"),
+    ("rg", "ripgrep"),
+    ("python3", "python"),
+    ("node", "node"),
+    ("pnpm", "pnpm"),
+    ("uv", "uv"),
+    ("jq", "jq"),
+]
+
+PREFERRED_RUNTIME_PATHS = [
+    str(HOME / ".local/bin"),
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    str(HOME / "Library/pnpm"),
+    "/usr/local/bin",
+    "/usr/local/sbin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+]
+
 TEXT_SECRET_PATTERNS = [
     re.compile(r"sk-or-v1-[A-Za-z0-9_-]+"),
     re.compile(r"ghp_[A-Za-z0-9]+"),
@@ -72,6 +98,12 @@ PRIVATE_REFERENCE_PATTERNS = [
     re.compile(r"\bcitadel\.mordor\b"),
     re.compile(r"\bmcp-" r"plex\b"),
     re.compile(r"\bcom\.ryand\b"),
+]
+
+PUBLIC_SURFACE_REFERENCE_PATTERNS = [
+    *PRIVATE_REFERENCE_PATTERNS,
+    re.compile(r"\bplay" r"ground\b"),
+    re.compile(r"\bcodex-" r"env\b"),
 ]
 
 REQUIRED_PUBLIC_DOC_PATHS = [
@@ -94,7 +126,7 @@ FORBIDDEN_PUBLIC_DOC_PATTERNS = {
     "PROJECT_SPINE.md": re.compile(r"\bPROJECT_SPINE\.md\b"),
     "CHECKPOINT.md": re.compile(r"\bCHECKPOINT\.md\b"),
     "QA_MATRIX.md": re.compile(r"\bQA_MATRIX\.md\b"),
-    "codex-env": re.compile(r"\bcodex-env\b"),
+    "codex-" "env": re.compile(r"\bcodex-env\b"),
     "private Gitea": re.compile(r"\bprivate Gitea\b", re.IGNORECASE),
 }
 
@@ -123,6 +155,14 @@ class ManagedLink:
     repo_path: Path
 
 
+@dataclass(frozen=True)
+class ShellIntegrationPlan:
+    detected_path: str
+    shell_name: str
+    supported: bool
+    warning: str | None
+
+
 def managed_links() -> list[ManagedLink]:
     return [
         ManagedLink(HOME / ".codex/AGENTS.md", REPO_ROOT / "codex/AGENTS.md"),
@@ -130,6 +170,7 @@ def managed_links() -> list[ManagedLink]:
         ManagedLink(HOME / ".codex/skills/project-spine", REPO_ROOT / "skills/project-spine"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),
+        ManagedLink(HOME / "Library/pnpm/node", REPO_ROOT / "bin/pnpm-node"),
         ManagedLink(HOME / ".local/bin/qmd-codex", REPO_ROOT / "bin/qmd-codex"),
         ManagedLink(HOME / ".local/bin/qmd-codex-health.sh", REPO_ROOT / "bin/qmd-codex-health.sh"),
         ManagedLink(HOME / ".local/bin/qmd-memory-latest.sh", REPO_ROOT / "bin/qmd-memory-latest.sh"),
@@ -137,12 +178,18 @@ def managed_links() -> list[ManagedLink]:
     ]
 
 
-def shell_source_targets() -> dict[Path, Path]:
+def zsh_source_targets() -> dict[Path, Path]:
     return {
         HOME / ".zprofile": REPO_ROOT / "shell/zprofile.codex.sh",
         HOME / ".zshrc": REPO_ROOT / "shell/zshrc.codex.sh",
-        HOME / ".bash_profile": REPO_ROOT / "shell/bash_profile.codex.sh",
     }
+
+
+def shell_source_targets(plan: ShellIntegrationPlan | None = None) -> dict[Path, Path]:
+    active_plan = plan or detect_shell_integration_plan()
+    if not active_plan.supported:
+        return {}
+    return zsh_source_targets()
 
 
 def now_stamp() -> str:
@@ -153,6 +200,32 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def first_nonempty_line(*chunks: str) -> str:
+    for chunk in chunks:
+        for line in chunk.splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped
+    return ""
+
+
+def preferred_runtime_path() -> str:
+    parts: list[str] = []
+    seen: set[str] = set()
+    for part in [*PREFERRED_RUNTIME_PATHS, *(os.environ.get("PATH", "").split(":"))]:
+        if not part or part in seen:
+            continue
+        parts.append(part)
+        seen.add(part)
+    return ":".join(parts)
+
+
+def runtime_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["PATH"] = preferred_runtime_path()
+    return env
+
+
 def run(
     args: list[str],
     *,
@@ -160,6 +233,7 @@ def run(
     capture_output: bool = True,
     text: bool = True,
     cwd: Path | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -167,6 +241,146 @@ def run(
         capture_output=capture_output,
         text=text,
         cwd=str(cwd) if cwd else None,
+        env=env,
+    )
+
+
+def prompt_yes_no(prompt: str, *, default: bool, non_interactive: bool) -> bool:
+    if non_interactive or not sys.stdin.isatty():
+        return default
+
+    suffix = "[Y/n]" if default else "[y/N]"
+    reply = input(f"{prompt} {suffix} ").strip().lower()
+    if not reply:
+        return default
+    return reply in {"y", "yes"}
+
+
+def homebrew_bin_path() -> Path | None:
+    brew_path = shutil.which("brew", path=preferred_runtime_path())
+    if brew_path:
+        return Path(brew_path)
+    for candidate in (Path("/opt/homebrew/bin/brew"), Path("/usr/local/bin/brew")):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def looks_like_clt_issue(text: str) -> bool:
+    lowered = text.lower()
+    needles = [
+        "xcode-select: note: no developer tools were found",
+        "command line tools",
+        "xcrun: error",
+        "active developer path",
+    ]
+    return any(needle in lowered for needle in needles)
+
+
+def ensure_homebrew(*, non_interactive: bool) -> Path:
+    brew_path = homebrew_bin_path()
+    if brew_path is not None:
+        return brew_path
+
+    install_command = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    if not prompt_yes_no(
+        "Homebrew is required for codex-spine. Install Homebrew now?",
+        default=False,
+        non_interactive=non_interactive,
+    ):
+        raise RuntimeError(
+            "Homebrew is required. Install it from https://brew.sh and rerun `make bootstrap`."
+        )
+
+    print(f"$ {install_command}")
+    result = subprocess.run(
+        ["/bin/bash", "-c", install_command],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+        raise RuntimeError(f"Homebrew installation failed: {detail}")
+
+    brew_path = homebrew_bin_path()
+    if brew_path is None:
+        raise RuntimeError(
+            "Homebrew install completed, but `brew` is still not available. Open a new shell or run the Homebrew shellenv snippet, then rerun `make bootstrap`."
+        )
+    return brew_path
+
+
+def install_missing_brew_formulas(
+    brew_path: Path,
+    *,
+    non_interactive: bool,
+) -> list[str]:
+    missing: list[str] = []
+    for _cli_name, formula in REQUIRED_BREW_FORMULAS:
+        result = run([str(brew_path), "list", "--versions", formula], check=False, env=runtime_env())
+        if result.returncode != 0:
+            missing.append(formula)
+
+    if not missing:
+        return []
+
+    pretty = ", ".join(missing)
+    if not prompt_yes_no(
+        f"Install missing Homebrew packages now? {pretty}",
+        default=True,
+        non_interactive=non_interactive,
+    ):
+        raise RuntimeError(
+            f"Missing required Homebrew packages: {pretty}. Install them and rerun `make bootstrap`."
+        )
+
+    result = run(
+        [str(brew_path), "install", *missing],
+        check=False,
+        env=runtime_env(),
+    )
+    if result.returncode != 0:
+        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+        if looks_like_clt_issue((result.stderr or "") + "\n" + (result.stdout or "")):
+            raise RuntimeError(
+                "Homebrew dependency install failed because Apple Command Line Tools are missing or still installing. Complete the CLT install, open a new shell if needed, and rerun `make bootstrap`."
+            )
+        raise RuntimeError(f"Homebrew dependency install failed: {detail}")
+    return missing
+
+
+def detect_shell_integration_plan() -> ShellIntegrationPlan:
+    detected_path = (os.environ.get("SHELL") or "").strip()
+    if not detected_path:
+        try:
+            detected_path = pwd.getpwuid(os.getuid()).pw_shell or ""
+        except KeyError:
+            detected_path = ""
+
+    shell_name = Path(detected_path).name if detected_path else ""
+    if shell_name == "zsh":
+        return ShellIntegrationPlan(
+            detected_path=detected_path,
+            shell_name=shell_name,
+            supported=True,
+            warning=None,
+        )
+
+    if shell_name:
+        warning = (
+            f"Detected login shell `{shell_name}`. codex-spine shell integration is only tested for zsh, so managed shell changes will be skipped. Add `$HOME/.local/bin` and source the repo shell fragments manually if you want shell integration."
+        )
+    else:
+        warning = (
+            "Could not determine the login shell. codex-spine shell integration is only tested for zsh, so managed shell changes will be skipped. Add `$HOME/.local/bin` and source the repo shell fragments manually if you want shell integration."
+        )
+
+    return ShellIntegrationPlan(
+        detected_path=detected_path,
+        shell_name=shell_name or "unknown",
+        supported=False,
+        warning=warning,
     )
 
 
@@ -352,18 +566,29 @@ def backup_existing(path: Path) -> Path:
     return backup_path
 
 
+def _looks_like_prior_codex_spine_target(target: Path, repo_path: Path) -> bool:
+    return target.name == repo_path.name and "codex-spine" in target.parts
+
+
 def ensure_symlink(live_path: Path, repo_path: Path) -> tuple[bool, Path | None]:
     live_path.parent.mkdir(parents=True, exist_ok=True)
     if live_path.is_symlink() and live_path.resolve(strict=False) == repo_path.resolve():
         return False, None
-    previous = None
     if live_path.exists() or live_path.is_symlink():
-        previous = backup_existing(live_path)
         if live_path.is_dir() and not live_path.is_symlink():
             raise RuntimeError(f"refusing to replace directory with symlink: {live_path}")
+        if not live_path.is_symlink():
+            raise RuntimeError(
+                f"refusing to replace unmanaged path with symlink: {live_path}. Move it aside and rerun bootstrap."
+            )
+        current_target = live_path.resolve(strict=False)
+        if not _looks_like_prior_codex_spine_target(current_target, repo_path):
+            raise RuntimeError(
+                f"refusing to replace unmanaged symlink: {live_path} -> {current_target}. Move it aside and rerun bootstrap."
+            )
         live_path.unlink()
     live_path.symlink_to(repo_path)
-    return True, previous
+    return True, None
 
 
 def source_block(fragment_path: Path) -> str:
@@ -427,6 +652,32 @@ def replace_managed_block(path: Path, start_marker: str, end_marker: str, body: 
     if updated == current:
         return False
     write_text(path, updated, mode=0o644)
+    return True
+
+
+def write_generated_config(path: Path, rendered: str) -> bool:
+    if path.exists():
+        current = path.read_text(encoding="utf-8")
+        if current == rendered:
+            return False
+        if "Generated by codex-spine" not in current:
+            raise RuntimeError(
+                f"refusing to overwrite unmanaged config: {path}. Move it aside or merge it into codex/config/90-local.toml, then rerun the managed command."
+            )
+    write_text(path, rendered, mode=0o600)
+    return True
+
+
+def write_managed_launch_agent(path: Path, rendered: str) -> bool:
+    if path.exists():
+        current = path.read_text(encoding="utf-8")
+        if current == rendered:
+            return False
+        if QMD_CHAT_LAUNCH_AGENT_LABEL not in current:
+            raise RuntimeError(
+                f"refusing to overwrite unmanaged LaunchAgent: {path}. Move it aside and rerun bootstrap."
+            )
+    write_text(path, rendered, mode=0o644)
     return True
 
 
@@ -522,16 +773,14 @@ def detect_secret_hits(text: str) -> list[str]:
     return hits
 
 
-def detect_private_reference_hits(text: str) -> list[str]:
+def detect_private_reference_hits(text: str, *, public_surface: bool = False) -> list[str]:
     hits: list[str] = []
-    for pattern in PRIVATE_REFERENCE_PATTERNS:
+    patterns = PUBLIC_SURFACE_REFERENCE_PATTERNS if public_surface else PRIVATE_REFERENCE_PATTERNS
+    for pattern in patterns:
         if pattern.search(text):
             hits.append(pattern.pattern)
     return hits
 
 
 def cli_available(name: str) -> bool:
-    return subprocess.run(
-        ["/usr/bin/env", "bash", "-lc", f"command -v {shlex.quote(name)} >/dev/null"],
-        check=False,
-    ).returncode == 0
+    return shutil.which(name, path=preferred_runtime_path()) is not None

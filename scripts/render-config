@@ -9,7 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
 
-from codex_spine import LIVE_CONFIG_PATH, render_config_text, write_text  # noqa: E402
+from codex_spine import LIVE_CONFIG_PATH, render_config_text, write_generated_config  # noqa: E402
 
 
 def main() -> int:
@@ -22,7 +22,7 @@ def main() -> int:
         sys.stdout.write(rendered)
         return 0
 
-    write_text(LIVE_CONFIG_PATH, rendered, mode=0o600)
+    write_generated_config(LIVE_CONFIG_PATH, rendered)
     print(LIVE_CONFIG_PATH)
     return 0
 
