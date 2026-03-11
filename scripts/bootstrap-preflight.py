@@ -26,10 +26,10 @@ REQUIRED_FORMULAS = ["python", "ripgrep", "node", "pnpm", "uv", "jq"]
 
 def install_steps() -> List[Step]:
     return [
-        Step("Step 1 of 4", "Existing config", "Protect an unmanaged Codex config before broader install changes."),
-        Step("Step 2 of 4", "Optional add-ons", "Decide whether to include optional indexed code navigation later in the install."),
-        Step("Step 3 of 4", "Homebrew and runtime", "Install Homebrew if needed, then establish the managed formula and Python floor."),
-        Step("Step 4 of 4", "Continue install", "Move straight from preflight into the main install without restarting the fullscreen session."),
+        Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
+        Step("Step 2 of 4", "Optional code search", "Choose whether to add optional indexed code navigation."),
+        Step("Step 3 of 4", "Required tools", "Get the tools this install needs before setup continues."),
+        Step("Step 4 of 4", "Continue setup", "Move straight into the rest of the install from this same window."),
     ]
 
 def find_brew() -> Optional[str]:
@@ -97,14 +97,14 @@ def brew_formula_installed(brew_path: str, formula: str) -> bool:
 
 def preflight_existing_config(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(0, note="Checking whether a live Codex config needs adoption before install continues.")
+        ui.set_step(0, note="Checking whether there are existing Codex settings to carry forward.")
     if not LIVE_CONFIG_PATH.exists():
         if ui is not None:
-            ui.finish_step(0, status="ok", note="No existing live Codex config was found.")
+            ui.finish_step(0, status="ok", note="No existing Codex settings need to be carried forward.")
         return
     if config_is_managed():
         if ui is not None:
-            ui.finish_step(0, status="ok", note="The existing live Codex config is already managed by codex-spine.")
+            ui.finish_step(0, status="ok", note="Your current Codex settings are already managed here.")
         return
     if non_interactive or not sys.stdin.isatty():
         raise RuntimeError(
@@ -130,19 +130,19 @@ def preflight_existing_config(*, non_interactive: bool, ui) -> None:
         raise RuntimeError("Leaving the existing Codex config in place. codex-spine stopped before making broader install changes.")
     os.environ["CODEX_SPINE_CONFIG_ADOPTION_APPROVED"] = "1"
     if ui is not None:
-        ui.finish_step(0, status="ok", note="The existing live config will be adopted into the local overlay during Stage 2.")
+        ui.finish_step(0, status="ok", note="Your current Codex settings will be carried into this install.")
 
 
 def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(1, note="Deciding whether to include the optional jCodeMunch MCP path later in the install.")
+        ui.set_step(1, note="Choosing whether to include optional indexed code navigation.")
     if jcodemunch_already_enabled():
         if ui is not None:
-            ui.finish_step(1, status="ok", note="Optional jCodeMunch MCP is already enabled.")
+            ui.finish_step(1, status="ok", note="Optional jCodeMunch support is already turned on.")
         return
     if non_interactive or not sys.stdin.isatty():
         if ui is not None:
-            ui.finish_step(1, status="ok", note="Non-interactive mode keeps the optional jCodeMunch MCP path disabled by default.")
+            ui.finish_step(1, status="ok", note="Optional jCodeMunch support stays off by default in non-interactive runs.")
         return
     include_component = prompt_yes_no(
         [
@@ -158,16 +158,16 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
     os.environ["CODEX_SPINE_JCODEMUNCH_CHOICE"] = "enable" if include_component else "skip"
     if ui is not None:
         note = (
-            "Optional jCodeMunch MCP will be offered during Stage 2."
+            "Optional jCodeMunch setup will be offered later in the install."
             if include_component
-            else "Optional jCodeMunch MCP will be skipped for now."
+            else "Optional jCodeMunch support will be skipped for now."
         )
         ui.finish_step(1, status="ok", note=note)
 
 
 def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(2, note="Checking Homebrew and installing the baseline formulas inside the fullscreen preflight.")
+        ui.set_step(2, note="Checking for Homebrew and the tools this install needs.")
     brew_path = find_brew()
     if brew_path is None:
         approved = prompt_yes_no(
@@ -188,7 +188,7 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
             installer_path = Path(handle.name)
         try:
             if ui is not None:
-                ui.status("info", "Installing Homebrew inside the preflight runtime.")
+                ui.status("info", "Installing Homebrew now.")
                 ui.run_command(["curl", "-fL", installer_url, "-o", str(installer_path)])
                 ui.run_bottom_prompt_command(
                     ["sudo", "-v"],
@@ -229,21 +229,21 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
             raise RuntimeError("Missing required Homebrew packages: {}. Install them and rerun `make install`.".format(", ".join(missing)))
         os.environ["CODEX_SPINE_BREW_INSTALL_APPROVED"] = "1"
         if ui is not None:
-            ui.status("info", "Installing the baseline Homebrew formulas before Stage 2 begins.")
+            ui.status("info", "Installing the remaining required tools.")
             ui.run_command([brew_path, "install"] + missing, heartbeat_message="Homebrew is still installing baseline formulas...")
         else:
             subprocess.run([brew_path, "install"] + missing, check=True)
     if ui is not None:
-        ui.finish_step(2, status="ok", note="Homebrew and the baseline runtime floor are ready for the managed install.")
+        ui.finish_step(2, status="ok", note="The required tools are ready.")
 
 
 def continue_into_managed_install(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(3, note="Continuing directly into the managed install in this same fullscreen session.")
-        ui.finish_step(3, status="ok", note="Preflight completed. codex-spine is continuing without restarting the installer UI.")
+        ui.set_step(3, note="Continuing straight into the rest of setup.")
+        ui.finish_step(3, status="ok", note="Preflight is done. Setup is continuing in this same window.")
         ui.reconfigure(
             title="codex-spine installer",
-            subtitle="Guided install, sync, and verification in one fullscreen session.",
+            subtitle="",
             steps=managed_install_steps(),
             clear_logs=True,
         )

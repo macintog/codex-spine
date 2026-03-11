@@ -93,13 +93,13 @@ def run_sync(*, ui=None) -> None:
     if ui is not None:
         ui.run_command(
             command,
-            heartbeat_message="Transcript sync is still running; this will take a while...",
+            heartbeat_message="Preparing transcript sync and search; this will take a while...",
             heartbeat_interval=0.5,
         )
         return
     _run_live_with_heartbeat(
         command,
-        heartbeat_message="Transcript sync is still running; this will take a while...",
+        heartbeat_message="Preparing transcript sync and search; this will take a while...",
     )
 
 
@@ -203,7 +203,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         def ui_progress(message):
             print(message, flush=True)
 
-        ui.status("info", f"Installing/updating optional {component.name} inside the fullscreen installer.")
+        ui.status("info", f"Installing optional {component.name}.")
         with ui.capture_output():
             print(f"{component.name}: installing/updating {package_name}...", flush=True)
             print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
@@ -221,7 +221,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             print(line)
 
     if ui is not None:
-        ui.status("ok", "Optional jCodeMunch MCP enablement finished.")
+        ui.status("ok", "Optional jCodeMunch setup is ready.")
     replace_managed_block(
         LOCAL_CONFIG_OVERLAY,
         JCODEMUNCH_MCP_BLOCK_START,
@@ -267,12 +267,12 @@ def run_launchctl(args: list[str], *, label: str, ui=None) -> bool:
     return False
 def install_steps() -> list[Step]:
     return [
-        Step("Step 1 of 6", "Baseline dependencies", "Confirm the Homebrew package requirements and runtime floor."),
-        Step("Step 2 of 6", "Managed workspace", "Prepare local overlays, managed links, and shell integration."),
-        Step("Step 3 of 6", "Components", "Install or update core managed components and handle optional add-ons."),
-        Step("Step 4 of 6", "Config and launchd", "Render Codex config and register the transcript-sync LaunchAgent."),
-        Step("Step 5 of 6", "Transcript projection", "Warm the transcript projection and local qmd index before closeout."),
-        Step("Step 6 of 6", "Verification", "Validate the managed environment and summarize any follow-up."),
+        Step("Step 1 of 6", "Required tools", "Make sure the tools this install needs are ready."),
+        Step("Step 2 of 6", "Local setup", "Connect this checkout to your Codex files, commands, and shell."),
+        Step("Step 3 of 6", "Core tools", "Install the main codex-spine tools, plus any optional add-ons you chose."),
+        Step("Step 4 of 6", "Finish setup", "Write your Codex setup and turn on background sync."),
+        Step("Step 5 of 6", "Memory and search", "Prepare transcript sync and local search for first use."),
+        Step("Step 6 of 6", "Final check", "Run the last checks and share any follow-up."),
     ]
 
 
@@ -283,7 +283,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         warn(shell_plan.warning, ui=ui)
 
     if ui is not None:
-        ui.set_step(0, note="Checking Homebrew, Python, and the managed package floor.")
+        ui.set_step(0, note="Checking that the required tools are ready.")
         with ui.capture_output():
             brew_path = ensure_homebrew(non_interactive=non_interactive)
             config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
@@ -291,7 +291,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
                 brew_path,
                 non_interactive=non_interactive,
             )
-        ui.finish_step(0, status="ok", note="Baseline dependencies are ready.")
+        ui.finish_step(0, status="ok", note="The required tools are ready.")
     else:
         brew_path = ensure_homebrew(non_interactive=non_interactive)
         config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
@@ -303,7 +303,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             print(f"Installed Homebrew packages: {', '.join(installed_formulas)}")
 
     if ui is not None:
-        ui.set_step(1, note="Preparing local config overlays, managed links, and shell fragments.")
+        ui.set_step(1, note="Setting up your local Codex files, commands, and shell integration.")
     ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
     ensure_example_copy(LOCAL_ENV_EXAMPLE, LOCAL_ENV_FILE)
 
@@ -324,26 +324,26 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             upsert_source_block(dotfile, fragment)
 
     if ui is not None:
-        note = "Managed links and shell integration are in place." if shell_plan.supported else "Managed links are in place; shell integration is skipped for non-zsh shells."
+        note = "Your Codex links and shell setup are ready." if shell_plan.supported else "Your Codex links are ready. Shell setup was skipped because this shell is not zsh."
         ui.finish_step(1, status="ok", note=note)
-        ui.set_step(2, note="Installing or updating default managed components.")
+        ui.set_step(2, note="Installing the main codex-spine tools.")
         run_script(
             "update",
             "--defaults-only",
             *(["--non-interactive"] if non_interactive else []),
             ui=ui,
-            heartbeat_message="Installing default managed components; this can take a while...",
+            heartbeat_message="Installing the main codex-spine tools; this can take a while...",
             heartbeat_interval=0.5,
         )
         maybe_enable_jcodemunch(non_interactive=non_interactive, ui=ui)
-        ui.finish_step(2, status="ok", note="Managed component maintenance completed.")
+        ui.finish_step(2, status="ok", note="The main codex-spine tools are ready.")
     else:
         print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
         run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
         maybe_enable_jcodemunch(non_interactive=non_interactive)
 
     if ui is not None:
-        ui.set_step(3, note="Rendering managed config and writing the transcript-sync LaunchAgent.")
+        ui.set_step(3, note="Saving your Codex setup and turning on background sync.")
     rendered = render_config_text()
     write_generated_config(
         LIVE_CONFIG_PATH,
@@ -371,18 +371,18 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
     write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
     if ui is not None:
         ui.status("info", "macOS may show a one-time Background Items Added notification for sync-codex-chat-qmd.sh.")
-        ui.finish_step(3, status="ok", note="Managed config and LaunchAgent are written.")
+        ui.finish_step(3, status="ok", note="Your Codex setup and background sync are ready.")
 
     if ui is not None:
-        ui.set_step(4, note="Running the initial transcript projection and qmd refresh.")
+        ui.set_step(4, note="Preparing transcript sync and local search for first use.")
         run_sync(ui=ui)
-        ui.finish_step(4, status="ok", note="Initial transcript projection completed.")
+        ui.finish_step(4, status="ok", note="Transcript sync and local search are ready.")
     else:
         print("\nNow we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
         run_sync()
 
     if ui is not None:
-        ui.set_step(5, note="Loading the LaunchAgent and starting the final verification in the background.")
+        ui.set_step(5, note="Starting background sync and the final verification.")
     run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist", ui=ui)
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
         run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}", ui=ui)

@@ -19,6 +19,7 @@ from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CARET_ANSI_ESCAPE_RE = re.compile(r"\^\[\[[0-?]*[ -/]*[@-~]")
+PROGRESS_LINE_RE = re.compile(r"^\s*[⏵▶].*?\b\d+(?:\.\d+)?%.*\bleft\b")
 ACTIVITY_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
 ACTIVITY_FRAME_INTERVAL = 0.08
 
@@ -174,6 +175,13 @@ class InstallTUI:
         if not cleaned and level == "info":
             return
         for line in cleaned.splitlines() or [""]:
+            if (
+                self.logs
+                and _is_progress_line(line)
+                and _is_progress_line(self.logs[-1][1])
+            ):
+                self.logs[-1] = (level, line)
+                continue
             self.logs.append((level, line))
         self.render()
 
@@ -528,13 +536,11 @@ class InstallTUI:
                 line = stream.readline()
                 if line:
                     self.log(line.rstrip("\n"))
-                    self.clear_activity()
                     next_heartbeat = time.monotonic() + heartbeat_interval
                     continue
             if process.poll() is not None:
                 for line in stream.readlines():
                     self.log(line.rstrip("\n"))
-                self.clear_activity()
                 break
             if heartbeat_message and time.monotonic() >= next_heartbeat:
                 self.pulse_activity(heartbeat_message)
@@ -754,3 +760,7 @@ def _reflow_modal_text(text: str, *, width: int) -> List[str]:
         paragraph.append(stripped)
     flush_paragraph()
     return blocks or [""]
+
+
+def _is_progress_line(text: str) -> bool:
+    return bool(PROGRESS_LINE_RE.search(text))
