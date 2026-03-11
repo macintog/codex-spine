@@ -6,6 +6,8 @@
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits.
 - `codex-spine` is a downstream export surface, not the canonical source for shared implementation. If a defect visible here originates in the canonical source repo for this export, fix it there first and propagate it back through the export path. Only patch `codex-spine` directly when the defect is truly downstream-only.
 - Maintainer-only export continuity, checkpointing, and QA runbooks intentionally stay out of this shipped repo. Keep this tree public-safe by default.
+- Bootstrap and memory-sync helpers may enrich project context from prior session paths, but that enrichment is optional. Do not needlessly probe repo roots or read `README.md` or continuity docs under macOS protected user folders just to improve framing.
+- When a prior session path falls under a protected user location, prefer generic path-based context over opportunistic file access. If macOS prompts for `rg`, `git`, or a similar helper in that path, treat the helper name as a symptom, not the reason to allow access.
 - If you hand QA to a user for a public export iteration, give instructions that run only from a `codex-spine` checkout or an identical clone, never from the canonical source repo.
 - Public QA handoffs should be fail-closed, print the tested commit before validation, and run `make install` plus `make verify`.
 - First-pass branch QA should start from a fresh clone. Later reruns may reuse the checkout after `git fetch`, `git switch`, and `git pull --ff-only`.

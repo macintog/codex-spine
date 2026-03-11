@@ -117,7 +117,7 @@ executable = true
 [[export.files]]
 path = "codex/AGENTS.md"
 component = "qmd_memory_stack"
-sha256 = "7b25bf9cbddad3ed01d523325de4ace8a4422a77f179f29409580ba14ba6763e"
+sha256 = "58647a7b1aab5032f46fbd9bd50fbe8265354d9502d287263974488d8cec760a"
 executable = false
 
 [[export.files]]
