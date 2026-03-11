@@ -111,7 +111,7 @@ executable = true
 [[export.files]]
 path = "bin/sync-codex-chat-qmd.sh"
 component = "qmd_memory_stack"
-sha256 = "feccd42d66ddace93d58aef21bce4612f21d75697b64434d7fd087d5c679ba1c"
+sha256 = "cf5599060f81b61c7733ae2e10ce72154fc45fab5e5e5363a89ffb5602d9dc29"
 executable = true
 
 [[export.files]]

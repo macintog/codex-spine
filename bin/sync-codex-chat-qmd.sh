@@ -122,6 +122,20 @@ should_materialize_project_doc() {
     return 0
 }
 
+is_protected_user_path() {
+    local project_path="$1"
+    case "$project_path" in
+        "$HOME/Desktop"|"$HOME/Desktop/"* \
+        |"$HOME/Documents"|"$HOME/Documents/"* \
+        |"$HOME/Downloads"|"$HOME/Downloads/"* \
+        |"$HOME/Library/Mobile Documents"|"$HOME/Library/Mobile Documents/"* \
+        |"$HOME/Library/CloudStorage"|"$HOME/Library/CloudStorage/"*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
 write_if_changed() {
     local target="$1"
     local tmp="$2"
@@ -139,6 +153,11 @@ write_if_changed() {
 canonical_project_path() {
     local cwd="$1"
     local root=""
+
+    if [[ -n "$cwd" ]] && is_protected_user_path "$cwd"; then
+        printf '%s\n' "$cwd"
+        return 0
+    fi
 
     if [[ -n "$cwd" && -d "$cwd" ]]; then
         root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
@@ -269,6 +288,11 @@ project_frame_for_path() {
     local project_path="$1"
     local doc
     local frame=""
+
+    if is_protected_user_path "$project_path"; then
+        printf '%s\n' "Use the current working directory and its durable local docs as the continuity anchor."
+        return 0
+    fi
 
     for doc in "$project_path/PROJECT_SPINE.md" "$project_path/README.md"; do
         if [[ -f "$doc" ]]; then
