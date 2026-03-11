@@ -47,6 +47,8 @@ from component_manager import (  # noqa: E402
     _run_live_with_heartbeat,
     component_status,
     ensure_license_acknowledged,
+    fetch_license_terms,
+    record_license_acknowledgement,
     resolve_components,
     update_component,
 )
@@ -93,14 +95,30 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         raise RuntimeError("missing optional component definition: jcodemunch-mcp")
 
     if ui is not None:
-        ui.status("info", "Switching to terminal mode only for the optional jCodeMunch MCP terms review.")
-        suspension = ui.suspend(
-            "Temporary terminal handoff: review the upstream terms below, then return to the fullscreen installer."
+        try:
+            bundle = fetch_license_terms(component)
+        except RuntimeError as exc:
+            warn(str(exc), ui=ui)
+            return False
+        if bundle is None:
+            raise RuntimeError(f"missing pinned upstream terms for {component.name}")
+        if not ui.page_text(
+            "Optional jCodeMunch MCP terms",
+            bundle["text"],
+            prompt_hint="Enter advances; q or Esc cancels",
+        ):
+            ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+            return False
+        reply = ui.prompt_text_input(
+            "Optional jCodeMunch MCP",
+            "Type 'accept' to continue, or press Esc to skip:",
+            prompt_hint="Type accept and press Enter",
         )
+        if (reply or "").strip().lower() != "accept":
+            ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+            return False
+        record_license_acknowledgement(component, bundle)
     else:
-        suspension = contextlib.nullcontext()
-
-    with suspension:
         print("\nYou chose to include optional jCodeMunch MCP in this install.")
         print("codex-spine will fetch the pinned upstream terms now and ask for explicit acknowledgement before enabling it.")
         print()

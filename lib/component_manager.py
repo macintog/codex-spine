@@ -516,6 +516,25 @@ def fetch_license_terms(component: ResolvedComponent) -> dict | None:
     }
 
 
+def record_license_acknowledgement(component: ResolvedComponent, bundle: dict) -> dict:
+    version = component.backend["pinned_version"]
+    terms_path = LICENSES_DIR / component.name / f"{version}.txt"
+    terms_path.parent.mkdir(parents=True, exist_ok=True)
+    terms_path.write_text(bundle["text"], encoding="utf-8")
+
+    state = load_component_state()
+    enabled = state.setdefault("enabled", {})
+    enabled[component.name] = {
+        "version": version,
+        "license_source_url": bundle["source_url"],
+        "license_sha256": bundle["sha256"],
+        "terms_path": relative_to_repo(terms_path),
+        "acknowledged_at": now_iso(),
+    }
+    write_component_state(state)
+    return bundle
+
+
 def ensure_license_acknowledged(
     component: ResolvedComponent,
     *,
@@ -574,17 +593,7 @@ def ensure_license_acknowledged(
                 continue
             print("Please type 'accept' or press Esc.")
 
-    state = load_component_state()
-    enabled = state.setdefault("enabled", {})
-    enabled[component.name] = {
-        "version": version,
-        "license_source_url": bundle["source_url"],
-        "license_sha256": bundle["sha256"],
-        "terms_path": relative_to_repo(terms_path),
-        "acknowledged_at": now_iso(),
-    }
-    write_component_state(state)
-    return bundle
+    return record_license_acknowledgement(component, bundle)
 
 
 def _page_terms_text(text: str) -> None:

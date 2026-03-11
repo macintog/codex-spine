@@ -4,6 +4,8 @@ import contextlib
 import curses
 import io
 import os
+import pty
+import re
 import select
 import shlex
 import subprocess
@@ -14,6 +16,8 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
+
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 @dataclass
@@ -52,6 +56,8 @@ class InstallTUI:
         self.steps = steps
         self.current_step = 0
         self.logs: Deque[Tuple[str, str]] = deque(maxlen=400)
+        self.bottom_panel_title = ""
+        self.bottom_panel_lines: List[str] = []
         self.footer = "Fullscreen prototype."
         self._init_screen()
         self.render()
@@ -128,9 +134,10 @@ class InstallTUI:
         self.log(f"{self.step_marker(kind)} {message}", level=kind)
 
     def log(self, message: str, *, level: str = "info") -> None:
-        if not message and level == "info":
+        cleaned = _clean_terminal_text(message)
+        if not cleaned and level == "info":
             return
-        for line in message.splitlines() or [""]:
+        for line in cleaned.splitlines() or [""]:
             self.logs.append((level, line))
         self.render()
 
@@ -210,6 +217,90 @@ class InstallTUI:
                 break
             curses.beep()
         self.footer = footer
+        self.render()
+
+    def prompt_text_input(
+        self,
+        title: str,
+        prompt: str,
+        *,
+        prompt_hint: str = "Type and press Enter",
+    ) -> Optional[str]:
+        typed: List[str] = []
+        while True:
+            self.render_modal([title, "", prompt, "".join(typed)], prompt_hint=prompt_hint)
+            key = self.stdscr.get_wch()
+            if key == curses.KEY_RESIZE:
+                continue
+            if isinstance(key, str):
+                if key == "\x1b":
+                    return None
+                if key in ("\n", "\r"):
+                    return "".join(typed)
+                if key in ("\x08", "\x7f"):
+                    if typed:
+                        typed.pop()
+                    continue
+                if key.isprintable():
+                    typed.append(key)
+                    continue
+            curses.beep()
+
+    def page_text(
+        self,
+        title: str,
+        text: str,
+        *,
+        prompt_hint: str = "Enter advances; q or Esc cancels",
+    ) -> bool:
+        lines = text.splitlines() or [""]
+        offset = 0
+        while True:
+            height, width = self.stdscr.getmaxyx()
+            wrapped: List[str] = []
+            for line in lines[offset:]:
+                wrapped.extend(textwrap.wrap(line, width=max(20, min(width - 14, 88))) or [""])
+                if len(wrapped) >= max(6, height - 12):
+                    break
+            total = len(lines)
+            header = "{} ({}/{})".format(title, min(total, offset + 1), total)
+            self.render_modal([header, ""] + wrapped, prompt_hint=prompt_hint)
+            key = self.stdscr.get_wch()
+            if key == curses.KEY_RESIZE:
+                continue
+            if key in (curses.KEY_UP, curses.KEY_PPAGE):
+                offset = max(0, offset - max(1, (height - 12) // 2))
+                continue
+            if key in (curses.KEY_DOWN, curses.KEY_NPAGE):
+                offset = min(max(0, total - 1), offset + max(1, (height - 12) // 2))
+                continue
+            if isinstance(key, str):
+                lowered = key.lower()
+                if lowered == "\x1b" or lowered == "q":
+                    return False
+                if lowered in ("\n", "\r", " "):
+                    if offset >= max(0, total - 1):
+                        return True
+                    offset = min(max(0, total - 1), offset + max(1, height - 12))
+                    continue
+            curses.beep()
+
+    def set_bottom_panel(self, title: str, lines: Sequence[str]) -> None:
+        self.bottom_panel_title = title
+        self.bottom_panel_lines = list(lines)
+        self.render()
+
+    def append_bottom_panel_text(self, text: str) -> None:
+        cleaned = _clean_terminal_text(text)
+        if not cleaned:
+            return
+        self.bottom_panel_lines.extend(cleaned.splitlines())
+        self.bottom_panel_lines = self.bottom_panel_lines[-3:]
+        self.render()
+
+    def clear_bottom_panel(self) -> None:
+        self.bottom_panel_title = ""
+        self.bottom_panel_lines = []
         self.render()
 
     def render_modal(self, lines: Sequence[str], *, prompt_hint: Optional[str] = None) -> None:
@@ -311,13 +402,75 @@ class InstallTUI:
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, [str(part) for part in args])
 
+    def run_bottom_prompt_command(
+        self,
+        args: Sequence[str],
+        *,
+        cwd: Optional[Path] = None,
+        env: Optional[dict[str, str]] = None,
+        panel_title: str,
+        intro_lines: Sequence[str],
+    ) -> None:
+        command = [str(part) for part in args]
+        self.log("$ {}".format(shlex.join(command)))
+        master_fd, slave_fd = pty.openpty()
+        self.set_bottom_panel(panel_title, intro_lines)
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd) if cwd else None,
+            env=env,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            text=False,
+            close_fds=True,
+        )
+        os.close(slave_fd)
+        if hasattr(self.stdscr, "nodelay"):
+            self.stdscr.nodelay(True)
+        try:
+            while True:
+                ready, _, _ = select.select([master_fd], [], [], 0.05)
+                if ready:
+                    chunk = os.read(master_fd, 1024)
+                    if chunk:
+                        self.append_bottom_panel_text(chunk.decode("utf-8", errors="replace"))
+                try:
+                    key = self.stdscr.get_wch()
+                except curses.error:
+                    key = None
+                if key == curses.KEY_RESIZE:
+                    self.render()
+                elif isinstance(key, str):
+                    if key in ("\n", "\r"):
+                        os.write(master_fd, b"\n")
+                    elif key in ("\x08", "\x7f"):
+                        os.write(master_fd, b"\x7f")
+                    elif key == "\x03":
+                        os.write(master_fd, b"\x03")
+                    elif key.isprintable():
+                        os.write(master_fd, key.encode("utf-8"))
+                if process.poll() is not None:
+                    break
+            returncode = process.wait()
+        finally:
+            if hasattr(self.stdscr, "nodelay"):
+                self.stdscr.nodelay(False)
+            os.close(master_fd)
+            self.clear_bottom_panel()
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, command)
+
     def render(self) -> None:
         self.stdscr.erase()
         height, width = self.stdscr.getmaxyx()
-        left_width = max(34, min(44, width // 3))
+        left_width = 38 if width >= 90 else max(30, min(38, (width // 2) - 4))
         right_x = left_width + 2
         log_width = max(20, width - right_x - 1)
-        content_bottom = max(4, height - 4)
+        bottom_panel_height = 0
+        if self.bottom_panel_title or self.bottom_panel_lines:
+            bottom_panel_height = min(5, max(4, len(self.bottom_panel_lines) + 2))
+        content_bottom = max(4, height - 4 - bottom_panel_height)
         start_index = 0
         for index, step in enumerate(self.steps):
             if step.status != "ok":
@@ -357,7 +510,7 @@ class InstallTUI:
         self._safe_addstr(3, right_x, "Live Log", curses.A_BOLD)
         log_lines: List[Tuple[str, str]] = []
         for level, line in self.logs:
-            wrapped = textwrap.wrap(line, width=log_width) or [""]
+            wrapped = textwrap.wrap(_clean_terminal_text(line), width=log_width) or [""]
             for part in wrapped:
                 log_lines.append((level, part))
         visible = log_lines[-max(1, height - 7) :]
@@ -367,6 +520,14 @@ class InstallTUI:
                 break
             self._safe_addstr(log_y, right_x, line[:log_width], self.color(level))
             log_y += 1
+
+        if bottom_panel_height:
+            panel_top = height - 2 - bottom_panel_height
+            self._safe_addstr(panel_top, 2, self.bottom_panel_title[: width - 4], curses.A_BOLD)
+            panel_y = panel_top + 1
+            for line in self.bottom_panel_lines[-(bottom_panel_height - 1) :]:
+                self._safe_addstr(panel_y, 2, line[: width - 4], curses.A_NORMAL)
+                panel_y += 1
 
         self._safe_addstr(height - 2, 2, self.footer[: width - 4], curses.A_DIM)
         self.stdscr.refresh()
@@ -390,3 +551,13 @@ def open_tui(*, title: str, subtitle: str, steps: List[Step]) -> Iterator[Option
         yield tui
     finally:
         tui.close()
+
+
+def _clean_terminal_text(text: str) -> str:
+    text = ANSI_ESCAPE_RE.sub("", text)
+    text = text.replace("\r", "\n")
+    cleaned_chars = []
+    for char in text:
+        if char in ("\n", "\t") or ord(char) >= 32:
+            cleaned_chars.append(char)
+    return "".join(cleaned_chars)

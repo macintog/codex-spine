@@ -190,12 +190,12 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> str:
             if ui is not None:
                 ui.status("info", "Installing Homebrew inside the preflight runtime.")
                 ui.run_command(["curl", "-fL", installer_url, "-o", str(installer_path)])
-                ui.run_command(
+                ui.run_bottom_prompt_command(
                     ["sudo", "-v"],
-                    use_terminal=True,
-                    terminal_intro=[
+                    panel_title="Password",
+                    intro_lines=[
                         "macOS needs your password before Homebrew can be installed.",
-                        "Type it here. codex-spine will return to fullscreen immediately after authentication.",
+                        "Type it here. codex-spine returns to fullscreen immediately after authentication.",
                     ],
                 )
                 installer_env = os.environ.copy()
