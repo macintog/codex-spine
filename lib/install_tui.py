@@ -288,8 +288,8 @@ class InstallTUI:
         try:
             while True:
                 if on_tick is not None:
-                    on_tick()
-                    self.render_modal(lines, prompt_hint=prompt_hint)
+                    if on_tick():
+                        self.render_modal(lines, prompt_hint=prompt_hint)
                 key = None
                 try:
                     key = self.stdscr.get_wch()
@@ -405,37 +405,43 @@ class InstallTUI:
         self.bottom_panel_lines = []
         self.render()
 
-    def pulse_activity(self, message: str) -> None:
+    def pulse_activity(self, message: str, *, render: bool = True) -> bool:
         now = time.monotonic()
         if message != self.activity_message:
             self.activity_message = message
             self.activity_frame = 0
             self.activity_updated_at = now
-            self.render()
-            return
-        self.tick_activity(now=now)
+            if render:
+                self.render()
+            return True
+        return self.tick_activity(now=now, render=render)
 
-    def tick_activity(self, *, now: Optional[float] = None) -> None:
+    def tick_activity(self, *, now: Optional[float] = None, render: bool = True) -> bool:
         if not self.activity_message:
-            return
+            return False
         if now is None:
             now = time.monotonic()
         if self.activity_updated_at == 0.0:
             self.activity_updated_at = now
-            return
+            return False
         elapsed = now - self.activity_updated_at
         if elapsed < ACTIVITY_FRAME_INTERVAL:
-            return
+            return False
         frames = max(1, int(elapsed / ACTIVITY_FRAME_INTERVAL))
         self.activity_frame = (self.activity_frame + frames) % len(ACTIVITY_FRAMES)
         self.activity_updated_at += frames * ACTIVITY_FRAME_INTERVAL
-        self.render()
+        if render:
+            self.render()
+        return True
 
-    def clear_activity(self) -> None:
+    def clear_activity(self, *, render: bool = True) -> bool:
         if self.activity_message:
             self.activity_message = ""
             self.activity_updated_at = 0.0
-            self.render()
+            if render:
+                self.render()
+            return True
+        return False
 
     def render_modal(
         self,

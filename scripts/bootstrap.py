@@ -272,7 +272,7 @@ def install_steps() -> list[Step]:
         Step("Step 3 of 6", "Core tools", "Install the main codex-spine tools, plus any optional add-ons you chose."),
         Step("Step 4 of 6", "Finish setup", "Write your Codex setup and turn on background sync."),
         Step("Step 5 of 6", "Memory and search", "Prepare transcript sync and local search for first use."),
-        Step("Step 6 of 6", "Final check", "Run the last checks and share any follow-up."),
+        Step("Step 6 of 6", "Final check", "Run one last verification and show any next steps."),
     ]
 
 
@@ -403,12 +403,14 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             bufsize=1,
         )
 
-        def pump_verify() -> None:
+        def pump_verify() -> bool:
             _drain_command_output(verify_process, verify_lines.append)
             if verify_process.poll() is None:
-                ui.pulse_activity("Final verification is already running; this will finish shortly...")
-            else:
-                ui.clear_activity()
+                return ui.pulse_activity(
+                    "Final verification is already running; this will finish shortly...",
+                    render=False,
+                )
+            return ui.clear_activity(render=False)
 
         ui.finish_step(5, status="ok", note="Installation complete.")
         ui.wait_for_acknowledgement(

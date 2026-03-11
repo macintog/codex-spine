@@ -195,7 +195,7 @@ executable = false
 [[export.files]]
 path = "lib/install_tui.py"
 component = "qmd_memory_stack"
-sha256 = "9ae2ecae8732df0d928b1abf10e489ed611ede35c01166b0f22e0cf8702c1552"
+sha256 = "40e02ed38c0cc789d95e07183a324b23462f6bd5ed4390e7049cbf905d6d66ce"
 executable = false
 
 [[export.files]]
@@ -213,13 +213,13 @@ executable = true
 [[export.files]]
 path = "scripts/bootstrap-preflight.py"
 component = "qmd_memory_stack"
-sha256 = "ffde2e9439cf624efc7911c2d467358925e99b52fbe154da395e1f6fdbc301c6"
+sha256 = "196345c620db2dd4821fa8c686bc547cc918c69a561f70482ecb29a1153010a8"
 executable = true
 
 [[export.files]]
 path = "scripts/bootstrap.py"
 component = "qmd_memory_stack"
-sha256 = "5f7e2ebda1cfa563ec324da7a4516d36afef49f733524100119e9915e51b9542"
+sha256 = "7f76645a51709af16b3bf7c43e17fe4690ea85e3e0c5a4db26549f2edf2d924b"
 executable = false
 
 [[export.files]]

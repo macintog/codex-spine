@@ -173,7 +173,7 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
         approved = prompt_yes_no(
             [
                 "Homebrew is not installed yet.",
-                "codex-spine will install Homebrew first, then these baseline packages:",
+                "codex-spine will install Homebrew first, then these baseline formulae:",
                 *["  - {}".format(formula) for formula in REQUIRED_FORMULAS],
             ],
             default=True,
@@ -230,7 +230,7 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
         os.environ["CODEX_SPINE_BREW_INSTALL_APPROVED"] = "1"
         if ui is not None:
             ui.status("info", "Installing the remaining required tools.")
-            ui.run_command([brew_path, "install"] + missing, heartbeat_message="Homebrew is still installing baseline formulas...")
+            ui.run_command([brew_path, "install"] + missing, heartbeat_message="Homebrew is still installing baseline formulae...")
         else:
             subprocess.run([brew_path, "install"] + missing, check=True)
     if ui is not None:
