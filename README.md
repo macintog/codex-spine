@@ -8,7 +8,7 @@
 - stock `/usr/bin/python3` 3.9+ available on macOS 15.7.4 or later
 
 `make install` uses Homebrew as the baseline package manager for `python`, `ripgrep`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
-Interactive install now starts from the macOS-shipped `python3` runtime and keeps that same fullscreen installer session alive after the baseline Homebrew floor is ready.
+Interactive install stays in one fullscreen session from the first prompt through completion.
 
 ## Homebrew Packages
 
@@ -38,7 +38,7 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 5. Run `make verify`.
 6. If you skipped the optional `jCodeMunch MCP` prompt during install and later want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
-`make install` is interactive when run from a TTY. On stock macOS, the installer runs under `/usr/bin/python3`, explains the Homebrew packages it is about to install, and asks for approval before continuing. Once Homebrew and the runtime floor are ready, the same fullscreen session continues through the rest of install instead of restarting under a second Python process. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
+`make install` is interactive when run from a TTY. On stock macOS, the installer explains the Homebrew packages it is about to install and asks for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
 If Homebrew installation needs macOS password authentication, `codex-spine` temporarily hands just that prompt back to the terminal, then returns to fullscreen for the rest of the install.
 Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local qmd index before the final verification step, so the first run can take noticeably longer than later runs.
 
@@ -48,7 +48,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 `make install` is the install step, not just a validation step. It:
 
-- starts in a stock-Python fullscreen preflight and continues in that same fullscreen session through the rest of install
+- keeps one fullscreen session through the whole interactive install
 - checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
 - for interactive installs, asks early whether you want to include the optional `jCodeMunch MCP` integration later in the same install; that prompt defaults to yes
 - installs Homebrew if needed and then installs any missing baseline runtime packages

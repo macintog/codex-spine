@@ -243,7 +243,7 @@ def continue_into_managed_install(*, non_interactive: bool, ui) -> None:
         ui.finish_step(3, status="ok", note="Preflight completed. codex-spine is continuing without restarting the installer UI.")
         ui.reconfigure(
             title="codex-spine installer",
-            subtitle="Stock macOS Python is continuing through install, sync, and verification in the same fullscreen session.",
+            subtitle="Guided install, sync, and verification in one fullscreen session.",
             steps=managed_install_steps(),
             clear_logs=True,
         )
@@ -257,7 +257,7 @@ def main() -> int:
     args = parser.parse_args()
     non_interactive = args.non_interactive or not sys.stdin.isatty()
     title = "codex-spine installer"
-    subtitle = "Stock macOS Python handles the first-run install from the first prompt through verification."
+    subtitle = "Guided install from first prompt through verification."
     ui = None
     try:
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:

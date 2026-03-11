@@ -65,7 +65,7 @@ class InstallTUI:
         self.activity_frame = 0
         self.activity_updated_at = 0.0
         self.last_modal_size: Optional[Tuple[int, int]] = None
-        self.footer = "Fullscreen prototype."
+        self.footer = ""
         self.detached_to_terminal = False
         self._closed = False
         self._init_screen()
@@ -201,7 +201,7 @@ class InstallTUI:
                 curses.curs_set(0)
             except curses.error:
                 pass
-        self.footer = "Fullscreen prototype."
+        self.footer = ""
         self.render()
 
     def prompt_yes_no(self, prompt: Union[str, Sequence[str]], *, default: bool) -> bool:
@@ -240,18 +240,66 @@ class InstallTUI:
 
     def show_message(self, lines: Sequence[str], *, prompt_hint: str = "Press Enter to continue") -> None:
         footer = self.footer
-        self.footer = prompt_hint
         self.render_modal(lines, prompt_hint=prompt_hint)
-        while True:
-            key = self.stdscr.get_wch()
-            if key == curses.KEY_RESIZE:
-                self.render_modal(lines, prompt_hint=prompt_hint)
-                continue
-            if key in ("\n", "\r", " ", "\x1b"):
-                break
-            if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
-                break
-            curses.beep()
+        if hasattr(self.stdscr, "nodelay"):
+            self.stdscr.nodelay(True)
+        try:
+            while True:
+                key = None
+                try:
+                    key = self.stdscr.get_wch()
+                except curses.error:
+                    key = None
+                if key == curses.KEY_RESIZE:
+                    self.render_modal(lines, prompt_hint=prompt_hint)
+                    continue
+                if key in ("\n", "\r", " ", "\x1b"):
+                    break
+                if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
+                    break
+                if key is not None:
+                    curses.beep()
+                time.sleep(0.05)
+        finally:
+            if hasattr(self.stdscr, "nodelay"):
+                self.stdscr.nodelay(False)
+        self.footer = footer
+        self.render()
+
+    def wait_for_acknowledgement(
+        self,
+        lines: Sequence[str],
+        *,
+        prompt_hint: str = "Press Enter to continue",
+        on_tick=None,
+    ) -> None:
+        footer = self.footer
+        self.render_modal(lines, prompt_hint=prompt_hint)
+        if hasattr(self.stdscr, "nodelay"):
+            self.stdscr.nodelay(True)
+        try:
+            while True:
+                if on_tick is not None:
+                    on_tick()
+                    self.render_modal(lines, prompt_hint=prompt_hint)
+                key = None
+                try:
+                    key = self.stdscr.get_wch()
+                except curses.error:
+                    key = None
+                if key == curses.KEY_RESIZE:
+                    self.render_modal(lines, prompt_hint=prompt_hint)
+                    continue
+                if key in ("\n", "\r", " ", "\x1b"):
+                    break
+                if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
+                    break
+                if key is not None:
+                    curses.beep()
+                time.sleep(0.05)
+        finally:
+            if hasattr(self.stdscr, "nodelay"):
+                self.stdscr.nodelay(False)
         self.footer = footer
         self.render()
 
@@ -390,9 +438,10 @@ class InstallTUI:
     ) -> None:
         self.render()
         height, width = self.stdscr.getmaxyx()
+        wrap_width = max(12, (modal_size[0] - 4) if modal_size is not None else min(width - 12, 68))
         body: List[str] = []
         for line in lines:
-            body.extend(textwrap.wrap(line, width=max(12, min(width - 12, 68))) or [""])
+            body.extend(textwrap.wrap(line, width=wrap_width) or [""])
         if modal_size is None:
             box_width = min(width - 6, max(len(line) for line in body) + 4 if body else 24)
             box_height = min(height - 6, len(body) + 4)

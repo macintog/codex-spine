@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import os
+import select
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -61,6 +63,19 @@ def run_script(script_name: str, *args: str, ui=None) -> None:
         ui.run_command(command)
         return
     subprocess.run(command, check=True)
+
+
+def _drain_command_output(process: subprocess.Popen[str], sink) -> None:
+    if process.stdout is None:
+        return
+    while True:
+        ready, _, _ = select.select([process.stdout], [], [], 0)
+        if not ready:
+            return
+        line = process.stdout.readline()
+        if not line:
+            return
+        sink(line.rstrip("\n"))
 
 
 def run_sync(*, ui=None) -> None:
@@ -350,7 +365,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         run_sync()
 
     if ui is not None:
-        ui.set_step(5, note="Loading the LaunchAgent and preparing the final verification handoff.")
+        ui.set_step(5, note="Loading the LaunchAgent and starting the final verification in the background.")
     run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist", ui=ui)
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
         run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}", ui=ui)
@@ -360,21 +375,47 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         ui=ui,
     )
 
+    verify_command = [str(REPO_ROOT / "scripts" / "verify")]
     if ui is not None:
-        ui.finish_step(5, status="ok", note="Managed install completed. Final verification runs in the terminal next.")
-        ui.show_message(
+        verify_lines: list[str] = []
+        verify_process = subprocess.Popen(
+            verify_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        def pump_verify() -> None:
+            _drain_command_output(verify_process, verify_lines.append)
+            if verify_process.poll() is None:
+                ui.pulse_activity("Final verification is already running; this will finish shortly...")
+            else:
+                ui.clear_activity()
+
+        ui.finish_step(5, status="ok", note="Installation complete.")
+        ui.wait_for_acknowledgement(
             [
-                "codex-spine finished the managed install.",
+                "Installation complete.",
                 "",
-                "Final verification will run in the terminal after you continue.",
+                "One brief verification will finish after you press Enter.",
             ],
-            prompt_hint="Press Enter to run verification in the terminal",
+            prompt_hint="Press Enter to finish",
+            on_tick=pump_verify,
         )
         ui.detached_to_terminal = True
         ui.close()
         ui = None
-
-    run_script("verify", ui=ui)
+        while verify_process.poll() is None:
+            _drain_command_output(verify_process, verify_lines.append)
+            time.sleep(0.05)
+        _drain_command_output(verify_process, verify_lines.append)
+        for line in verify_lines:
+            print(line)
+        if verify_process.returncode:
+            raise subprocess.CalledProcessError(verify_process.returncode, verify_command)
+    else:
+        run_script("verify", ui=ui)
     if not shell_plan.supported:
         if ui is not None:
             ui.status("warn", "Shell integration was skipped because the detected login shell is not zsh.")
