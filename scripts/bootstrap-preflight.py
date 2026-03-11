@@ -193,10 +193,9 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> str:
                 ui.run_command(["curl", "-fL", installer_url, "-o", str(installer_path)])
                 ui.run_bottom_prompt_command(
                     ["sudo", "-v"],
-                    panel_title="Password",
+                    panel_title="",
                     intro_lines=[
                         "macOS needs your password before Homebrew can be installed.",
-                        "Type it here. codex-spine returns to fullscreen immediately after authentication.",
                     ],
                 )
                 installer_env = os.environ.copy()

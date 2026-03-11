@@ -68,13 +68,13 @@ def run_sync(*, ui=None) -> None:
     if ui is not None:
         ui.run_command(
             command,
-            heartbeat_message="Transcript sync is still running...",
+            heartbeat_message="Transcript sync is still running; this will take a while...",
             heartbeat_interval=0.5,
         )
         return
     _run_live_with_heartbeat(
         command,
-        heartbeat_message="Transcript sync is still running...",
+        heartbeat_message="Transcript sync is still running; this will take a while...",
     )
 
 
@@ -350,7 +350,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         run_sync()
 
     if ui is not None:
-        ui.set_step(5, note="Loading the LaunchAgent and running verification.")
+        ui.set_step(5, note="Loading the LaunchAgent and preparing the final verification handoff.")
     run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist", ui=ui)
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
         run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}", ui=ui)
@@ -359,6 +359,20 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         label="launchctl bootstrap",
         ui=ui,
     )
+
+    if ui is not None:
+        ui.finish_step(5, status="ok", note="Managed install completed. Final verification runs in the terminal next.")
+        ui.show_message(
+            [
+                "codex-spine finished the managed install.",
+                "",
+                "Final verification will run in the terminal after you continue.",
+            ],
+            prompt_hint="Press Enter to run verification in the terminal",
+        )
+        ui.detached_to_terminal = True
+        ui.close()
+        ui = None
 
     run_script("verify", ui=ui)
     if not shell_plan.supported:
@@ -375,9 +389,6 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             ui.status("info", "Optional next step: enable jCodeMunch MCP with `./scripts/component-enable jcodemunch-mcp`.")
         else:
             print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
-    if ui is not None:
-        ui.finish_step(5, status="ok", note="Verification completed successfully.")
-        ui.status("ok", "Managed install completed.")
     print("install: ok")
 
 
@@ -399,7 +410,7 @@ def main() -> int:
             run_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
         return 0
     except RuntimeError as exc:
-        if ui is not None and not non_interactive:
+        if ui is not None and not non_interactive and not ui.detached_to_terminal:
             ui.fail_step(ui.current_step, note="Install stopped before completion.")
             ui.show_message(
                 [
@@ -412,7 +423,7 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as exc:
-        if ui is not None and not non_interactive:
+        if ui is not None and not non_interactive and not ui.detached_to_terminal:
             ui.fail_step(ui.current_step, note="A managed-runtime command failed.")
             ui.show_message(
                 [

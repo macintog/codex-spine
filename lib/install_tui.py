@@ -66,6 +66,8 @@ class InstallTUI:
         self.activity_updated_at = 0.0
         self.last_modal_size: Optional[Tuple[int, int]] = None
         self.footer = "Fullscreen prototype."
+        self.detached_to_terminal = False
+        self._closed = False
         self._init_screen()
         self.render()
 
@@ -91,6 +93,9 @@ class InstallTUI:
             curses.init_pair(5, curses.COLOR_WHITE, -1)
 
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         with contextlib.suppress(curses.error):
             self.stdscr.keypad(False)
             curses.echo()
@@ -262,45 +267,43 @@ class InstallTUI:
         *,
         prompt_hint: str = "Enter advances; q or Esc cancels",
     ) -> bool:
-        lines = text.splitlines() or [""]
         height, width = self.stdscr.getmaxyx()
+        modal_width = max(28, min(width - 6, 96))
+        content_width = max(20, modal_width - 4)
         page_body_limit = max(6, height - 12)
-        wrapped_all: List[str] = []
-        for line in lines:
-            wrapped_all.extend(textwrap.wrap(line, width=max(20, min(width - 14, 88))) or [""])
+        wrapped_all = _reflow_modal_text(text, width=content_width)
+        modal_height = min(height - 6, page_body_limit + 4)
         modal_size = (
-            min(width - 6, max([len(title)] + [len(line) for line in wrapped_all] + [24]) + 4),
-            min(height - 6, page_body_limit + 4),
+            modal_width,
+            modal_height,
         )
         self.last_modal_size = modal_size
-        offset = 0
+        page_chunk = max(1, modal_height - 4)
+        pages = [
+            wrapped_all[index : index + page_chunk]
+            for index in range(0, len(wrapped_all), page_chunk)
+        ] or [[""]]
+        page_index = 0
         while True:
-            height, width = self.stdscr.getmaxyx()
-            wrapped: List[str] = []
-            for line in lines[offset:]:
-                wrapped.extend(textwrap.wrap(line, width=max(20, min(width - 14, 88))) or [""])
-                if len(wrapped) >= page_body_limit:
-                    break
-            total = len(lines)
-            header = "{} ({}/{})".format(title, min(total, offset + 1), total)
-            self.render_modal([header, ""] + wrapped, prompt_hint=prompt_hint, modal_size=modal_size)
+            header = "{} ({}/{})".format(title, page_index + 1, len(pages))
+            self.render_modal([header, ""] + pages[page_index], prompt_hint=prompt_hint, modal_size=modal_size)
             key = self.stdscr.get_wch()
             if key == curses.KEY_RESIZE:
                 continue
             if key in (curses.KEY_UP, curses.KEY_PPAGE):
-                offset = max(0, offset - max(1, (height - 12) // 2))
+                page_index = max(0, page_index - 1)
                 continue
             if key in (curses.KEY_DOWN, curses.KEY_NPAGE):
-                offset = min(max(0, total - 1), offset + max(1, (height - 12) // 2))
+                page_index = min(len(pages) - 1, page_index + 1)
                 continue
             if isinstance(key, str):
                 lowered = key.lower()
                 if lowered == "\x1b" or lowered == "q":
                     return False
                 if lowered in ("\n", "\r", " "):
-                    if offset >= max(0, total - 1):
+                    if page_index >= len(pages) - 1:
                         return True
-                    offset = min(max(0, total - 1), offset + page_body_limit)
+                    page_index = min(len(pages) - 1, page_index + 1)
                     continue
             curses.beep()
 
@@ -589,9 +592,12 @@ class InstallTUI:
 
         if bottom_panel_height:
             panel_top = height - 2 - bottom_panel_height
-            self._safe_addstr(panel_top, 2, self.bottom_panel_title[: width - 4], curses.A_BOLD)
-            panel_y = panel_top + 1
-            for line in self.bottom_panel_lines[-(bottom_panel_height - 1) :]:
+            panel_y = panel_top
+            if self.bottom_panel_title:
+                self._safe_addstr(panel_top, 2, self.bottom_panel_title[: width - 4], curses.A_BOLD)
+                panel_y += 1
+            visible_lines = self.bottom_panel_lines[-max(1, bottom_panel_height - (1 if self.bottom_panel_title else 0)) :]
+            for line in visible_lines:
                 self._safe_addstr(panel_y, 2, line[: width - 4], curses.A_NORMAL)
                 panel_y += 1
 
@@ -645,3 +651,30 @@ def _clean_terminal_text(text: str) -> str:
     if current:
         lines.append("".join(current))
     return "\n".join(lines)
+
+
+def _reflow_modal_text(text: str, *, width: int) -> List[str]:
+    blocks: List[str] = []
+    paragraph: List[str] = []
+
+    def flush_paragraph() -> None:
+        nonlocal paragraph
+        if not paragraph:
+            return
+        blocks.extend(textwrap.wrap(" ".join(paragraph), width=width) or [""])
+        paragraph = []
+
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            flush_paragraph()
+            if blocks and blocks[-1] != "":
+                blocks.append("")
+            continue
+        if stripped.startswith(("- ", "* ", "• ", "#")) or re.match(r"\d+\.\s", stripped):
+            flush_paragraph()
+            blocks.extend(textwrap.wrap(stripped, width=width, subsequent_indent="  ") or [""])
+            continue
+        paragraph.append(stripped)
+    flush_paragraph()
+    return blocks or [""]
