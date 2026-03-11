@@ -101,6 +101,7 @@ def validate_memory_scope_isolation() -> list[str]:
         env = runtime_env()
         env["HOME"] = str(home)
         env["CODEX_CHAT_QMD_LOCK_DIR"] = str(home / "codex-chat-qmd-sync.lock")
+        env["CODEX_CHAT_QMD_LOCK_DIR"] = str(home / "codex-chat-qmd-sync.lock")
         result = subprocess.run(
             ["node", str(REPO_ROOT / "bin" / "codex-memory-mcp")],
             input=f"{request}\n",
