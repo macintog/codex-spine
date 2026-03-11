@@ -320,11 +320,19 @@ class InstallTUI:
         modal_size: Optional[Tuple[int, int]] = None,
     ) -> Optional[str]:
         typed: List[str] = []
+        needs_full_redraw = True
         while True:
             field = "> {}".format("".join(typed) if typed else "_")
-            self.render_modal([title, "", prompt, "", field], prompt_hint=prompt_hint, modal_size=modal_size)
+            lines = [title, "", prompt, "", field]
+            if needs_full_redraw:
+                self.render_modal(lines, prompt_hint=prompt_hint, modal_size=modal_size)
+                needs_full_redraw = False
+            else:
+                layout = self._modal_layout(lines, modal_size=modal_size)
+                self._draw_modal(layout, prompt_hint=prompt_hint)
             key = self.stdscr.get_wch()
             if key == curses.KEY_RESIZE:
+                needs_full_redraw = True
                 continue
             if isinstance(key, str):
                 if key == "\x1b":
@@ -451,6 +459,14 @@ class InstallTUI:
         modal_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         self.render()
+        self._draw_modal(self._modal_layout(lines, modal_size=modal_size), prompt_hint=prompt_hint)
+
+    def _modal_layout(
+        self,
+        lines: Sequence[str],
+        *,
+        modal_size: Optional[Tuple[int, int]] = None,
+    ) -> Tuple[int, int, int, int, List[str]]:
         height, width = self.stdscr.getmaxyx()
         wrap_width = max(12, (modal_size[0] - 4) if modal_size is not None else min(width - 12, 68))
         body: List[str] = []
@@ -463,6 +479,15 @@ class InstallTUI:
             box_width, box_height = modal_size
         start_y = max(2, (height - box_height) // 2)
         start_x = max(2, (width - box_width) // 2)
+        return start_y, start_x, box_width, box_height, body
+
+    def _draw_modal(
+        self,
+        layout: Tuple[int, int, int, int, List[str]],
+        *,
+        prompt_hint: Optional[str] = None,
+    ) -> None:
+        start_y, start_x, box_width, box_height, body = layout
         with contextlib.suppress(curses.error):
             self.stdscr.attron(curses.A_BOLD)
         for y in range(box_height):
@@ -527,26 +552,43 @@ class InstallTUI:
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
+            text=False,
+            bufsize=0,
         )
         assert process.stdout is not None
         next_heartbeat = time.monotonic() + heartbeat_interval
         stream = process.stdout
+        fd = stream.fileno()
+        buffer = ""
         if heartbeat_message:
             self.pulse_activity(heartbeat_message)
         while True:
             self.tick_activity()
-            ready, _, _ = select.select([stream], [], [], 0.25)
+            ready, _, _ = select.select([fd], [], [], 0.25)
             if ready:
-                line = stream.readline()
-                if line:
-                    self.log(line.rstrip("\n"))
+                chunk = os.read(fd, 4096)
+                if chunk:
+                    buffer += chunk.decode("utf-8", errors="replace")
+                    while True:
+                        newline_index = buffer.find("\n")
+                        carriage_index = buffer.find("\r")
+                        if newline_index == -1 and carriage_index == -1:
+                            break
+                        split_index = min(
+                            index
+                            for index in (newline_index, carriage_index)
+                            if index != -1
+                        )
+                        self.log(buffer[:split_index])
+                        buffer = buffer[split_index + 1 :]
                     next_heartbeat = time.monotonic() + heartbeat_interval
                     continue
             if process.poll() is not None:
-                for line in stream.readlines():
-                    self.log(line.rstrip("\n"))
+                remainder = stream.read()
+                if remainder:
+                    buffer += remainder.decode("utf-8", errors="replace")
+                if buffer:
+                    self.log(buffer.rstrip("\n\r"))
                 break
             if heartbeat_message and time.monotonic() >= next_heartbeat:
                 self.pulse_activity(heartbeat_message)

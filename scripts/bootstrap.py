@@ -269,7 +269,7 @@ def install_steps() -> list[Step]:
     return [
         Step("Step 1 of 6", "Required tools", "Make sure the tools this install needs are ready."),
         Step("Step 2 of 6", "Local setup", "Connect this checkout to your Codex files, commands, and shell."),
-        Step("Step 3 of 6", "Core tools", "Install the main codex-spine tools, plus any optional add-ons you chose."),
+        Step("Step 3 of 6", "Core tools", "Install or update codex-spine tools like qmd, plus any optional add-ons you chose."),
         Step("Step 4 of 6", "Finish setup", "Write your Codex setup and turn on background sync."),
         Step("Step 5 of 6", "Memory and search", "Prepare transcript sync and local search for first use."),
         Step("Step 6 of 6", "Final check", "Run one last verification and show any next steps."),
@@ -326,7 +326,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
     if ui is not None:
         note = "Your Codex links and shell setup are ready." if shell_plan.supported else "Your Codex links are ready. Shell setup was skipped because this shell is not zsh."
         ui.finish_step(1, status="ok", note=note)
-        ui.set_step(2, note="Installing the main codex-spine tools.")
+        ui.set_step(2, note="Installing or updating codex-spine tools like qmd.")
         run_script(
             "update",
             "--defaults-only",

@@ -28,7 +28,7 @@ def install_steps() -> List[Step]:
     return [
         Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
         Step("Step 2 of 4", "Optional code search", "Choose whether to add optional indexed code navigation."),
-        Step("Step 3 of 4", "Required tools", "Get the tools this install needs before setup continues."),
+        Step("Step 3 of 4", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
         Step("Step 4 of 4", "Continue setup", "Move straight into the rest of the install from this same window."),
     ]
 
@@ -167,7 +167,7 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
 
 def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(2, note="Checking for Homebrew and the tools this install needs.")
+        ui.set_step(2, note="Checking for Homebrew and any missing formulae.")
     brew_path = find_brew()
     if brew_path is None:
         approved = prompt_yes_no(
