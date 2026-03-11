@@ -39,7 +39,7 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 6. If you skipped the optional `jCodeMunch MCP` prompt during install and later want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
 `make install` is interactive when run from a TTY. On stock macOS, the first fullscreen preflight runs under `/usr/bin/python3`, explains the Homebrew packages it is about to install, and asks for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
-If the Homebrew installer needs raw terminal interaction, `codex-spine` temporarily hands that step back to the terminal so password prompts and installer errors remain readable.
+If Homebrew installation needs macOS password authentication, `codex-spine` temporarily hands just that prompt back to the terminal, then returns to fullscreen for the rest of the install.
 Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local qmd index before the final verification step, so the first run can take noticeably longer than later runs.
 
 `zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, install warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.

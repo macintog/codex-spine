@@ -163,10 +163,7 @@ class InstallTUI:
 
     def prompt_yes_no(self, prompt: Union[str, Sequence[str]], *, default: bool) -> bool:
         lines = prompt.splitlines() if isinstance(prompt, str) else [str(line) for line in prompt]
-        prompt_hint = "Enter = Yes" if default else "Enter = No"
-        footer = self.footer
-        self.footer = "Use Enter, y, n, or Esc."
-        self.render_modal(lines, prompt_hint="{}   y = yes   n = no   Esc = no".format(prompt_hint))
+        self.render_modal(lines)
         while True:
             key = self.stdscr.get_wch()
             if isinstance(key, int):
@@ -182,27 +179,19 @@ class InstallTUI:
                     curses.KEY_PPAGE,
                 ):
                     if key == curses.KEY_RESIZE:
-                        self.render_modal(lines, prompt_hint="{}   y = yes   n = no   Esc = no".format(prompt_hint))
+                        self.render_modal(lines)
                     continue
                 curses.beep()
                 continue
             if isinstance(key, str):
                 lowered = key.lower()
                 if lowered in ("\n", "\r"):
-                    self.footer = footer
-                    self.render()
                     return default
                 if lowered == "y":
-                    self.footer = footer
-                    self.render()
                     return True
                 if lowered == "n":
-                    self.footer = footer
-                    self.render()
                     return False
                 if lowered == "\x1b":
-                    self.footer = footer
-                    self.render()
                     return False
             curses.beep()
 
@@ -329,13 +318,21 @@ class InstallTUI:
         right_x = left_width + 2
         log_width = max(20, width - right_x - 1)
         content_bottom = max(4, height - 4)
+        start_index = 0
+        for index, step in enumerate(self.steps):
+            if step.status != "ok":
+                start_index = index
+                break
+        else:
+            start_index = max(0, len(self.steps) - 1)
 
         self._safe_addstr(0, 2, self.title, self.color("in_progress"))
         self._safe_addstr(1, 2, self.subtitle, curses.A_DIM)
 
         self._safe_addstr(3, 2, "Plan", curses.A_BOLD)
         y = 4
-        for index, step in enumerate(self.steps):
+        visible_steps = self.steps[start_index:]
+        for offset, step in enumerate(visible_steps):
             if y > content_bottom:
                 break
             marker = self.step_marker(step.status)
@@ -354,7 +351,7 @@ class InstallTUI:
                         break
                     self._safe_addstr(y, 4, line, self.color(step.status))
                     y += 1
-            if index != len(self.steps) - 1:
+            if offset != len(visible_steps) - 1:
                 y += 1
 
         self._safe_addstr(3, right_x, "Live Log", curses.A_BOLD)

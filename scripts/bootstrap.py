@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import os
 import shlex
 import subprocess
@@ -94,9 +93,9 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         raise RuntimeError("missing optional component definition: jcodemunch-mcp")
 
     if ui is not None:
-        ui.status("info", "Switching to terminal mode for the optional jCodeMunch MCP terms review.")
+        ui.status("info", "Switching to terminal mode only for the optional jCodeMunch MCP terms review.")
         suspension = ui.suspend(
-            "Temporary terminal handoff: review the upstream terms, then return to the fullscreen installer."
+            "Temporary terminal handoff: review the upstream terms below, then return to the fullscreen installer."
         )
     else:
         suspension = contextlib.nullcontext()
@@ -118,7 +117,16 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             else:
                 print("Continuing install without optional jCodeMunch MCP.")
             return False
-        package_name = component.backend.get("package_name", component.name)
+
+    package_name = component.backend.get("package_name", component.name)
+    if ui is not None:
+        ui.status("info", f"Installing/updating optional {component.name} inside the fullscreen installer.")
+        with ui.capture_output():
+            print(f"{component.name}: installing/updating {package_name}...", flush=True)
+            print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
+            for line in update_component(component):
+                print(line)
+    else:
         print(f"{component.name}: installing/updating {package_name}...", flush=True)
         print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
         for line in update_component(component):
