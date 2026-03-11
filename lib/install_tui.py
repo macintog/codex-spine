@@ -1,0 +1,261 @@
+from __future__ import annotations
+
+import contextlib
+import curses
+import io
+import os
+import select
+import shlex
+import subprocess
+import sys
+import textwrap
+import time
+from collections import deque
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator, Sequence
+
+
+@dataclass
+class Step:
+    label: str
+    title: str
+    detail: str
+    status: str = "pending"
+    note: str = ""
+
+
+class _LogWriter(io.TextIOBase):
+    def __init__(self, tui: "InstallTUI", *, level: str) -> None:
+        self._tui = tui
+        self._level = level
+        self._buffer = ""
+
+    def write(self, data: str) -> int:
+        self._buffer += data
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            self._tui.log(line, level=self._level)
+        return len(data)
+
+    def flush(self) -> None:
+        if self._buffer:
+            self._tui.log(self._buffer, level=self._level)
+            self._buffer = ""
+
+
+class InstallTUI:
+    def __init__(self, stdscr, *, title: str, subtitle: str, steps: list[Step]) -> None:
+        self.stdscr = stdscr
+        self.title = title
+        self.subtitle = subtitle
+        self.steps = steps
+        self.current_step = 0
+        self.logs: deque[tuple[str, str]] = deque(maxlen=400)
+        self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
+        self._init_screen()
+        self.render()
+
+    @staticmethod
+    def supported() -> bool:
+        return sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get("TERM", "dumb") != "dumb"
+
+    def _init_screen(self) -> None:
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+        if curses.has_colors():
+            curses.start_color()
+            curses.use_default_colors()
+            curses.init_pair(1, curses.COLOR_CYAN, -1)
+            curses.init_pair(2, curses.COLOR_GREEN, -1)
+            curses.init_pair(3, curses.COLOR_YELLOW, -1)
+            curses.init_pair(4, curses.COLOR_RED, -1)
+            curses.init_pair(5, curses.COLOR_WHITE, -1)
+
+    def close(self) -> None:
+        with contextlib.suppress(curses.error):
+            self.stdscr.keypad(False)
+            curses.echo()
+            curses.nocbreak()
+            curses.endwin()
+
+    def color(self, status: str) -> int:
+        if not curses.has_colors():
+            return curses.A_NORMAL
+        mapping = {
+            "pending": curses.color_pair(5),
+            "in_progress": curses.color_pair(1) | curses.A_BOLD,
+            "ok": curses.color_pair(2) | curses.A_BOLD,
+            "warn": curses.color_pair(3) | curses.A_BOLD,
+            "stop": curses.color_pair(4) | curses.A_BOLD,
+            "info": curses.color_pair(1),
+        }
+        return mapping.get(status, curses.A_NORMAL)
+
+    def step_marker(self, status: str) -> str:
+        return {
+            "pending": "·",
+            "in_progress": "◆",
+            "ok": "✓",
+            "warn": "!",
+            "stop": "×",
+        }.get(status, "·")
+
+    def set_step(self, index: int, *, status: str = "in_progress", note: str = "") -> None:
+        self.current_step = index
+        self.steps[index].status = status
+        if note:
+            self.steps[index].note = note
+        self.render()
+
+    def finish_step(self, index: int, *, status: str, note: str = "") -> None:
+        self.steps[index].status = status
+        if note:
+            self.steps[index].note = note
+        self.render()
+
+    def status(self, kind: str, message: str) -> None:
+        self.log(f"{self.step_marker(kind)} {message}", level=kind)
+
+    def log(self, message: str, *, level: str = "info") -> None:
+        if not message and level == "info":
+            return
+        for line in message.splitlines() or [""]:
+            self.logs.append((level, line))
+        self.render()
+
+    @contextlib.contextmanager
+    def capture_output(self) -> Iterator[None]:
+        stdout_writer = _LogWriter(self, level="info")
+        stderr_writer = _LogWriter(self, level="warn")
+        with contextlib.redirect_stdout(stdout_writer), contextlib.redirect_stderr(stderr_writer):
+            yield
+        stdout_writer.flush()
+        stderr_writer.flush()
+
+    @contextlib.contextmanager
+    def suspend(self, message: str) -> Iterator[None]:
+        self.footer = message
+        self.render()
+        curses.def_prog_mode()
+        curses.endwin()
+        try:
+            yield
+        finally:
+            self.stdscr.refresh()
+            curses.reset_prog_mode()
+            try:
+                curses.curs_set(0)
+            except curses.error:
+                pass
+            self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
+            self.render()
+
+    def run_command(
+        self,
+        args: Sequence[str],
+        *,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+        heartbeat_message: str | None = None,
+        heartbeat_interval: float = 5.0,
+    ) -> None:
+        self.log(f"$ {shlex.join([str(part) for part in args])}")
+        process = subprocess.Popen(
+            [str(part) for part in args],
+            cwd=str(cwd) if cwd else None,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        assert process.stdout is not None
+        next_heartbeat = time.monotonic() + heartbeat_interval
+        stream = process.stdout
+        while True:
+            ready, _, _ = select.select([stream], [], [], 0.25)
+            if ready:
+                line = stream.readline()
+                if line:
+                    self.log(line.rstrip("\n"))
+                    next_heartbeat = time.monotonic() + heartbeat_interval
+                    continue
+            if process.poll() is not None:
+                for line in stream.readlines():
+                    self.log(line.rstrip("\n"))
+                break
+            if heartbeat_message and time.monotonic() >= next_heartbeat:
+                self.status("info", heartbeat_message)
+                next_heartbeat = time.monotonic() + heartbeat_interval
+        returncode = process.wait()
+        if returncode != 0:
+            raise subprocess.CalledProcessError(returncode, [str(part) for part in args])
+
+    def render(self) -> None:
+        self.stdscr.erase()
+        height, width = self.stdscr.getmaxyx()
+        left_width = max(34, min(44, width // 3))
+        right_x = left_width + 2
+        log_width = max(20, width - right_x - 1)
+
+        self._safe_addstr(0, 2, self.title, self.color("in_progress"))
+        self._safe_addstr(1, 2, self.subtitle, curses.A_DIM)
+
+        self._safe_addstr(3, 2, "Plan", curses.A_BOLD)
+        y = 4
+        for index, step in enumerate(self.steps):
+            marker = self.step_marker(step.status)
+            attrs = self.color(step.status)
+            prefix = f"{marker} {step.label}: {step.title}"
+            self._safe_addstr(y, 2, prefix[: left_width - 3], attrs)
+            y += 1
+            for line in textwrap.wrap(step.detail, width=max(10, left_width - 6)) or [""]:
+                self._safe_addstr(y, 4, line, curses.A_DIM)
+                y += 1
+            if step.note:
+                for line in textwrap.wrap(step.note, width=max(10, left_width - 6)) or [""]:
+                    self._safe_addstr(y, 4, line, self.color(step.status))
+                    y += 1
+            if index != len(self.steps) - 1:
+                y += 1
+
+        self._safe_addstr(3, right_x, "Live Log", curses.A_BOLD)
+        log_lines: list[tuple[str, str]] = []
+        for level, line in self.logs:
+            wrapped = textwrap.wrap(line, width=log_width) or [""]
+            for part in wrapped:
+                log_lines.append((level, part))
+        visible = log_lines[-max(1, height - 6) :]
+        log_y = 4
+        for level, line in visible:
+            self._safe_addstr(log_y, right_x, line[:log_width], self.color(level))
+            log_y += 1
+
+        self._safe_addstr(height - 2, 2, self.footer[: width - 4], curses.A_DIM)
+        self.stdscr.refresh()
+
+    def _safe_addstr(self, y: int, x: int, text: str, attr: int = 0) -> None:
+        height, width = self.stdscr.getmaxyx()
+        if y < 0 or y >= height or x >= width:
+            return
+        with contextlib.suppress(curses.error):
+            self.stdscr.addstr(y, x, text[: max(0, width - x - 1)], attr)
+
+
+@contextlib.contextmanager
+def open_tui(*, title: str, subtitle: str, steps: list[Step]) -> Iterator[InstallTUI | None]:
+    if not InstallTUI.supported():
+        yield None
+        return
+    stdscr = curses.initscr()
+    tui = InstallTUI(stdscr, title=title, subtitle=subtitle, steps=steps)
+    try:
+        yield tui
+    finally:
+        tui.close()
