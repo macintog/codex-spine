@@ -8,16 +8,15 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
 
+from bootstrap import install_steps as managed_install_steps, run_install as run_managed_install  # noqa: E402
 from install_tui import Step, open_tui  # noqa: E402
 
 
-PYTHON_LAUNCHER = REPO_ROOT / "bin" / "codex-python"
-STAGE1_BOOTSTRAP = REPO_ROOT / "scripts" / "bootstrap.py"
 LIVE_CONFIG_PATH = Path.home() / ".codex" / "config.toml"
 ADOPTED_CONFIG_PATH = REPO_ROOT / "codex" / "config" / "80-adopted.toml"
 LOCAL_CONFIG_OVERLAY_PATH = REPO_ROOT / "codex" / "config" / "90-local.toml"
@@ -30,7 +29,7 @@ def install_steps() -> List[Step]:
         Step("Step 1 of 4", "Existing config", "Protect an unmanaged Codex config before broader install changes."),
         Step("Step 2 of 4", "Optional add-ons", "Decide whether to include optional indexed code navigation later in the install."),
         Step("Step 3 of 4", "Homebrew and runtime", "Install Homebrew if needed, then establish the managed formula and Python floor."),
-        Step("Step 4 of 4", "Launch managed installer", "Hand off to the managed Python installer once the runtime floor is ready."),
+        Step("Step 4 of 4", "Continue install", "Move straight from preflight into the main install without restarting the fullscreen session."),
     ]
 
 def find_brew() -> Optional[str]:
@@ -166,7 +165,7 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
         ui.finish_step(1, status="ok", note=note)
 
 
-def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> str:
+def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
     if ui is not None:
         ui.set_step(2, note="Checking Homebrew and installing the baseline formulas inside the fullscreen preflight.")
     brew_path = find_brew()
@@ -234,46 +233,38 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> str:
             ui.run_command([brew_path, "install"] + missing, heartbeat_message="Homebrew is still installing baseline formulas...")
         else:
             subprocess.run([brew_path, "install"] + missing, check=True)
-    python_bin = resolve_managed_python()
-    if python_bin is None:
-        raise RuntimeError("Homebrew Python installed, but codex-spine still could not locate Python 3.11+. Rerun `make install` after confirming Homebrew Python is installed.")
     if ui is not None:
-        ui.finish_step(2, status="ok", note="Managed runtime is ready at {}.".format(python_bin))
-    return python_bin
+        ui.finish_step(2, status="ok", note="Homebrew and the baseline runtime floor are ready for the managed install.")
 
 
-def resolve_managed_python() -> Optional[str]:
-    result = subprocess.run([str(PYTHON_LAUNCHER), "--resolve"], check=False, capture_output=True, text=True)
-    if result.returncode != 0:
-        return None
-    return (result.stdout or "").strip() or None
-
-
-def exec_stage1(*, managed_python: str, args: Sequence[str], ui) -> None:
+def continue_into_managed_install(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(3, note="Switching from the stock Python preflight to the managed Python installer.")
-        ui.finish_step(3, status="ok", note="Launching Stage 2 with {}.".format(managed_python))
-        ui.footer = "Launching the managed Python installer..."
-        ui.render()
-        ui.close()
-    os.environ["CODEX_SPINE_STAGE_SPLIT_RUNTIME"] = "1"
-    os.execvpe(managed_python, [managed_python, str(STAGE1_BOOTSTRAP)] + list(args), os.environ.copy())
+        ui.set_step(3, note="Continuing directly into the managed install in this same fullscreen session.")
+        ui.finish_step(3, status="ok", note="Preflight completed. codex-spine is continuing without restarting the installer UI.")
+        ui.reconfigure(
+            title="codex-spine installer",
+            subtitle="Stock macOS Python is continuing through install, sync, and verification in the same fullscreen session.",
+            steps=managed_install_steps(),
+            clear_logs=True,
+        )
+    os.environ["CODEX_SPINE_PYTHON"] = sys.executable
+    run_managed_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--non-interactive", action="store_true")
-    args, passthrough = parser.parse_known_args()
+    args = parser.parse_args()
     non_interactive = args.non_interactive or not sys.stdin.isatty()
-    title = "codex-spine preflight runtime"
-    subtitle = "Stage 1 of 2: stock macOS Python drives first-run install before the managed runtime takes over."
+    title = "codex-spine installer"
+    subtitle = "Stock macOS Python handles the first-run install from the first prompt through verification."
     ui = None
     try:
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
             preflight_existing_config(non_interactive=non_interactive, ui=None if non_interactive else ui)
             preflight_optional_jcodemunch(non_interactive=non_interactive, ui=None if non_interactive else ui)
-            managed_python = ensure_homebrew_and_runtime(non_interactive=non_interactive, ui=None if non_interactive else ui)
-            exec_stage1(managed_python=managed_python, args=passthrough + (["--non-interactive"] if non_interactive and "--non-interactive" not in passthrough else []), ui=None if non_interactive else ui)
+            ensure_homebrew_and_runtime(non_interactive=non_interactive, ui=None if non_interactive else ui)
+            continue_into_managed_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
     except RuntimeError as exc:
         if ui is not None and not non_interactive:
             ui.fail_step(ui.current_step, note="Install stopped before the next stage.")

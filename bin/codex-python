@@ -5,7 +5,7 @@ python_supports_codex() {
     candidate=${1:-}
     [ -n "$candidate" ] || return 1
     [ -x "$candidate" ] || return 1
-    "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1
+    "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1
 }
 
 resolve_python() {
@@ -38,7 +38,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 python_bin=$(resolve_python) || {
-    printf '%s\n' "codex-spine requires Python 3.11+ at runtime. Run \`make install\` first or install Homebrew Python." >&2
+    printf '%s\n' "codex-spine requires Python 3.9+ at runtime. On stock macOS 15.7.4+ this should already exist as /usr/bin/python3." >&2
     exit 1
 }
 

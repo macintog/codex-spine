@@ -242,7 +242,7 @@ def run_launchctl(args: list[str], *, label: str, ui=None) -> bool:
     return False
 def install_steps() -> list[Step]:
     return [
-        Step("Step 1 of 6", "Baseline dependencies", "Confirm the managed runtime floor and Homebrew package requirements."),
+        Step("Step 1 of 6", "Baseline dependencies", "Confirm the Homebrew package requirements and runtime floor."),
         Step("Step 2 of 6", "Managed workspace", "Prepare local overlays, managed links, and shell integration."),
         Step("Step 3 of 6", "Components", "Install or update core managed components and handle optional add-ons."),
         Step("Step 4 of 6", "Config and launchd", "Render Codex config and register the transcript-sync LaunchAgent."),
@@ -399,13 +399,8 @@ def main() -> int:
         parser.add_argument("--non-interactive", action="store_true")
         args = parser.parse_args()
         non_interactive = args.non_interactive or not sys.stdin.isatty()
-        split_runtime = os.environ.get("CODEX_SPINE_STAGE_SPLIT_RUNTIME") == "1"
-        title = "codex-spine managed runtime"
-        subtitle = (
-            "Stage 2 of 2: the managed Python runtime is finalizing install, sync, and verification."
-            if split_runtime
-            else "Managed Python install: persistent plan view on the left, live logs on the right."
-        )
+        title = "codex-spine installer"
+        subtitle = "Persistent plan view on the left, live logs on the right."
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
             run_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
         return 0

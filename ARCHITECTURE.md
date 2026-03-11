@@ -42,7 +42,8 @@ tracked repo policy + config fragments + wrappers
     -> stock Python preflight under macOS-shipped python3
     -> existing-config review + optional jCodeMunch choice
     -> Homebrew install if needed + baseline package checks
-    -> scripts/bootstrap.py under the managed Python runtime
+    -> continue in the same fullscreen installer session
+    -> scripts/bootstrap.py under the current Python runtime
     -> default managed component install/update
     -> managed symlinks under ~/.codex and ~/.local/bin
     -> zsh-only managed shell source blocks

@@ -15,7 +15,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import tomllib
+from toml_compat import tomllib
 
 
 HOME = Path.home()

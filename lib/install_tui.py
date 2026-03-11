@@ -124,6 +124,30 @@ class InstallTUI:
             "stop": "×",
         }.get(status, "·")
 
+    def reconfigure(
+        self,
+        *,
+        title: Optional[str] = None,
+        subtitle: Optional[str] = None,
+        steps: Optional[List[Step]] = None,
+        footer: Optional[str] = None,
+        clear_logs: bool = False,
+    ) -> None:
+        if title is not None:
+            self.title = title
+        if subtitle is not None:
+            self.subtitle = subtitle
+        if steps is not None:
+            self.steps = steps
+            self.current_step = 0
+        if footer is not None:
+            self.footer = footer
+        if clear_logs:
+            self.logs.clear()
+            self.clear_bottom_panel()
+            self.clear_activity()
+        self.render()
+
     def set_step(self, index: int, *, status: str = "in_progress", note: str = "") -> None:
         self.current_step = index
         self.steps[index].status = status

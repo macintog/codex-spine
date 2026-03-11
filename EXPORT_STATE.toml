@@ -15,7 +15,7 @@ executable = false
 [[export.files]]
 path = "ARCHITECTURE.md"
 component = "qmd_memory_stack"
-sha256 = "04535c8d0ae6673a3022a629ef93c58d2d6addb2b114b64df58399a70100b8a8"
+sha256 = "1d11bc19265cedd77c44e88a2425a67ec4fbccc142f4b893b46aadbf52602267"
 executable = false
 
 [[export.files]]
@@ -51,7 +51,7 @@ executable = false
 [[export.files]]
 path = "README.md"
 component = "qmd_memory_stack"
-sha256 = "873d50baaad0fe4b87869d4a3679aa7495d1e7006788d673a74241e16bf8ca48"
+sha256 = "f1735149cd462b8b0b9a44d51483aa5ec2919aa16a09e9faaf14b9aadc882a7a"
 executable = false
 
 [[export.files]]
@@ -81,7 +81,7 @@ executable = true
 [[export.files]]
 path = "bin/codex-python"
 component = "qmd_memory_stack"
-sha256 = "9f58c380993b6b3ad15f744d1d2ce613029763e7083afa0148bf931fce7d046c"
+sha256 = "8e5eaf87f8e874b6ab6bee4ef1b2ad0fe7d48d91c0c3f79aaf788f7bc482f364"
 executable = true
 
 [[export.files]]
@@ -151,21 +151,57 @@ sha256 = "fc194880ce5ee2e8482681c69818a464d2de5a4256487612665f0779843fe988"
 executable = false
 
 [[export.files]]
+path = "lib/_vendor/__init__.py"
+component = "codex_spine_public_repo"
+sha256 = "0e69daca2d1105245c512dc17eaaeb8911ace649d429646e6645e34caa533ef9"
+executable = false
+
+[[export.files]]
+path = "lib/_vendor/tomllib/__init__.py"
+component = "codex_spine_public_repo"
+sha256 = "71f67036895f4c5acab942618af0cbd3d814451ba61e967f358d0f341a5b8f51"
+executable = false
+
+[[export.files]]
+path = "lib/_vendor/tomllib/_parser.py"
+component = "codex_spine_public_repo"
+sha256 = "5eff5fceb6fa7bb8eb11d551213891291cdb8cee35659a95416b5e84789997b9"
+executable = false
+
+[[export.files]]
+path = "lib/_vendor/tomllib/_re.py"
+component = "codex_spine_public_repo"
+sha256 = "e0d6f33e345e0a43a55f3965d6c3eef89b69ec4767478e30dbba80458d80854d"
+executable = false
+
+[[export.files]]
+path = "lib/_vendor/tomllib/_types.py"
+component = "codex_spine_public_repo"
+sha256 = "f864c6d9552a929c7032ace654ee05ef26ca75d21b027b801d77e65907138b74"
+executable = false
+
+[[export.files]]
 path = "lib/codex_spine.py"
 component = "qmd_memory_stack"
-sha256 = "06f2bb2ae2c46040361c858bfefe18a01808c9aee29bacddc7486f65600a14ca"
+sha256 = "acbcb3147482cfd581224447ec10d633d79b92b5cb41e2afc619d724f397f317"
 executable = false
 
 [[export.files]]
 path = "lib/component_manager.py"
 component = "component_maintenance_harness"
-sha256 = "610c2083c796b66a0bd256fb83a539f4d4f2740ccb95f0909e594ffd8aa72914"
+sha256 = "9430041dbb9011dc7b610262ef7a4e78bee38d2c69aca9e8aa9f3f897abe2139"
 executable = false
 
 [[export.files]]
 path = "lib/install_tui.py"
 component = "qmd_memory_stack"
-sha256 = "9999c809f05598ca22653e7a82b5981744a1c451b1d3a06b746639f8c372ac08"
+sha256 = "e9875cce3ed21acefc446e5666a8a8211b441c19509a2cc2b706b0f292c5fa3c"
+executable = false
+
+[[export.files]]
+path = "lib/toml_compat.py"
+component = "codex_spine_public_repo"
+sha256 = "059dd82e44b603d28667045ff6b78585694220cca5aaacb6ce6dfdeb97fe5c05"
 executable = false
 
 [[export.files]]
@@ -177,13 +213,13 @@ executable = true
 [[export.files]]
 path = "scripts/bootstrap-preflight.py"
 component = "qmd_memory_stack"
-sha256 = "f467a3a06a02e0a78474f4b7b311ca39d077047e03fd62f85e7f499a47dc1252"
+sha256 = "8eb9dc64d11ce4c8d1bc62a78333c3e440e74cf943439e38d9034c1ebdb2c2bb"
 executable = true
 
 [[export.files]]
 path = "scripts/bootstrap.py"
 component = "qmd_memory_stack"
-sha256 = "7899feb910dcc27627ccd819d791f699ed41ffa8d220c138584c9a6364108576"
+sha256 = "f3f4700b7d365262a5bb50b765120aebfe59a6852b93aa825ae1626e9d58cb46"
 executable = false
 
 [[export.files]]

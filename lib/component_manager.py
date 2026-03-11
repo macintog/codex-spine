@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
-import tomllib
+from toml_compat import tomllib
 import tty
 import urllib.request
 
