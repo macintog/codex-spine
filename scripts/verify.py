@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,12 @@ def fail(errors: list[str]) -> int:
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     return 1
+
+
+def project_key_for_path(project_path: Path) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", project_path.name.lower()).strip("-") or "project"
+    digest = hashlib.sha1(str(project_path).encode("utf-8")).hexdigest()[:12]
+    return f"{slug}-{digest}"
 
 
 def validate_memory_scope_isolation() -> list[str]:
@@ -508,27 +515,8 @@ def validate_memory_bootstrap_contract() -> list[str]:
             return [f"memory bootstrap contract sync failed: {detail}"]
 
         canonical_current_repo = Path(os.path.realpath(current_repo))
-        project_state_root = home / ".cache/qmd/codex_chat/.state/projects"
-        project_dirs = sorted(path for path in project_state_root.iterdir() if path.is_dir()) if project_state_root.exists() else []
-        matching_project_dirs: list[Path] = []
-        for project_dir in project_dirs:
-            bootstrap_candidate = project_dir / "bootstrap.json"
-            if not bootstrap_candidate.exists():
-                continue
-            try:
-                bootstrap_candidate_data = json.loads(bootstrap_candidate.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if bootstrap_candidate_data.get("project_path") == str(canonical_current_repo):
-                matching_project_dirs.append(project_dir)
-        if len(matching_project_dirs) != 1:
-            errors.append(
-                "memory bootstrap contract fixture did not produce exactly one matching project state directory"
-            )
-            return errors
-
-        project_key = matching_project_dirs[0].name
-        bootstrap_path = matching_project_dirs[0] / "bootstrap.json"
+        project_key = project_key_for_path(canonical_current_repo)
+        bootstrap_path = home / ".cache/qmd/codex_chat/.state/projects" / project_key / "bootstrap.json"
         project_doc_path = home / ".cache/qmd/codex_chat/projects" / project_key / "project-memory.md"
         if not bootstrap_path.exists():
             errors.append(f"memory bootstrap contract fixture did not produce bootstrap state: {bootstrap_path}")

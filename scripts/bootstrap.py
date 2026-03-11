@@ -44,6 +44,7 @@ from codex_spine import (  # noqa: E402
     write_managed_launch_agent,
 )
 from component_manager import (  # noqa: E402
+    _run_live_with_heartbeat,
     component_status,
     ensure_license_acknowledged,
     resolve_components,
@@ -56,7 +57,10 @@ def run_script(script_name: str, *args: str) -> None:
 
 
 def run_sync() -> None:
-    subprocess.run([str(REPO_ROOT / "bin" / "sync-codex-chat-qmd.sh")], check=True)
+    _run_live_with_heartbeat(
+        [str(REPO_ROOT / "bin" / "sync-codex-chat-qmd.sh")],
+        heartbeat_message="Transcript sync is still running...",
+    )
 
 
 def warn(message: str) -> None:
