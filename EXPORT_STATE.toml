@@ -231,7 +231,7 @@ executable = true
 [[export.files]]
 path = "scripts/verify.py"
 component = "codex_spine_public_repo"
-sha256 = "c3807fbb27ae025d55dd1e132ffa1378baa6d4ca0d4e0449b56666785a2c0d10"
+sha256 = "1accadd7d640ab59921ba51da488325bb355c2f2b5a410f3fc7469a0c412c213"
 executable = false
 
 [[export.files]]

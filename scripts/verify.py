@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -425,6 +426,12 @@ def validate_memory_bootstrap_contract() -> list[str]:
         qmd_wrapper = local_bin / "qmd-codex"
         qmd_wrapper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         qmd_wrapper.chmod(0o755)
+        sync_wrapper = local_bin / "sync-codex-chat-qmd.sh"
+        sync_wrapper.write_text(
+            f"#!/bin/sh\nexec {shlex.quote(str(REPO_ROOT / 'bin' / 'sync-codex-chat-qmd.sh'))} \"$@\"\n",
+            encoding="utf-8",
+        )
+        sync_wrapper.chmod(0o755)
 
         sessions_dir = home / ".codex/sessions/2026/03/09"
         sessions_dir.mkdir(parents=True, exist_ok=True)
@@ -502,6 +509,7 @@ def validate_memory_bootstrap_contract() -> list[str]:
 
         env = runtime_env()
         env["HOME"] = str(home)
+        env["CODEX_CHAT_QMD_LOCK_DIR"] = str(home / "codex-chat-qmd-sync.lock")
 
         sync_result = subprocess.run(
             [str(REPO_ROOT / "bin" / "sync-codex-chat-qmd.sh"), "--state-only", "--project-path", str(current_repo)],
@@ -519,44 +527,6 @@ def validate_memory_bootstrap_contract() -> list[str]:
         project_key = project_key_for_path(canonical_current_repo)
         bootstrap_path = home / ".cache/qmd/codex_chat/.state/projects" / project_key / "bootstrap.json"
         project_doc_path = home / ".cache/qmd/codex_chat/projects" / project_key / "project-memory.md"
-        if not bootstrap_path.exists():
-            errors.append(f"memory bootstrap contract fixture did not produce bootstrap state: {bootstrap_path}")
-            return errors
-
-        bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
-        summary = str(bootstrap.get("summary", ""))
-        project_frame = str(bootstrap.get("project_frame", ""))
-        joined_constraints = "\n".join(bootstrap.get("intent_pins", []))
-        joined_loops = "\n".join(bootstrap.get("open_loops", []))
-
-        if bootstrap.get("project_path") != str(canonical_current_repo):
-            errors.append("memory bootstrap contract fixture recorded the wrong canonical project path")
-        if "current_objective" in bootstrap:
-            errors.append("memory bootstrap contract fixture still emitted current_objective in bootstrap state")
-        if project_frame != "Example durable context for the current working directory.":
-            errors.append("memory bootstrap contract fixture did not prefer durable local docs for project_frame")
-        for required_text in ("Project frame:", "Durable constraints:", "Historical open loops:", "Recent sessions:"):
-            if required_text not in summary:
-                errors.append(f"memory bootstrap contract summary is missing section: {required_text}")
-        if "Current objective:" in summary:
-            errors.append("memory bootstrap contract summary still uses Current objective")
-        for forbidden_text in (
-            "Use this skill for git-hosted work",
-            "Generic Memory Contract Reset",
-            "Please fix the jcodemunch error next.",
-        ):
-            if forbidden_text in summary or forbidden_text in project_frame or forbidden_text in joined_constraints or forbidden_text in joined_loops:
-                errors.append(f"memory bootstrap contract leaked non-durable task text: {forbidden_text}")
-
-        if not project_doc_path.exists():
-            errors.append(f"memory bootstrap contract fixture did not produce a project memory doc: {project_doc_path}")
-        else:
-            project_doc = project_doc_path.read_text(encoding="utf-8")
-            if "Current objective" in project_doc:
-                errors.append("project memory doc still frames context as a current objective")
-            for required_text in ("## Project Frame", "## Historical Decisions"):
-                if required_text not in project_doc:
-                    errors.append(f"project memory doc is missing section: {required_text}")
 
         def rpc(method: str, params: dict | None = None) -> dict:
             request = json.dumps(
@@ -588,7 +558,7 @@ def validate_memory_bootstrap_contract() -> list[str]:
                     "name": "bootstrap_context",
                     "arguments": {
                         "cwd": str(current_repo),
-                        "refresh_if_stale": False,
+                        "refresh_if_stale": True,
                     },
                 },
             )
@@ -603,10 +573,62 @@ def validate_memory_bootstrap_contract() -> list[str]:
             response_text = ""
         if "current_objective" in structured:
             errors.append("memory bootstrap_context structured output still exposes current_objective")
+        if structured.get("project_key") != project_key:
+            errors.append("memory bootstrap_context structured output returned the wrong project key")
+        if structured.get("project_path") != str(canonical_current_repo):
+            errors.append("memory bootstrap_context structured output returned the wrong canonical project path")
         if structured.get("project_frame") != "Example durable context for the current working directory.":
             errors.append("memory bootstrap_context structured output did not preserve project_frame")
         if "Current objective:" in response_text:
             errors.append("memory bootstrap_context text response still uses Current objective")
+        for required_text in ("Project frame:", "Durable constraints:", "Historical open loops:", "Recent sessions:"):
+            if required_text not in response_text:
+                errors.append(f"memory bootstrap_context text response is missing section: {required_text}")
+        for forbidden_text in (
+            "Use this skill for git-hosted work",
+            "Generic Memory Contract Reset",
+            "Please fix the jcodemunch error next.",
+        ):
+            if forbidden_text in response_text:
+                errors.append(f"memory bootstrap_context text response leaked non-durable task text: {forbidden_text}")
+
+        if not bootstrap_path.exists():
+            errors.append(f"memory bootstrap contract fixture did not produce bootstrap state: {bootstrap_path}")
+        else:
+            bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+            summary = str(bootstrap.get("summary", ""))
+            project_frame = str(bootstrap.get("project_frame", ""))
+            joined_constraints = "\n".join(bootstrap.get("intent_pins", []))
+            joined_loops = "\n".join(bootstrap.get("open_loops", []))
+
+            if bootstrap.get("project_path") != str(canonical_current_repo):
+                errors.append("memory bootstrap contract fixture recorded the wrong canonical project path")
+            if "current_objective" in bootstrap:
+                errors.append("memory bootstrap contract fixture still emitted current_objective in bootstrap state")
+            if project_frame != "Example durable context for the current working directory.":
+                errors.append("memory bootstrap contract fixture did not prefer durable local docs for project_frame")
+            for required_text in ("Project frame:", "Durable constraints:", "Historical open loops:", "Recent sessions:"):
+                if required_text not in summary:
+                    errors.append(f"memory bootstrap contract summary is missing section: {required_text}")
+            if "Current objective:" in summary:
+                errors.append("memory bootstrap contract summary still uses Current objective")
+            for forbidden_text in (
+                "Use this skill for git-hosted work",
+                "Generic Memory Contract Reset",
+                "Please fix the jcodemunch error next.",
+            ):
+                if forbidden_text in summary or forbidden_text in project_frame or forbidden_text in joined_constraints or forbidden_text in joined_loops:
+                    errors.append(f"memory bootstrap contract leaked non-durable task text: {forbidden_text}")
+
+        if not project_doc_path.exists():
+            errors.append(f"memory bootstrap contract fixture did not produce a project memory doc: {project_doc_path}")
+        else:
+            project_doc = project_doc_path.read_text(encoding="utf-8")
+            if "Current objective" in project_doc:
+                errors.append("project memory doc still frames context as a current objective")
+            for required_text in ("## Project Frame", "## Historical Decisions"):
+                if required_text not in project_doc:
+                    errors.append(f"project memory doc is missing section: {required_text}")
 
     return errors
 
