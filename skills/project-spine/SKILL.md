@@ -46,7 +46,25 @@ For spine-based projects, the intended default startup packet is:
 3. `PROJECT_SPINE.md`
 4. `CHECKPOINT.md`
 
-Use that automatically on the first assistant turn in a new thread. If the user explicitly asks for a reload or a named profile, honor that in plain language rather than depending on a dedicated startup macro.
+Use that automatically on the first assistant turn in a new thread, and reload that startup packet when the same thread shifts to a materially new request or shows compaction drift. If the user explicitly asks for a reload or a named profile, honor that in plain language rather than depending on a dedicated startup macro.
+
+Across long-running threads, the durable invocation contract is:
+
+- Call `memory.bootstrap_context` on the first assistant turn in every new thread.
+- Call `memory.bootstrap_context` at the start of any materially new user request in the same thread.
+- Call `memory.bootstrap_context` on any repo or `cwd` change, any resume/prior-thread reference, and any compaction-drift symptoms inside the same task.
+- Treat automatic bootstrap as durable local context restoration only. It may restore project frame, durable constraints, historical open loops, and evidence refs, but it must not auto-recap prior task work or choose the next task.
+- Treat these as compaction-drift symptoms inside the same task: needing to restate current state or assumptions after a long run, uncertainty about prior constraints or conclusions, or user signals such as "we already covered this" or "you lost context."
+- If the same symptom survives two attempted fixes, stop direct retrying, re-anchor with `memory.bootstrap_context`, then use direct `memory` retrieval before proposing another fix.
+- The `memory` server also exposes direct retrieval tools: `status`, `deep_search`, `search`, `vector_search`, `get`, and `multi_get`.
+- If a client reaches for generic MCP resources, `memory` may serve bootstrap or project-memory resources, but the normal workflow should still prefer its tools.
+- If `memory.bootstrap_context` fails (startup timeout, handshake error, or unavailable), immediately fallback to `~/.local/bin/qmd-memory-latest.sh`, summarize its output, and continue.
+- Use direct memory retrieval, not bootstrap, when you need prior task wording or broader historical evidence.
+- Use exact `search` for the same bug, identifiers, or literal symptom wording.
+- Use `deep_search` for analogous prior contours or decision patterns.
+- Use `vector_search` when semantic similarity is wanted without reranking overhead.
+- Use `get` or `multi_get` on the best matches before continuing.
+- Mention memory/QMD use only when it materially changed grounding, retrieved prior decisions, or caused a strategy change.
 
 ## Default File Roles
 

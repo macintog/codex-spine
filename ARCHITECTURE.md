@@ -55,6 +55,7 @@ tracked repo policy + config fragments + wrappers
 repo state + live machine state
     -> scripts/verify
     -> component registry validation
+    -> export-state hash validation against tracked repo files
     -> private-reference and secret scanning
     -> symlink, shell, config, and LaunchAgent drift checks
     -> default and enabled-optional component health checks
@@ -68,7 +69,7 @@ repo state + live machine state
 Codex transcripts + project-memory material
     -> sync-codex-chat-qmd.sh
     -> projected markdown + refreshed qmd index under ~/.cache/qmd/codex_chat
-    -> codex-memory-mcp and qmd-codex retrieval surfaces
+    -> codex-memory-mcp public MCP surface backed by the internal qmd-codex adapter
     -> Codex startup context and transcript archaeology
 ```
 
@@ -91,6 +92,7 @@ The upstream `jgravelle/jcodemunch-mcp` project stays a separate license boundar
 ## Key Invariants
 
 - `qmd` and memory are part of the default public core.
+- `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
 - `jCodeMunch MCP` is optional but first-class.
 - `zsh` is the only tested shell integration path. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation.
 - launchd, shell, and config surfaces must remain free of private paths and personal-service assumptions.

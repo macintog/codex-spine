@@ -5,14 +5,18 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
-const { spawnSync } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 
 const HOME = process.env.HOME || os.homedir();
-const INDEX_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat");
 const STATE_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat", ".state");
 const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
-const PROJECT_DOCS_DIR = path.join(INDEX_ROOT, "projects");
+const LATEST_PROJECT_KEY_FILE = path.join(STATE_ROOT, "latest_project_key.txt");
 const SYNC_SCRIPT = path.join(HOME, ".local", "bin", "sync-codex-chat-qmd.sh");
+const SYNC_LOCK_DIR = "/tmp/codex-chat-qmd-sync.lock";
+const QMD_CLI = process.env.QMD_CLI || path.join(HOME, ".local", "bin", "qmd-codex");
+const SQLITE3_BIN = process.env.SQLITE3_BIN || "sqlite3";
+const DEFAULT_INDEX = process.env.QMD_DEFAULT_INDEX || "codex_chat";
+const PROJECT_CACHE_ROOT = path.join(HOME, ".cache", "qmd", DEFAULT_INDEX);
 const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
 let transportStyle = "framed";
 
@@ -38,6 +42,14 @@ function sendError(id, code, message, data) {
   writeMessage({ jsonrpc: "2.0", id, error });
 }
 
+function runCommand(command, args, options = {}) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    env: process.env,
+    ...options,
+  });
+}
+
 function readJsonIfExists(file) {
   try {
     if (!fs.existsSync(file)) {
@@ -60,23 +72,6 @@ function readTextIfExists(file) {
   }
 }
 
-function safeRealpath(file) {
-  try {
-    return fs.realpathSync(file);
-  } catch {
-    return "";
-  }
-}
-
-function isWithinRoot(file, root) {
-  const resolvedFile = safeRealpath(file);
-  const resolvedRoot = safeRealpath(root);
-  if (!resolvedFile || !resolvedRoot) {
-    return false;
-  }
-  return resolvedFile === resolvedRoot || resolvedFile.startsWith(`${resolvedRoot}${path.sep}`);
-}
-
 function normalizePath(inputPath) {
   try {
     if (!inputPath) {
@@ -90,9 +85,7 @@ function normalizePath(inputPath) {
 
 function canonicalProjectPath(cwd) {
   const resolved = normalizePath(cwd);
-  const git = spawnSync("git", ["-C", resolved, "rev-parse", "--show-toplevel"], {
-    encoding: "utf8",
-  });
+  const git = runCommand("git", ["-C", resolved, "rev-parse", "--show-toplevel"]);
   if (git.status === 0 && git.stdout && git.stdout.trim().length > 0) {
     return git.stdout.trim();
   }
@@ -117,14 +110,6 @@ function readBootstrapForKey(projectKey) {
   return readJsonIfExists(bootstrapFile);
 }
 
-function readSessionIndexForKey(projectKey) {
-  if (!projectKey) {
-    return null;
-  }
-  const indexFile = path.join(PROJECTS_DIR, projectKey, "session_index.json");
-  return readJsonIfExists(indexFile);
-}
-
 function unixSecondsFromIso(value) {
   const t = Date.parse(value || "");
   if (!Number.isFinite(t)) {
@@ -133,11 +118,15 @@ function unixSecondsFromIso(value) {
   return Math.floor(t / 1000);
 }
 
-function refreshSync() {
+function refreshSync(projectPath) {
   if (!fs.existsSync(SYNC_SCRIPT)) {
     return { ok: false, reason: `missing sync script: ${SYNC_SCRIPT}` };
   }
-  const result = spawnSync(SYNC_SCRIPT, [], { encoding: "utf8" });
+  const args = ["--state-only"];
+  if (projectPath) {
+    args.push("--project-path", projectPath);
+  }
+  const result = runCommand(SYNC_SCRIPT, args);
   if (result.status === 0) {
     return { ok: true };
   }
@@ -147,27 +136,238 @@ function refreshSync() {
   return { ok: false, reason: detail };
 }
 
+function backgroundRefreshRunning() {
+  return fs.existsSync(SYNC_LOCK_DIR);
+}
+
+function startBackgroundRefresh(projectPath) {
+  if (!fs.existsSync(SYNC_SCRIPT) || backgroundRefreshRunning()) {
+    return;
+  }
+
+  const args = ["--state-only"];
+  if (projectPath) {
+    args.push("--project-path", projectPath);
+  }
+
+  try {
+    const child = spawn(SYNC_SCRIPT, args, {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  } catch {
+    // Keep stale bootstrap reads fast even if the background refresh launch fails.
+  }
+}
+
+function runQmd(args, { expectJson = false } = {}) {
+  const result = runCommand(QMD_CLI, args);
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || `exit ${result.status}`).trim();
+    throw new Error(detail || "qmd command failed");
+  }
+  const stdout = (result.stdout || "").trim();
+  if (!expectJson) {
+    return stdout;
+  }
+  if (!stdout) {
+    return [];
+  }
+  return JSON.parse(stdout);
+}
+
+function readStatusText() {
+  return runQmd(["status"]);
+}
+
+function statusDbPath(statusText) {
+  const match = statusText.match(/^Index:\s+(.+)$/m);
+  return match ? match[1].trim() : `${PROJECT_CACHE_ROOT}.sqlite`;
+}
+
+function statusCollectionName(statusText) {
+  const match = statusText.match(/^\s{2}(.+?) \(qmd:\/\/.+\)$/m);
+  return match ? match[1].trim() : "codex-chat";
+}
+
+function statusDocumentCount(statusText) {
+  const match = statusText.match(/^\s*Total:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function statusVectorCount(statusText) {
+  const match = statusText.match(/^\s*Vectors:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function statusContextCount(statusText) {
+  const match = statusText.match(/^\s*Contexts:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function normalizeCollectionFilter(collection) {
+  const requested = String(collection || "").trim();
+  if (!requested) {
+    return "";
+  }
+  if (requested === DEFAULT_INDEX) {
+    return statusCollectionName(readStatusText());
+  }
+  return requested;
+}
+
+function fileMtimeIso(file) {
+  try {
+    return fs.statSync(file).mtime.toISOString();
+  } catch {
+    return "";
+  }
+}
+
+function sqliteScalar(dbPath, sql) {
+  const result = runCommand(SQLITE3_BIN, [dbPath, sql]);
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || "sqlite query failed").trim());
+  }
+  return (result.stdout || "").trim();
+}
+
+function buildStatus() {
+  const statusText = readStatusText();
+  const dbPath = statusDbPath(statusText);
+  const totalDocuments = statusDocumentCount(statusText);
+  const vectorCount = statusVectorCount(statusText);
+  const contextCount = statusContextCount(statusText);
+  const collectionName = statusCollectionName(statusText);
+  const needsEmbeddingText = sqliteScalar(
+    dbPath,
+    "select count(distinct d.hash) from documents d where d.active = 1 and d.hash not in (select hash from content_vectors);",
+  );
+  const needsEmbedding = Number(needsEmbeddingText || "0");
+  return {
+    totalDocuments,
+    needsEmbedding,
+    hasVectorIndex: vectorCount > 0,
+    collections: [
+      {
+        name: collectionName,
+        path: PROJECT_CACHE_ROOT,
+        pattern: "**/*.md",
+        documents: totalDocuments,
+        lastUpdated: fileMtimeIso(dbPath),
+        contexts: contextCount,
+      },
+    ],
+  };
+}
+
+function buildSearchArgs(commandName, args) {
+  const query = String(args.query || "").trim();
+  if (!query) {
+    throw new Error("query is required");
+  }
+
+  const cliArgs = [commandName, query];
+  if (Number.isInteger(args.limit)) {
+    cliArgs.push("-n", String(args.limit));
+  }
+  if (typeof args.minScore === "number") {
+    cliArgs.push("--min-score", String(args.minScore));
+  }
+  if (typeof args.intent === "string" && args.intent.trim().length > 0) {
+    cliArgs.push("--intent", args.intent.trim());
+  }
+  if (typeof args.collection === "string" && args.collection.length > 0) {
+    const collection = normalizeCollectionFilter(args.collection);
+    if (collection) {
+      cliArgs.push("-c", collection);
+    }
+  }
+  cliArgs.push("--json");
+  return cliArgs;
+}
+
+function callSearch(commandName, args) {
+  return { results: runQmd(buildSearchArgs(commandName, args), { expectJson: true }) };
+}
+
+function requirePublicQmdUri(file) {
+  if (!file.startsWith("qmd://codex-chat/")) {
+    throw new Error("file must be a qmd://codex-chat/... document from the public memory surface");
+  }
+  return file;
+}
+
+function requirePublicQmdPattern(pattern) {
+  if (!pattern.startsWith("qmd://codex-chat/")) {
+    throw new Error("pattern must target qmd://codex-chat/... documents from the public memory surface");
+  }
+  return pattern;
+}
+
+function callGet(args) {
+  const file = requirePublicQmdUri(String(args.file || "").trim());
+  if (!file) {
+    throw new Error("file is required");
+  }
+
+  const cliArgs = ["get", file];
+  if (Number.isInteger(args.fromLine)) {
+    cliArgs.push("--from", String(args.fromLine));
+  }
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return { file, text: runQmd(cliArgs) };
+}
+
+function callMultiGet(args) {
+  const pattern = requirePublicQmdPattern(String(args.pattern || "").trim());
+  if (!pattern) {
+    throw new Error("pattern is required");
+  }
+
+  const cliArgs = ["multi-get", pattern];
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (Number.isInteger(args.maxBytes)) {
+    cliArgs.push("--max-bytes", String(args.maxBytes));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return { pattern, text: runQmd(cliArgs) };
+}
+
 function buildColdStart(projectPath, projectKey) {
   const lastSync = new Date(0).toISOString();
+  const projectFrame = "Use the current working directory and its durable local docs as the continuity anchor.";
   const summary = [
     `Project: ${projectPath}`,
-    "Current objective: (cold start)",
+    `Project frame: ${projectFrame}`,
     "",
-    "Intent pins:",
-    "- (none yet)",
+    "Durable constraints:",
+    "- (none)",
     "",
-    "Open loops:",
-    "- Run sync to generate project memory state",
+    "Historical open loops:",
+    "- (none)",
     "",
     "Recent sessions:",
-    "- (none yet)",
+    "- (none)",
   ].join("\n");
   return {
     project_key: projectKey,
+    project_path: projectPath,
     last_sync_utc: lastSync,
+    project_frame: projectFrame,
     summary,
     intent_pins: [],
-    open_loops: ["Run sync to generate project memory state"],
+    open_loops: [],
     recent_sessions: [],
     evidence_paths: [],
   };
@@ -189,7 +389,9 @@ function coerceRecentSessions(list, maxCount) {
 function buildSummaryFromBootstrap(bootstrap, maxRecent) {
   const result = {
     project_key: String(bootstrap.project_key || ""),
+    project_path: String(bootstrap.project_path || ""),
     last_sync_utc: String(bootstrap.last_sync_utc || ""),
+    project_frame: String(bootstrap.project_frame || ""),
     summary: String(bootstrap.summary || ""),
     intent_pins: Array.isArray(bootstrap.intent_pins) ? bootstrap.intent_pins.slice(0, 20) : [],
     open_loops: Array.isArray(bootstrap.open_loops) ? bootstrap.open_loops.slice(0, 20) : [],
@@ -199,10 +401,12 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
 
   if (!result.summary) {
     const lines = [];
-    lines.push(`Project: ${bootstrap.project_path || "(unknown)"}`);
-    lines.push(`Current objective: ${bootstrap.current_objective || "(not yet inferred)"}`);
+    lines.push(`Project: ${result.project_path || "(unknown)"}`);
+    lines.push(
+      `Project frame: ${result.project_frame || "Use the current working directory and its durable local docs as the continuity anchor."}`,
+    );
     lines.push("");
-    lines.push("Intent pins:");
+    lines.push("Durable constraints:");
     if (result.intent_pins.length === 0) {
       lines.push("- (none)");
     } else {
@@ -211,7 +415,7 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
       }
     }
     lines.push("");
-    lines.push("Open loops:");
+    lines.push("Historical open loops:");
     if (result.open_loops.length === 0) {
       lines.push("- (none)");
     } else {
@@ -234,98 +438,99 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
   return result;
 }
 
-function resourceTemplatesResult() {
-  return {
-    resourceTemplates: [
-      {
-        uriTemplate: "memory://{project_key}/{resource_path}",
-        name: "codex-memory resources",
-        description:
-          "Read-only project-memory and projected session markdown already indexed by codex-memory-mcp.",
-        mimeType: "text/markdown",
-      },
-    ],
-  };
+function latestBootstrapResource() {
+  const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+  const bootstrap = readBootstrapForKey(latestProjectKey);
+  if (bootstrap) {
+    return buildSummaryFromBootstrap(bootstrap, 3);
+  }
+  const projectPath = process.cwd();
+  return buildColdStart(projectPath, projectKeyForPath(projectPath));
 }
 
-function resourcesListResult() {
-  // Keep list enumeration empty to avoid cross-project discovery. The desktop
-  // client can still open explicit memory:// URIs returned from project-scoped
-  // bootstrap_context results.
-  return { resources: [] };
+function resourceListResult() {
+  const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+  const resources = [
+    {
+      uri: "bootstrap_context",
+      name: "bootstrap_context",
+      mimeType: "text/markdown",
+      description: "Latest project startup brief derived from codex_chat bootstrap state.",
+    },
+    {
+      uri: "memory://bootstrap/latest",
+      name: "latest bootstrap summary",
+      mimeType: "text/markdown",
+      description: "Alias for the latest project startup brief.",
+    },
+  ];
+  if (latestProjectKey) {
+    resources.push({
+      uri: `memory://projects/${latestProjectKey}/bootstrap`,
+      name: `${latestProjectKey} bootstrap`,
+      mimeType: "text/markdown",
+      description: "Bootstrap summary for the latest project key.",
+    });
+    resources.push({
+      uri: `qmd://codex-chat/projects/${latestProjectKey}`,
+      name: `${latestProjectKey} project memory`,
+      mimeType: "text/markdown",
+      description: "Projected project-memory document from codex_chat.",
+    });
+  }
+  return { resources };
 }
 
-function parseMemoryUri(uri) {
-  try {
-    const parsed = new URL(String(uri || ""));
-    if (parsed.protocol !== "memory:") {
-      return null;
+function readResource(params) {
+  const uri = String(params?.uri || "").trim();
+  if (!uri) {
+    throw new Error("uri is required");
+  }
+
+  if (uri === "bootstrap_context" || uri === "memory://bootstrap/latest") {
+    const latest = latestBootstrapResource();
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: latest.summary,
+        },
+      ],
+    };
+  }
+
+  if (uri.startsWith("memory://projects/") && uri.endsWith("/bootstrap")) {
+    const projectKey = uri.slice("memory://projects/".length, -"/bootstrap".length);
+    const bootstrap = readBootstrapForKey(projectKey);
+    if (!bootstrap) {
+      throw new Error(`unknown project key: ${projectKey}`);
     }
-    const projectKey = parsed.hostname || "";
-    const resourcePath = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
-    if (!projectKey || !resourcePath) {
-      return null;
-    }
-    return { projectKey, resourcePath, uri: parsed.toString() };
-  } catch {
-    return null;
-  }
-}
-
-function resolveProjectMemoryDoc(projectKey) {
-  const file = path.join(PROJECT_DOCS_DIR, projectKey, "project-memory.md");
-  if (!isWithinRoot(file, PROJECT_DOCS_DIR) || !fs.existsSync(file)) {
-    return null;
-  }
-  return file;
-}
-
-function resolveProjectedSessionDoc(projectKey, resourcePath) {
-  const sessionIndex = readSessionIndexForKey(projectKey);
-  const sessions = Array.isArray(sessionIndex?.sessions) ? sessionIndex.sessions : [];
-  const match = sessions.find((session) => (
-    session
-    && session.projected === true
-    && typeof session.projection_rel === "string"
-    && session.projection_rel === resourcePath
-    && typeof session.projection_abs === "string"
-  ));
-  if (!match) {
-    return null;
-  }
-  const file = match.projection_abs;
-  if (!isWithinRoot(file, INDEX_ROOT) || !fs.existsSync(file)) {
-    return null;
-  }
-  return file;
-}
-
-function readResource(uri) {
-  const parsed = parseMemoryUri(uri);
-  if (!parsed) {
-    throw new Error(`unsupported memory resource URI: ${uri}`);
+    const result = buildSummaryFromBootstrap(bootstrap, 3);
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: result.summary,
+        },
+      ],
+    };
   }
 
-  let file = null;
-  if (parsed.resourcePath === "project-memory.md") {
-    file = resolveProjectMemoryDoc(parsed.projectKey);
-  } else {
-    file = resolveProjectedSessionDoc(parsed.projectKey, parsed.resourcePath);
+  if (uri.startsWith("qmd://")) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: runQmd(["get", uri]),
+        },
+      ],
+    };
   }
 
-  if (!file) {
-    throw new Error(`memory resource not found: ${uri}`);
-  }
-
-  return {
-    contents: [
-      {
-        uri: parsed.uri,
-        mimeType: "text/markdown",
-        text: fs.readFileSync(file, "utf8"),
-      },
-    ],
-  };
+  throw new Error(`unknown resource: ${uri}`);
 }
 
 function bootstrapContext(args) {
@@ -339,26 +544,52 @@ function bootstrapContext(args) {
   const inferredProjectKey = projectKeyForPath(projectPath);
 
   let bootstrap = readBootstrapForKey(inferredProjectKey);
+  const exactBootstrap = bootstrap;
+  let activeProjectKey = inferredProjectKey;
 
-  const lastSyncSeconds = unixSecondsFromIso(bootstrap?.last_sync_utc || "");
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const isStale = nowSeconds - lastSyncSeconds > STALE_SECONDS;
-
-  if (refreshIfStale && (isStale || !bootstrap)) {
-    const refresh = refreshSync();
-    if (refresh.ok) {
-      const freshBootstrap = readBootstrapForKey(inferredProjectKey);
-      if (freshBootstrap) {
-        bootstrap = freshBootstrap;
+  if (!bootstrap) {
+    const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+    if (latestProjectKey) {
+      const latestBootstrap = readBootstrapForKey(latestProjectKey);
+      if (latestBootstrap) {
+        bootstrap = latestBootstrap;
+        activeProjectKey = latestProjectKey;
       }
     }
   }
 
+  const lastSyncSeconds = unixSecondsFromIso(exactBootstrap?.last_sync_utc || "");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const isStale = exactBootstrap ? nowSeconds - lastSyncSeconds > STALE_SECONDS : true;
+
+  if (refreshIfStale && !exactBootstrap) {
+    const refresh = refreshSync(projectPath);
+    if (refresh.ok) {
+      const freshBootstrap = readBootstrapForKey(inferredProjectKey);
+      if (freshBootstrap) {
+        bootstrap = freshBootstrap;
+        activeProjectKey = inferredProjectKey;
+      } else {
+        const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+        if (latestProjectKey) {
+          const latestBootstrap = readBootstrapForKey(latestProjectKey);
+          if (latestBootstrap) {
+            bootstrap = latestBootstrap;
+            activeProjectKey = latestProjectKey;
+          }
+        }
+      }
+    }
+  } else if (refreshIfStale && isStale) {
+    startBackgroundRefresh(projectPath);
+  }
+
   let result;
-  if (!bootstrap) {
+  const finalBootstrap = readBootstrapForKey(inferredProjectKey);
+  if (!finalBootstrap) {
     result = buildColdStart(projectPath, inferredProjectKey);
   } else {
-    result = buildSummaryFromBootstrap(bootstrap, maxRecent);
+    result = buildSummaryFromBootstrap(finalBootstrap, maxRecent);
     result.project_key = inferredProjectKey;
   }
 
@@ -395,8 +626,115 @@ function toolListResult() {
           additionalProperties: false,
         },
       },
+      {
+        name: "status",
+        description: "Show transcript-index status for the codex_chat retrieval backend.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      },
+      {
+        name: "deep_search",
+        description: "Deep search using QMD query expansion and reranking.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "search",
+        description: "Keyword search across the codex_chat retrieval index.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "vector_search",
+        description: "Vector similarity search across the codex_chat retrieval index.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "get",
+        description: "Retrieve a single projected transcript or project-memory document.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            file: { type: "string" },
+            fromLine: { type: "integer" },
+            lineNumbers: { type: "boolean" },
+            maxLines: { type: "integer" },
+          },
+          required: ["file"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "multi_get",
+        description: "Retrieve multiple projected transcripts or project-memory documents.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            pattern: { type: "string" },
+            lineNumbers: { type: "boolean" },
+            maxBytes: { type: "integer" },
+            maxLines: { type: "integer" },
+          },
+          required: ["pattern"],
+          additionalProperties: false,
+        },
+      },
     ],
   };
+}
+
+function toolSuccess(id, payload) {
+  return sendResponse(id, {
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload,
+  });
+}
+
+function toolFailure(id, name, err) {
+  const detail = err && err.message ? err.message : String(err);
+  return sendResponse(id, {
+    content: [{ type: "text", text: `${name} failed: ${detail}` }],
+    isError: true,
+  });
 }
 
 function handleRequest(message) {
@@ -409,12 +747,13 @@ function handleRequest(message) {
           listChanged: false,
         },
         resources: {
+          subscribe: false,
           listChanged: false,
         },
       },
       serverInfo: {
         name: "codex-memory-mcp",
-        version: "0.1.0",
+        version: "0.2.0",
       },
     });
   }
@@ -424,44 +763,53 @@ function handleRequest(message) {
   }
 
   if (method === "resources/list") {
-    return sendResponse(id, resourcesListResult());
-  }
-
-  if (method === "resources/templates/list") {
-    return sendResponse(id, resourceTemplatesResult());
+    return sendResponse(id, resourceListResult());
   }
 
   if (method === "resources/read") {
     try {
-      return sendResponse(id, readResource(params?.uri));
+      return sendResponse(id, readResource(params));
     } catch (err) {
       const detail = err && err.message ? err.message : String(err);
-      return sendError(id, -32002, detail);
+      return sendResponse(id, {
+        contents: [{ uri: String(params?.uri || ""), mimeType: "text/plain", text: `resources/read failed: ${detail}` }],
+        isError: true,
+      });
     }
   }
 
   if (method === "tools/call") {
     const name = params?.name;
     const args = params?.arguments || {};
-    if (name !== "bootstrap_context") {
-      return sendResponse(id, {
-        content: [{ type: "text", text: `Unknown tool: ${name}` }],
-        isError: true,
-      });
-    }
-
     try {
-      const result = bootstrapContext(args);
-      return sendResponse(id, {
-        content: [{ type: "text", text: result.summary }],
-        structuredContent: result,
-      });
+      switch (name) {
+        case "bootstrap_context": {
+          const result = bootstrapContext(args);
+          return sendResponse(id, {
+            content: [{ type: "text", text: result.summary }],
+            structuredContent: result,
+          });
+        }
+        case "status":
+          return toolSuccess(id, buildStatus());
+        case "deep_search":
+          return toolSuccess(id, callSearch("query", args));
+        case "search":
+          return toolSuccess(id, callSearch("search", args));
+        case "vector_search":
+          return toolSuccess(id, callSearch("vsearch", args));
+        case "get":
+          return toolSuccess(id, callGet(args));
+        case "multi_get":
+          return toolSuccess(id, callMultiGet(args));
+        default:
+          return sendResponse(id, {
+            content: [{ type: "text", text: `Unknown tool: ${name}` }],
+            isError: true,
+          });
+      }
     } catch (err) {
-      const detail = err && err.message ? err.message : String(err);
-      return sendResponse(id, {
-        content: [{ type: "text", text: `bootstrap_context failed: ${detail}` }],
-        isError: true,
-      });
+      return toolFailure(id, name || "tool", err);
     }
   }
 

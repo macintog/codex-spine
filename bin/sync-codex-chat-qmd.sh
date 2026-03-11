@@ -7,7 +7,7 @@ QMD="${HOME}/.local/bin/qmd-codex"
 JQ="${JQ_BIN:-$(command -v jq || true)}"
 INDEX_NAME="codex_chat"
 COLLECTION_NAME="codex-chat"
-LOCK_DIR="/tmp/codex-chat-qmd-sync.lock"
+LOCK_DIR="${CODEX_CHAT_QMD_LOCK_DIR:-/tmp/codex-chat-qmd-sync.lock}"
 LOCK_WAIT_SECONDS="${LOCK_WAIT_SECONDS:-90}"
 PROJECTION_VERSION="3"
 BOOTSTRAP_VERSION="1"
@@ -23,11 +23,33 @@ DECISION_LIMIT="${DECISION_LIMIT:-10}"
 RECENT_SESSION_LIMIT="${RECENT_SESSION_LIMIT:-10}"
 PATH="${HOME}/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 QMD_INDEX_CHANGED=0
-EMBED_HEARTBEAT_SECONDS="${EMBED_HEARTBEAT_SECONDS:-15}"
+STATE_ONLY=0
+TARGET_PROJECT_PATH=""
 
 log() {
     printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
+
+while (( $# > 0 )); do
+    case "$1" in
+        --state-only)
+            STATE_ONLY=1
+            ;;
+        --project-path)
+            shift
+            if (( $# == 0 )); then
+                log "ERROR --project-path requires a value"
+                exit 1
+            fi
+            TARGET_PROJECT_PATH="$1"
+            ;;
+        *)
+            log "ERROR unexpected arguments: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 require_bin() {
     local p="$1"
@@ -37,12 +59,6 @@ require_bin() {
         exit 1
     fi
 }
-
-# macOS-first launchd automation lives elsewhere in this repo.
-# Linux analog: run this from a systemd user timer or cron job.
-# Windows analog: run it from Task Scheduler or a background service wrapper.
-
-require_bin "$JQ" "jq"
 
 wait_for_existing_sync() {
     local waited=0
@@ -172,6 +188,8 @@ extract_role_lines() {
           | gsub("(?s)<permissions instructions>.*?</permissions instructions>"; "")
           | gsub("(?s)<app-context>.*?</app-context>"; "")
           | gsub("(?s)<collaboration_mode>.*?</collaboration_mode>"; "")
+          | gsub("(?s)<skill>.*?</skill>"; "")
+          | gsub("(?s)```.*?```"; "")
           | gsub("(?m)^[ \\t]+$"; "")
           | gsub("\n{3,}"; "\n\n")
           | sub("^\\s+"; "")
@@ -183,6 +201,11 @@ extract_role_lines() {
         | split("\n")[]
         | gsub("^\\s+|\\s+$"; "")
         | select(length > 0)
+        | select(test("^#") | not)
+        | select(test("^[-*][[:space:]]") | not)
+        | select(test("^[0-9]+\\.[[:space:]]") | not)
+        | select(test("^```") | not)
+        | select(test("^(name|description|metadata|path):") | not)
     ' "$src"
 }
 
@@ -221,6 +244,45 @@ collect_unique_lines() {
     printf '%s\n' "$count"
 }
 
+extract_doc_frame() {
+    local doc="$1"
+    local frame=""
+
+    [[ -f "$doc" ]] || return 1
+
+    frame="$(
+        rg -v '^\s*($|#|[-*]\s|[0-9]+\.\s|>|```|!\[|<)' "$doc" 2>/dev/null \
+            | sed -E 's/\[([^][]+)\]\([^)]*\)/\1/g; s/`//g; s/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//' \
+            | awk 'length > 0 { print; count += 1; if (count >= 3) exit }' \
+            | paste -sd ' ' - \
+            | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//'
+    )"
+
+    [[ -n "$frame" ]] || return 1
+    if (( ${#frame} > 280 )); then
+        frame="${frame:0:277}..."
+    fi
+    printf '%s\n' "$frame"
+}
+
+project_frame_for_path() {
+    local project_path="$1"
+    local doc
+    local frame=""
+
+    for doc in "$project_path/PROJECT_SPINE.md" "$project_path/README.md"; do
+        if [[ -f "$doc" ]]; then
+            frame="$(extract_doc_frame "$doc" || true)"
+            if [[ -n "$frame" ]]; then
+                printf '%s\n' "$frame"
+                return 0
+            fi
+        fi
+    done
+
+    printf '%s\n' "Use the current working directory and its durable local docs as the continuity anchor."
+}
+
 build_project_state() {
     local now_utc
     local tmp_root
@@ -254,13 +316,12 @@ build_project_state() {
     local open_out_file
     local decisions_seen_file
     local decisions_out_file
-    local candidate_file
     local src_path
     local latest_projected_src=""
     local intent_count=0
     local open_count=0
     local decision_count=0
-    local current_objective=""
+    local project_frame=""
     local project_path_value=""
     local intent_json
     local open_json
@@ -311,6 +372,9 @@ build_project_state() {
         session_cwd="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.cwd // ""' 2>/dev/null || true)"
         [[ -z "$session_ts" ]] && session_ts="$(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%SZ' "$src" 2>/dev/null || true)"
         project_path="$(canonical_project_path "$session_cwd")"
+        if [[ -n "$TARGET_PROJECT_PATH" && "$project_path" != "$TARGET_PROJECT_PATH" ]]; then
+            continue
+        fi
         project_key="$(project_key_for_path "$project_path")"
         project_sessions_file="$project_records_dir/$project_key.jsonl"
 
@@ -412,7 +476,7 @@ build_project_state() {
                 "$intent_seen_file" \
                 "$intent_out_file" \
                 "$INTENT_PIN_LIMIT" \
-                '(goal|priority|showstopper|top[- ]level problem|primary focus|intent|i (only )?care|i do not want|i dont want|i want|we want|need to|must|critical|important|preserve|without)' \
+                '(always|never|must( not)?|do not|dont|don'\''t|without|preserve|canonical|authoritative|durable|fail[- ]closed)' \
                 "$intent_count")"
             if (( intent_count >= INTENT_PIN_LIMIT )); then
                 break
@@ -426,7 +490,7 @@ build_project_state() {
                 "$open_seen_file" \
                 "$open_out_file" \
                 "$OPEN_LOOP_LIMIT" \
-                '([?]|can you|please|need to|still|remaining|next|follow[- ]?up|todo|should|what about)' \
+                '([?]|still|remaining|follow[- ]?up|todo|what about)' \
                 "$open_count")"
 
             extract_role_lines "$latest_projected_src" "assistant" > "$assistant_lines_file"
@@ -439,13 +503,7 @@ build_project_state() {
                 "$decision_count")"
         fi
 
-        current_objective="$(sed -n '1p' "$intent_out_file" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' || true)"
-        if [[ -z "$current_objective" && -n "$latest_projected_src" && -f "$latest_projected_src" ]]; then
-            candidate_file="$tmp_root/$project_key.objective_candidates.txt"
-            extract_role_lines "$latest_projected_src" "user" > "$candidate_file"
-            current_objective="$(sed -n '1p' "$candidate_file" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' || true)"
-        fi
-
+        project_frame="$(project_frame_for_path "$project_path_value")"
         intent_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$intent_out_file")"
         open_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$open_out_file")"
         decision_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$decisions_out_file")"
@@ -459,7 +517,7 @@ build_project_state() {
 
         summary="$("$JQ" -nr \
             --arg project_path "$project_path_value" \
-            --arg objective "$current_objective" \
+            --arg project_frame "$project_frame" \
             --argjson intent_pins "$intent_json" \
             --argjson open_loops "$open_json" \
             --argjson recent_sessions "$recent_sessions_json" '
@@ -473,12 +531,12 @@ build_project_state() {
             (
               [
                 "Project: " + $project_path,
-                "Current objective: " + (if ($objective|length) > 0 then $objective else "(not yet inferred)" end),
+                "Project frame: " + (if ($project_frame|length) > 0 then $project_frame else "Use the current working directory and its durable local docs as the continuity anchor." end),
                 ""
               ]
-              + section("Intent pins:"; ($intent_pins[0:8] // []))
+              + section("Durable constraints:"; ($intent_pins[0:8] // []))
               + [""]
-              + section("Open loops:"; ($open_loops[0:8] // []))
+              + section("Historical open loops:"; ($open_loops[0:8] // []))
               + [""]
               + (
                 ["Recent sessions:"] + (
@@ -500,7 +558,7 @@ build_project_state() {
             --arg project_path "$project_path_value" \
             --arg last_sync_utc "$now_utc" \
             --arg summary "$summary" \
-            --arg current_objective "$current_objective" \
+            --arg project_frame "$project_frame" \
             --argjson intent_pins "$intent_json" \
             --argjson open_loops "$open_json" \
             --argjson recent_decisions "$decision_json" \
@@ -511,7 +569,7 @@ build_project_state() {
                 project_key: $project_key,
                 project_path: $project_path,
                 last_sync_utc: $last_sync_utc,
-                current_objective: (if $current_objective == "" then null else $current_objective end),
+                project_frame: (if $project_frame == "" then null else $project_frame end),
                 summary: $summary,
                 intent_pins: $intent_pins,
                 open_loops: $open_loops,
@@ -565,19 +623,19 @@ build_project_state() {
                 echo "- latest_session_utc: \`$latest_project_started_utc\`"
             fi
             echo
-            echo "## Current Objective"
+            echo "## Project Frame"
             echo
-            if [[ -n "$current_objective" ]]; then
-                printf '%s\n' "$current_objective"
+            if [[ -n "$project_frame" ]]; then
+                printf '%s\n' "$project_frame"
             else
-                echo "(not yet inferred)"
+                echo "Use the current working directory and its durable local docs as the continuity anchor."
             fi
             echo
             echo "## Summary"
             echo
             printf '%s\n' "$summary"
             echo
-            echo "## Recent Decisions"
+            echo "## Historical Decisions"
             echo
             printf '%s\n' "$recent_decision_lines"
             echo
@@ -605,7 +663,7 @@ build_project_state() {
 
     done < "$active_keys_file"
 
-    if [[ -d "$PROJECTS_DIR" ]]; then
+    if [[ -z "$TARGET_PROJECT_PATH" && -d "$PROJECTS_DIR" ]]; then
         while IFS= read -r -d '' project_dir; do
             project_key="$(basename "$project_dir")"
             if ! grep -Fxq -- "$project_key" "$active_keys_file"; then
@@ -615,7 +673,7 @@ build_project_state() {
         done < <(find "$PROJECTS_DIR" -mindepth 1 -maxdepth 1 -type d -print0)
     fi
 
-    if [[ -d "$PROJECT_DOCS_DIR" ]]; then
+    if [[ -z "$TARGET_PROJECT_PATH" && -d "$PROJECT_DOCS_DIR" ]]; then
         while IFS= read -r -d '' project_dir; do
             project_key="$(basename "$project_dir")"
             if ! grep -Fxq -- "$project_key" "$active_keys_file"; then
@@ -627,9 +685,9 @@ build_project_state() {
         done < <(find "$PROJECT_DOCS_DIR" -mindepth 1 -maxdepth 1 -type d -print0)
     fi
 
-    if [[ -n "$latest_project_key" ]]; then
+    if [[ -z "$TARGET_PROJECT_PATH" && -n "$latest_project_key" ]]; then
         printf '%s\n' "$latest_project_key" > "$LATEST_PROJECT_KEY_FILE"
-    else
+    elif [[ -z "$TARGET_PROJECT_PATH" ]]; then
         rm -f "$LATEST_PROJECT_KEY_FILE"
     fi
 
@@ -654,7 +712,7 @@ sync_project_contexts() {
 
         project_path_value="$(rg -m1 '^- project_path: `' "$doc_path" | sed -E 's/^- project_path: `//; s/`$//' || true)"
         context_uri="qmd://$COLLECTION_NAME/projects/$project_key"
-        context_text="Project memory brief for $project_path_value. Prefer this subtree when reconstructing durable intent, recent decisions, and session history for this repo."
+        context_text="Project memory brief for $project_path_value. Prefer this subtree when reconstructing durable context, historical decisions, and session evidence for this repo."
         "$QMD" --index "$INDEX_NAME" context add "$context_uri" "$context_text" >/dev/null
     done < <(find "$PROJECT_DOCS_DIR" -mindepth 1 -maxdepth 1 -type d -print0)
 }
@@ -944,33 +1002,9 @@ qmd_collection_exists() {
     printf '%s\n' "$list_output" | grep -Eq "qmd://$COLLECTION_NAME/|(^|[[:space:]])$COLLECTION_NAME([[:space:]]|$)"
 }
 
-run_with_heartbeat() {
-    local label="$1"
-    shift
-    local started_at
-    local elapsed=0
-    local cmd_pid=0
-
-    started_at="$(date +%s)"
-    "$@" &
-    cmd_pid=$!
-
-    while kill -0 "$cmd_pid" 2>/dev/null; do
-        sleep "$EMBED_HEARTBEAT_SECONDS"
-        if ! kill -0 "$cmd_pid" 2>/dev/null; then
-            break
-        fi
-        elapsed=$(( $(date +%s) - started_at ))
-        log "$label is still running (${elapsed}s elapsed)"
-    done
-
-    wait "$cmd_pid"
-}
-
 embed_qmd_index() {
     log "Embedding index: $INDEX_NAME"
-    log "qmd can pause for a while after it prints the model name. The install is still working."
-    if run_with_heartbeat "Embedding for $INDEX_NAME" "$QMD" --index "$INDEX_NAME" embed; then
+    if "$QMD" --index "$INDEX_NAME" embed; then
         log "Embedding complete: $INDEX_NAME"
     else
         log "ERROR embedding failed for index: $INDEX_NAME"
@@ -981,6 +1015,10 @@ embed_qmd_index() {
 main() {
     require_bin "$QMD" "qmd"
     require_bin "$JQ" "jq"
+
+    if [[ -n "$TARGET_PROJECT_PATH" ]]; then
+        TARGET_PROJECT_PATH="$(canonical_project_path "$TARGET_PROJECT_PATH")"
+    fi
 
     if ! mkdir "$LOCK_DIR" 2>/dev/null; then
         log "Sync already running; waiting for current run to finish."
@@ -996,6 +1034,12 @@ main() {
     sync_projection_files
     update_latest_pointer
     build_project_state
+
+    if (( STATE_ONLY == 1 )); then
+        log "State-only refresh requested; skipping qmd update, embed, and context sync"
+        log "Done"
+        return 0
+    fi
 
     if qmd_collection_exists; then
         if [[ "$QMD_INDEX_CHANGED" == "1" ]]; then

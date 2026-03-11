@@ -71,7 +71,7 @@ Codex reads one live config file at `~/.codex/config.toml`. `codex-spine` does n
 The relevant inputs are:
 
 - `codex/config/00-base.toml` for base `codex-spine` defaults
-- `codex/config/20-codex-spine-mcps.toml` for the `codex-spine`-managed `memory` and `qmd_codex` MCP entries
+- `codex/config/20-codex-spine-mcps.toml` for the `codex-spine`-managed `memory` MCP entry
 - `codex/config/80-adopted.toml` for settings imported from a pre-existing unmanaged `~/.codex/config.toml`
 - `codex/config/90-local.toml` for your own local machine-specific overrides
 
@@ -81,7 +81,7 @@ If you accept:
 
 - `codex-spine` imports the non-`codex-spine` parts of the current live config into the local gitignored `codex/config/80-adopted.toml`
 - backs up the previous live `~/.codex/config.toml`
-- renders a new live config that includes the imported settings plus the `codex-spine`-managed MCP entries
+- renders a new live config that includes the imported settings plus the `codex-spine`-managed memory entry and wrapper support
 
 If you decline:
 
@@ -89,7 +89,7 @@ If you decline:
 - `codex/config/80-adopted.toml` is not created
 - install stops before `codex-spine` changes Homebrew packages, managed wrappers, shell files, launchd, or the live Codex config
 
-The rationale is to keep `codex-spine` ownership narrow and explicit. It manages the MCP entries it owns, preserves the rest of an existing Codex config when you approve that import, and avoids hand-editing arbitrary live config in place.
+The rationale is to keep `codex-spine` ownership narrow and explicit. It manages the memory entry and supporting wrapper layer it owns, preserves the rest of an existing Codex config when you approve that import, and avoids hand-editing arbitrary live config in place.
 
 ## First-Run Success Criteria
 
@@ -110,6 +110,10 @@ After a successful first run:
 - `./scripts/component-status`: inspect managed component health
 - `./scripts/component-enable jcodemunch-mcp`: enable the optional upstream `jCodeMunch MCP` integration
 
+## Branch QA
+
+When testing a branch or release candidate, do the QA pass from a `codex-spine` clone, print the exact commit with `git rev-parse --short HEAD`, then run `make install` and `make verify`. Avoid validating shipped behavior from the paired private source repo instead of the public checkout you intend to ship.
+
 ## Troubleshooting
 
 - If `make verify` says the live config is stale, run `make install`.
@@ -124,6 +128,9 @@ After a successful first run:
 - `ARCHITECTURE.md`: subsystem map, flows, and invariants
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
+- `codex/AGENTS.md`: repo-specific agent/operator rules for public-safe maintenance work
+
+Maintainer-only export and QA docs are intentionally kept outside the shipped public tree. This repo should remain safe to publish as-is.
 
 ## Third-Party Components And Licensing
 

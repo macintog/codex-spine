@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -17,6 +18,7 @@ from codex_spine import (  # noqa: E402
     BLOCK_END,
     BLOCK_START,
     COMPONENTS_PATH,
+    EXPORT_STATE_PATH,
     HOME,
     LIVE_CONFIG_PATH,
     LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
@@ -37,6 +39,7 @@ from codex_spine import (  # noqa: E402
     shell_source_targets,
     text_file_paths,
     validate_components_registry,
+    validate_export_state,
     validate_public_doc_surface,
 )
 from component_manager import component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
@@ -50,7 +53,7 @@ def fail(errors: list[str]) -> int:
 
 def validate_memory_scope_isolation() -> list[str]:
     errors: list[str] = []
-    foreign_project_path = "/Users/test/Documents/ForeignRepo"
+    foreign_project_path = "/tmp/foreign-repo"
     foreign_project_key = "foreign-repo-123456789abc"
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -67,7 +70,7 @@ def validate_memory_scope_isolation() -> list[str]:
                     "project_key": foreign_project_key,
                     "project_path": foreign_project_path,
                     "last_sync_utc": "2026-03-08T22:00:00Z",
-                    "summary": f"Project: {foreign_project_path}\nCurrent objective: leaked foreign project",
+                    "summary": f"Project: {foreign_project_path}\nProject frame: leaked foreign project",
                 }
             ),
             encoding="utf-8",
@@ -90,6 +93,7 @@ def validate_memory_scope_isolation() -> list[str]:
         )
         env = runtime_env()
         env["HOME"] = str(home)
+        env["CODEX_CHAT_QMD_LOCK_DIR"] = str(home / "codex-chat-qmd-sync.lock")
         result = subprocess.run(
             ["node", str(REPO_ROOT / "bin" / "codex-memory-mcp")],
             input=f"{request}\n",
@@ -112,8 +116,8 @@ def validate_memory_scope_isolation() -> list[str]:
                 current_repo_text = str(current_repo)
                 if current_repo_text not in summary:
                     errors.append("memory scope-isolation check did not return the current project path")
-                if "(cold start)" not in summary:
-                    errors.append("memory scope-isolation check did not cold-start the current project")
+                if "Project frame: Use the current working directory and its durable local docs as the continuity anchor." not in summary:
+                    errors.append("memory scope-isolation check did not return the cold-start project frame")
                 if foreign_project_path in summary or "leaked foreign project" in summary:
                     errors.append("memory scope-isolation check leaked foreign project context")
 
@@ -153,32 +157,78 @@ def validate_memory_scope_isolation() -> list[str]:
     with tempfile.TemporaryDirectory() as tmp_dir:
         home = Path(tmp_dir)
         project_key = "current-repo-123456789abc"
-        projection_rel = "2026/03/09/rollout-2026-03-09T10-53-40-019cd316-ec35-7e72-8af8-4aac4e555b3b.md"
-        projection_abs = home / ".cache/qmd/codex_chat" / projection_rel
-        projection_abs.parent.mkdir(parents=True, exist_ok=True)
-        projection_abs.write_text("# Session Memory\n\nRemember the rollout note.\n", encoding="utf-8")
-
-        project_memory = home / ".cache/qmd/codex_chat/projects" / project_key / "project-memory.md"
-        project_memory.parent.mkdir(parents=True, exist_ok=True)
-        project_memory.write_text("# Project Memory\n\nCurrent objective: verify resources.\n", encoding="utf-8")
-
-        state_root = home / ".cache/qmd/codex_chat/.state/projects" / project_key
-        state_root.mkdir(parents=True, exist_ok=True)
-        (state_root / "session_index.json").write_text(
+        state_root = home / ".cache/qmd/codex_chat/.state"
+        project_state_root = state_root / "projects" / project_key
+        project_state_root.mkdir(parents=True, exist_ok=True)
+        (state_root / "latest_project_key.txt").write_text(f"{project_key}\n", encoding="utf-8")
+        (project_state_root / "bootstrap.json").write_text(
             json.dumps(
                 {
                     "project_key": project_key,
-                    "sessions": [
-                        {
-                            "projected": True,
-                            "projection_rel": projection_rel,
-                            "projection_abs": str(projection_abs),
-                        }
-                    ],
+                    "project_path": "/tmp/current-repo",
+                    "last_sync_utc": "2026-03-09T22:00:00Z",
+                    "project_frame": "Verify durable context.",
+                    "summary": "Project: /tmp/current-repo\nProject frame: Verify durable context.\n",
+                    "intent_pins": ["Verify the public memory surface."],
+                    "open_loops": [],
+                    "recent_sessions": [],
+                    "evidence_paths": [],
                 }
             ),
             encoding="utf-8",
         )
+
+        local_bin = home / ".local/bin"
+        local_bin.mkdir(parents=True, exist_ok=True)
+        qmd_wrapper = local_bin / "qmd-codex"
+        qmd_wrapper.write_text(
+            "\n".join(
+                [
+                    "#!/bin/sh",
+                    "cmd=\"$1\"",
+                    "shift || true",
+                    "case \"$cmd\" in",
+                    "  status)",
+                    "    cat <<'EOF'",
+                    "Index: /tmp/codex_chat.sqlite",
+                    "  codex-chat (qmd://codex-chat)",
+                    "  Total: 1",
+                    "  Vectors: 1",
+                    "  Contexts: 1",
+                    "EOF",
+                    "    ;;",
+                    "  get)",
+                    f"    if [ \"$1\" = \"qmd://codex-chat/projects/{project_key}\" ]; then",
+                    "      cat <<'EOF'",
+                    "# Project Memory",
+                    "",
+                    "Project frame: Verify durable context.",
+                    "EOF",
+                    "    else",
+                    "      printf 'GET:%s\\n' \"$1\"",
+                    "    fi",
+                    "    ;;",
+                    "  query|search|vsearch)",
+                    f"    printf '[{{\"file\":\"qmd://codex-chat/projects/{project_key}\",\"score\":0.9}}]'",
+                    "    ;;",
+                    "  multi-get)",
+                    "    cat <<'EOF'",
+                    "# Project Memory",
+                    "",
+                    "Project frame: Verify durable context.",
+                    "EOF",
+                    "    ;;",
+                    "  *)",
+                    "    echo \"unsupported command: $cmd\" >&2",
+                    "    exit 1",
+                    "    ;;",
+                    "esac",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        qmd_wrapper.chmod(0o755)
 
         env = runtime_env()
         env["HOME"] = str(home)
@@ -207,59 +257,367 @@ def validate_memory_scope_isolation() -> list[str]:
             return json.loads(result.stdout.strip())
 
         try:
+            tools_list = rpc("tools/list")
+        except Exception as exc:
+            errors.append(f"memory tools/list failed: {exc}")
+        else:
+            tools = tools_list.get("result", {}).get("tools", [])
+            tool_names = {tool.get("name") for tool in tools if isinstance(tool, dict)}
+            required_tool_names = {
+                "bootstrap_context",
+                "status",
+                "deep_search",
+                "search",
+                "vector_search",
+                "get",
+                "multi_get",
+            }
+            missing_tools = sorted(required_tool_names - tool_names)
+            if missing_tools:
+                errors.append(f"memory tools/list is missing expected tools: {', '.join(missing_tools)}")
+
+        try:
             resources_list = rpc("resources/list")
         except Exception as exc:
             errors.append(f"memory resources/list failed: {exc}")
         else:
-            if resources_list.get("error"):
-                errors.append(f"memory resources/list returned error: {resources_list['error']}")
-            elif not isinstance(resources_list.get("result", {}).get("resources"), list):
+            resources = resources_list.get("result", {}).get("resources", [])
+            if not isinstance(resources, list):
                 errors.append("memory resources/list did not return a resources list")
+            else:
+                encoded = json.dumps(resources)
+                if "bootstrap_context" not in encoded:
+                    errors.append("memory resources/list did not advertise bootstrap_context")
+                if f"qmd://codex-chat/projects/{project_key}" not in encoded:
+                    errors.append("memory resources/list did not advertise the project qmd:// context")
 
         try:
-            templates_list = rpc("resources/templates/list")
+            bootstrap_read = rpc("resources/read", {"uri": f"memory://projects/{project_key}/bootstrap"})
         except Exception as exc:
-            errors.append(f"memory resources/templates/list failed: {exc}")
-        else:
-            templates = templates_list.get("result", {}).get("resourceTemplates", [])
-            if not templates:
-                errors.append("memory resources/templates/list returned no templates")
-            elif "memory://" not in json.dumps(templates):
-                errors.append("memory resources/templates/list did not advertise memory:// support")
-
-        try:
-            session_read = rpc("resources/read", {"uri": f"memory://{project_key}/{projection_rel}"})
-        except Exception as exc:
-            errors.append(f"memory resources/read failed for projected session: {exc}")
+            errors.append(f"memory resources/read failed for bootstrap summary: {exc}")
         else:
             try:
-                session_text = session_read["result"]["contents"][0]["text"]
+                bootstrap_text = bootstrap_read["result"]["contents"][0]["text"]
             except (KeyError, IndexError, TypeError) as exc:
-                errors.append(f"memory resources/read returned unparseable projected session output: {exc}")
+                errors.append(f"memory resources/read returned unparseable bootstrap output: {exc}")
             else:
-                if "Remember the rollout note." not in session_text:
-                    errors.append("memory resources/read did not return projected session content")
+                if "Project frame: Verify durable context." not in bootstrap_text:
+                    errors.append("memory resources/read did not return bootstrap content")
 
         try:
-            project_read = rpc("resources/read", {"uri": f"memory://{project_key}/project-memory.md"})
+            project_read = rpc("resources/read", {"uri": f"qmd://codex-chat/projects/{project_key}"})
         except Exception as exc:
-            errors.append(f"memory resources/read failed for project-memory doc: {exc}")
+            errors.append(f"memory resources/read failed for project qmd:// context: {exc}")
         else:
             try:
                 project_text = project_read["result"]["contents"][0]["text"]
             except (KeyError, IndexError, TypeError) as exc:
                 errors.append(f"memory resources/read returned unparseable project-memory output: {exc}")
             else:
-                if "Current objective: verify resources." not in project_text:
-                    errors.append("memory resources/read did not return project-memory content")
+                if "Project frame: Verify durable context." not in project_text:
+                    errors.append("memory resources/read did not return project qmd:// content")
 
         try:
-            missing_read = rpc("resources/read", {"uri": f"memory://{project_key}/missing.md"})
+            search_call = rpc(
+                "tools/call",
+                {
+                    "name": "search",
+                    "arguments": {
+                        "query": "verify resources",
+                        "collection": "codex_chat",
+                        "intent": "confirm current memory surface",
+                    },
+                },
+            )
         except Exception as exc:
-            errors.append(f"memory resources/read missing-path check failed to run: {exc}")
+            errors.append(f"memory search tool call failed: {exc}")
         else:
-            if "error" not in missing_read:
-                errors.append("memory resources/read missing-path check unexpectedly succeeded")
+            try:
+                search_results = search_call["result"]["structuredContent"]["results"]
+            except (KeyError, TypeError) as exc:
+                errors.append(f"memory search tool call returned unparseable output: {exc}")
+            else:
+                if not isinstance(search_results, list) or not search_results:
+                    errors.append("memory search tool call returned no results")
+                elif search_results[0].get("file") != f"qmd://codex-chat/projects/{project_key}":
+                    errors.append("memory search tool call did not use the qmd:// project context")
+
+        try:
+            get_call = rpc(
+                "tools/call",
+                {
+                    "name": "get",
+                    "arguments": {"file": f"qmd://codex-chat/projects/{project_key}"},
+                },
+            )
+        except Exception as exc:
+            errors.append(f"memory get tool call failed: {exc}")
+        else:
+            try:
+                get_text = get_call["result"]["structuredContent"]["text"]
+            except (KeyError, TypeError) as exc:
+                errors.append(f"memory get tool call returned unparseable output: {exc}")
+            else:
+                if "Project frame: Verify durable context." not in get_text:
+                    errors.append("memory get tool call did not return project content")
+
+        try:
+            rejected_get = rpc(
+                "tools/call",
+                {
+                    "name": "get",
+                    "arguments": {"file": "/tmp/foreign.md"},
+                },
+            )
+        except Exception as exc:
+            errors.append(f"memory get local-path rejection check failed to run: {exc}")
+        else:
+            if not rejected_get.get("result", {}).get("isError"):
+                errors.append("memory get tool unexpectedly accepted a raw local path")
+
+        try:
+            rejected_multi_get = rpc(
+                "tools/call",
+                {
+                    "name": "multi_get",
+                    "arguments": {"pattern": "/tmp/*.md"},
+                },
+            )
+        except Exception as exc:
+            errors.append(f"memory multi_get local-pattern rejection check failed to run: {exc}")
+        else:
+            if not rejected_multi_get.get("result", {}).get("isError"):
+                errors.append("memory multi_get tool unexpectedly accepted a raw local pattern")
+
+        try:
+            missing_read = rpc("resources/read", {"uri": "memory://projects/missing-project/bootstrap"})
+        except Exception as exc:
+            errors.append(f"memory resources/read missing-project check failed to run: {exc}")
+        else:
+            if not missing_read.get("result", {}).get("isError"):
+                errors.append("memory resources/read missing-project check unexpectedly succeeded")
+
+    return errors
+
+
+def validate_memory_bootstrap_contract() -> list[str]:
+    errors: list[str] = []
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        home = Path(tmp_dir)
+        current_repo = (home / "current-repo").resolve()
+        current_repo.mkdir(parents=True, exist_ok=True)
+        (current_repo / "README.md").write_text(
+            "# Example Repo\n\nExample durable context for the current working directory.\n",
+            encoding="utf-8",
+        )
+
+        local_bin = home / ".local/bin"
+        local_bin.mkdir(parents=True, exist_ok=True)
+        qmd_wrapper = local_bin / "qmd-codex"
+        qmd_wrapper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        qmd_wrapper.chmod(0o755)
+
+        sessions_dir = home / ".codex/sessions/2026/03/09"
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+        session_path = sessions_dir / "rollout-memory-contract.jsonl"
+        session_lines = [
+            {
+                "type": "session_meta",
+                "payload": {
+                    "id": "memory-contract-test",
+                    "timestamp": "2026-03-09T22:00:00Z",
+                    "cwd": str(current_repo),
+                },
+            },
+            {
+                "timestamp": "2026-03-09T22:00:01Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "<skill>\n<name>upstream-contributor</name>\nUse this skill for git-hosted work that may be offered back to upstream.\n</skill>",
+                        }
+                    ],
+                },
+            },
+            {
+                "timestamp": "2026-03-09T22:00:02Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "# Generic Memory Contract Reset\n\n## Summary\n- Redefine memory as continuity, not a task selector.\n- Remove automatic prose recap of prior task work.\n",
+                        }
+                    ],
+                },
+            },
+            {
+                "timestamp": "2026-03-09T22:00:03Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "Please fix the jcodemunch error next.",
+                        }
+                    ],
+                },
+            },
+            {
+                "timestamp": "2026-03-09T22:00:04Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "I will inspect the current repo and error surface.",
+                        }
+                    ],
+                },
+            },
+        ]
+        session_path.write_text(
+            "".join(f"{json.dumps(item)}\n" for item in session_lines),
+            encoding="utf-8",
+        )
+
+        env = runtime_env()
+        env["HOME"] = str(home)
+
+        sync_result = subprocess.run(
+            [str(REPO_ROOT / "bin" / "sync-codex-chat-qmd.sh"), "--state-only", "--project-path", str(current_repo)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        if sync_result.returncode != 0:
+            detail = first_nonempty_line(sync_result.stderr, sync_result.stdout) or f"exit {sync_result.returncode}"
+            return [f"memory bootstrap contract sync failed: {detail}"]
+
+        canonical_current_repo = Path(os.path.realpath(current_repo))
+        project_state_root = home / ".cache/qmd/codex_chat/.state/projects"
+        project_dirs = sorted(path for path in project_state_root.iterdir() if path.is_dir()) if project_state_root.exists() else []
+        matching_project_dirs: list[Path] = []
+        for project_dir in project_dirs:
+            bootstrap_candidate = project_dir / "bootstrap.json"
+            if not bootstrap_candidate.exists():
+                continue
+            try:
+                bootstrap_candidate_data = json.loads(bootstrap_candidate.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if bootstrap_candidate_data.get("project_path") == str(canonical_current_repo):
+                matching_project_dirs.append(project_dir)
+        if len(matching_project_dirs) != 1:
+            errors.append(
+                "memory bootstrap contract fixture did not produce exactly one matching project state directory"
+            )
+            return errors
+
+        project_key = matching_project_dirs[0].name
+        bootstrap_path = matching_project_dirs[0] / "bootstrap.json"
+        project_doc_path = home / ".cache/qmd/codex_chat/projects" / project_key / "project-memory.md"
+        if not bootstrap_path.exists():
+            errors.append(f"memory bootstrap contract fixture did not produce bootstrap state: {bootstrap_path}")
+            return errors
+
+        bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        summary = str(bootstrap.get("summary", ""))
+        project_frame = str(bootstrap.get("project_frame", ""))
+        joined_constraints = "\n".join(bootstrap.get("intent_pins", []))
+        joined_loops = "\n".join(bootstrap.get("open_loops", []))
+
+        if bootstrap.get("project_path") != str(canonical_current_repo):
+            errors.append("memory bootstrap contract fixture recorded the wrong canonical project path")
+        if "current_objective" in bootstrap:
+            errors.append("memory bootstrap contract fixture still emitted current_objective in bootstrap state")
+        if project_frame != "Example durable context for the current working directory.":
+            errors.append("memory bootstrap contract fixture did not prefer durable local docs for project_frame")
+        for required_text in ("Project frame:", "Durable constraints:", "Historical open loops:", "Recent sessions:"):
+            if required_text not in summary:
+                errors.append(f"memory bootstrap contract summary is missing section: {required_text}")
+        if "Current objective:" in summary:
+            errors.append("memory bootstrap contract summary still uses Current objective")
+        for forbidden_text in (
+            "Use this skill for git-hosted work",
+            "Generic Memory Contract Reset",
+            "Please fix the jcodemunch error next.",
+        ):
+            if forbidden_text in summary or forbidden_text in project_frame or forbidden_text in joined_constraints or forbidden_text in joined_loops:
+                errors.append(f"memory bootstrap contract leaked non-durable task text: {forbidden_text}")
+
+        if not project_doc_path.exists():
+            errors.append(f"memory bootstrap contract fixture did not produce a project memory doc: {project_doc_path}")
+        else:
+            project_doc = project_doc_path.read_text(encoding="utf-8")
+            if "Current objective" in project_doc:
+                errors.append("project memory doc still frames context as a current objective")
+            for required_text in ("## Project Frame", "## Historical Decisions"):
+                if required_text not in project_doc:
+                    errors.append(f"project memory doc is missing section: {required_text}")
+
+        def rpc(method: str, params: dict | None = None) -> dict:
+            request = json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": method,
+                    "params": params or {},
+                }
+            )
+            result = subprocess.run(
+                ["node", str(REPO_ROOT / "bin" / "codex-memory-mcp")],
+                input=f"{request}\n",
+                check=False,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+                raise RuntimeError(detail)
+            return json.loads(result.stdout.strip())
+
+        try:
+            bootstrap_call = rpc(
+                "tools/call",
+                {
+                    "name": "bootstrap_context",
+                    "arguments": {
+                        "cwd": str(current_repo),
+                        "refresh_if_stale": False,
+                    },
+                },
+            )
+        except Exception as exc:
+            errors.append(f"memory bootstrap contract RPC failed: {exc}")
+            return errors
+
+        structured = bootstrap_call.get("result", {}).get("structuredContent", {})
+        try:
+            response_text = bootstrap_call["result"]["content"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            response_text = ""
+        if "current_objective" in structured:
+            errors.append("memory bootstrap_context structured output still exposes current_objective")
+        if structured.get("project_frame") != "Example durable context for the current working directory.":
+            errors.append("memory bootstrap_context structured output did not preserve project_frame")
+        if "Current objective:" in response_text:
+            errors.append("memory bootstrap_context text response still uses Current objective")
 
     return errors
 
@@ -273,14 +631,18 @@ def validate_public_agents_policy() -> list[str]:
 
     required_phrases = [
         "memory.bootstrap_context",
-        "qmd_codex",
+        "materially new user request",
+        "compaction-drift",
+        "auto-recap prior task work",
+        "broader historical evidence",
         "max_recent_sessions=3",
         "qmd-memory-latest.sh",
-        "query",
+        "deep_search",
         "search",
-        "vsearch",
-        "multi-get",
+        "vector_search",
+        "multi_get",
         "qmd://codex-chat/projects/",
+        "qmd-codex",
         "jcodemunch",
         "search_symbols",
         "get_symbol",
@@ -289,6 +651,33 @@ def validate_public_agents_policy() -> list[str]:
     for phrase in required_phrases:
         if phrase not in text:
             errors.append(f"public Codex policy is missing required MCP guidance: {agents_path}: {phrase}")
+    for forbidden_phrase in ("qmd_codex", "vsearch", "multi-get"):
+        if forbidden_phrase in text:
+            errors.append(
+                f"public Codex policy still references deprecated direct qmd_codex guidance: {agents_path}: {forbidden_phrase}"
+            )
+    return errors
+
+
+def validate_memory_public_surface() -> list[str]:
+    errors: list[str] = []
+
+    mcp_config_path = REPO_ROOT / "codex/config/20-codex-spine-mcps.toml"
+    config_text = mcp_config_path.read_text(encoding="utf-8")
+    if "[mcp_servers.memory]" not in config_text:
+        errors.append(f"public MCP config is missing the memory server: {mcp_config_path}")
+    if "[mcp_servers.qmd_codex]" in config_text:
+        errors.append(f"deprecated qmd_codex MCP alias still ships publicly: {mcp_config_path}")
+
+    for doc_path in (
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "ARCHITECTURE.md",
+        REPO_ROOT / "codex/AGENTS.md",
+    ):
+        text = doc_path.read_text(encoding="utf-8")
+        if "qmd_codex" in text:
+            errors.append(f"public doc still describes qmd_codex as a shipped public surface: {doc_path}")
+
     return errors
 
 
@@ -301,9 +690,12 @@ def main() -> int:
     warnings: list[str] = []
     errors.extend(validate_components_registry(COMPONENTS_PATH))
     errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
+    errors.extend(validate_export_state())
     errors.extend(validate_public_doc_surface())
     errors.extend(validate_public_agents_policy())
+    errors.extend(validate_memory_public_surface())
     errors.extend(validate_memory_scope_isolation())
+    errors.extend(validate_memory_bootstrap_contract())
 
     for path in text_file_paths(REPO_ROOT):
         if path == LOCAL_CONFIG_OVERLAY:
@@ -312,6 +704,8 @@ def main() -> int:
         secret_hits = detect_secret_hits(text)
         if secret_hits:
             errors.append(f"tracked repo file appears to contain a secret: {path}")
+        if path == EXPORT_STATE_PATH:
+            continue
         private_hits = detect_private_reference_hits(text, public_surface=True)
         if private_hits:
             errors.append(f"tracked repo file still contains private references: {path}: {', '.join(private_hits)}")

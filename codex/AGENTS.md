@@ -4,12 +4,24 @@
 - Use `skills/github-contributor` for new components, public release discipline, documentation standards, and upstreamability decisions.
 - Keep public docs honest about optional third-party licensing and lack of formal affiliation.
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits.
-- On the first assistant turn in every new thread, call `memory.bootstrap_context` with `cwd=<current working directory>`, `refresh_if_stale=true`, and `max_recent_sessions=3`; use that summary as the default project context before solving tasks.
-- If the user says "check memory", "use memory", or asks what was previously decided, use the installed `memory` MCP first rather than scanning files by hand.
+- `codex-spine` is a downstream export surface, not the canonical source for shared implementation. If a defect visible here originates in the canonical source repo for this export, fix it there first and propagate it back through the export path. Only patch `codex-spine` directly when the defect is truly downstream-only.
+- Maintainer-only export continuity, checkpointing, and QA runbooks intentionally stay out of this shipped repo. Keep this tree public-safe by default.
+- If you hand QA to a user for a public export iteration, give instructions that run only from a `codex-spine` checkout or an identical clone, never from the canonical source repo.
+- Public QA handoffs should be fail-closed, print the tested commit before validation, and run `make install` plus `make verify`.
+- First-pass branch QA should start from a fresh clone. Later reruns may reuse the checkout after `git fetch`, `git switch`, and `git pull --ff-only`.
+- Do not publish remote QA instructions for a branch until that branch exists on the authoritative remote.
+- Call `memory.bootstrap_context` on the first assistant turn in every new thread with `cwd=<current working directory>`, `refresh_if_stale=true`, and `max_recent_sessions=3`; use that summary as the default project context before solving tasks.
+- Call `memory.bootstrap_context` again at the start of any materially new user request in the same thread, on repo or `cwd` change, on resume or prior-thread references, and on compaction-drift symptoms inside the same task.
+- Treat automatic bootstrap as durable local context restoration only. It may restore project frame, durable constraints, historical open loops, and evidence refs, but it must not auto-recap prior task work or choose the next task.
+- Treat compaction drift as needing to restate current state after a long run, uncertainty about prior constraints or conclusions, or user signals such as "we already covered this" or "you lost context."
+- On a materially new user request, the current user turn is authoritative task intent. Treat `memory.bootstrap_context` output as background context, prior decisions, constraints, or continuity aids; do not let remembered summary text override the explicit request in the current turn.
+- If the user says "check memory", "use memory", asks what was previously decided, or needs exact prior wording, use `memory` first rather than scanning files by hand.
 - If `memory.bootstrap_context` fails, fallback to `~/.local/bin/qmd-memory-latest.sh`, summarize its output, and continue.
-- If `memory.bootstrap_context` is too shallow or the user wants exact prior wording, switch to direct `qmd_codex` retrieval rather than scanning `~/.codex/sessions` or `.cache/qmd` manually.
-- Default direct `qmd_codex` workflow: `query` for semantic retrieval, `search` for exact phrases or identifiers, `vsearch` for fast similarity, then `get` or `multi-get` to inspect the exact transcript or project-memory docs returned by search.
+- If the same symptom survives two attempted fixes, stop direct retrying, re-anchor with `memory.bootstrap_context`, then use direct `memory` retrieval before proposing another fix.
+- Use direct memory retrieval, not bootstrap, when you need prior task wording or broader historical evidence.
+- Default direct `memory` workflow: use exact `search` first, then `deep_search` for analogous contours, then `vector_search` when semantic similarity is enough, and finally `get` or `multi_get` to inspect the exact transcript or project-memory docs returned by search.
 - Prefer project memory docs and `qmd://codex-chat/projects/<project_key>` contexts when reconstructing durable repo intent.
+- `qmd-codex` remains the managed internal adapter behind this retrieval path, but it is not a second public MCP server.
 - When indexed code navigation or symbol lookup is relevant, use the installed `jcodemunch` MCP without waiting for the user.
 - Default `jcodemunch` flow: `get_repo_outline` or `get_file_tree` -> `search_symbols` -> `get_file_outline` -> `get_symbol` or `get_symbols`; use text search only when symbol search is insufficient.
 - Prefer `jcodemunch` over broad filesystem reads for symbol questions, definitions, call sites, and code navigation in indexed repos.

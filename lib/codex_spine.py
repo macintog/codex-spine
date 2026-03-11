@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import pwd
 import re
@@ -33,6 +34,7 @@ LOCAL_ENV_EXAMPLE = REPO_ROOT / "shell/codex.local.env.example"
 LOCAL_ENV_FILE = REPO_ROOT / "shell/codex.local.env"
 COMPONENTS_PATH = REPO_ROOT / "COMPONENTS.toml"
 MAINTAINED_COMPONENTS_PATH = REPO_ROOT / "MAINTAINED_COMPONENTS.toml"
+EXPORT_STATE_PATH = REPO_ROOT / "EXPORT_STATE.toml"
 
 LIVE_CONFIG_PATH = HOME / ".codex/config.toml"
 LAUNCH_AGENTS_DIR = HOME / "Library/LaunchAgents"
@@ -95,17 +97,13 @@ TEXT_SECRET_PATTERNS = [
 ]
 
 PRIVATE_REFERENCE_PATTERNS = [
-    re.compile(r"/Users/" r"ryand"),
-    re.compile(r"\ballthe" r"plex\b"),
-    re.compile(r"\bcitadel\.mordor\b"),
-    re.compile(r"\bmcp-" r"plex\b"),
-    re.compile(r"\bcom\.ryand\b"),
+    re.compile(r"/Users/[A-Za-z0-9._-]+"),
+    re.compile(r"(?:https?://|ssh://|git@)[a-z0-9.-]+\.local(?::\d+)?", re.IGNORECASE),
+    re.compile(r"\b[a-z0-9.-]+\.local:\d+\b", re.IGNORECASE),
 ]
 
 PUBLIC_SURFACE_REFERENCE_PATTERNS = [
     *PRIVATE_REFERENCE_PATTERNS,
-    re.compile(r"\bplay" r"ground\b"),
-    re.compile(r"\bcodex-" r"env\b"),
 ]
 
 REQUIRED_PUBLIC_DOC_PATHS = [
@@ -119,16 +117,19 @@ REQUIRED_PUBLIC_DOC_PATHS = [
 
 FORBIDDEN_PUBLIC_ROOT_PATHS = [
     REPO_ROOT / "AGENTS.md",
+    REPO_ROOT / "PROJECT_CONTINUITY.md",
     REPO_ROOT / "PROJECT_SPINE.md",
     REPO_ROOT / "CHECKPOINT.md",
+    REPO_ROOT / "QA_RUNBOOK.md",
     REPO_ROOT / "QA_MATRIX.md",
 ]
 
 FORBIDDEN_PUBLIC_DOC_PATTERNS = {
+    "PROJECT_CONTINUITY.md": re.compile(r"\bPROJECT_CONTINUITY\.md\b"),
     "PROJECT_SPINE.md": re.compile(r"\bPROJECT_SPINE\.md\b"),
     "CHECKPOINT.md": re.compile(r"\bCHECKPOINT\.md\b"),
+    "QA_RUNBOOK.md": re.compile(r"\bQA_RUNBOOK\.md\b"),
     "QA_MATRIX.md": re.compile(r"\bQA_MATRIX\.md\b"),
-    "codex-" "env": re.compile(r"\bcodex-env\b"),
     "private Gitea": re.compile(r"\bprivate Gitea\b", re.IGNORECASE),
 }
 
@@ -788,7 +789,7 @@ def prepare_generated_config_target(path: Path, *, non_interactive: bool) -> Con
                 "Found an existing Codex config:",
                 f"  {path}",
                 "",
-                "codex-spine manages the memory and qmd_codex entries itself.",
+                "codex-spine manages the memory MCP entry itself and removes any deprecated qmd_codex alias during import.",
                 "To preserve the rest of your current Codex settings, it will import them into:",
                 f"  {ADOPTED_CONFIG_OVERLAY}",
                 "",
@@ -860,6 +861,24 @@ def relative_to_repo(path: Path) -> str:
         return str(path)
 
 
+def _git_tracked_repo_paths() -> list[Path] | None:
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],
+        check=False,
+        capture_output=True,
+        text=False,
+    )
+    if result.returncode != 0:
+        return None
+
+    paths: list[Path] = []
+    for raw_path in result.stdout.decode("utf-8", errors="replace").split("\0"):
+        if not raw_path:
+            continue
+        paths.append(REPO_ROOT / raw_path)
+    return paths
+
+
 def text_file_paths(root: Path) -> list[Path]:
     exts = {
         ".md",
@@ -871,12 +890,14 @@ def text_file_paths(root: Path) -> list[Path]:
         ".rules",
     }
     results: list[Path] = []
-    for path in root.rglob("*"):
+    tracked_paths = _git_tracked_repo_paths() if root == REPO_ROOT else None
+    candidate_paths = tracked_paths if tracked_paths is not None else root.rglob("*")
+    for path in candidate_paths:
         if not path.is_file():
             continue
-        if ".git" in path.parts or ".state" in path.parts or "__pycache__" in path.parts:
+        if ".git" in path.parts or ".state" in path.parts or "__pycache__" in path.parts or ".codex-worktrees" in path.parts:
             continue
-        if path.suffix in exts or path.name in {"Makefile"}:
+        if path.suffix in exts or path.name in {"Makefile"} or path.parent.name in {"bin", "scripts"}:
             results.append(path)
     return sorted(results)
 
@@ -905,6 +926,76 @@ def validate_public_doc_surface() -> list[str]:
                 errors.append(
                     f"public doc still references internal-only repo surface: {relative_to_repo(path)}: {label}"
                 )
+
+    return errors
+
+
+def validate_export_state(path: Path = EXPORT_STATE_PATH) -> list[str]:
+    if not path.exists():
+        return [f"missing export state manifest: {relative_to_repo(path)}"]
+
+    try:
+        parsed = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        return [f"invalid export state TOML: {relative_to_repo(path)}: {exc}"]
+
+    export = parsed.get("export")
+    if not isinstance(export, dict):
+        return [f"export state is missing [export]: {relative_to_repo(path)}"]
+
+    files = export.get("files")
+    if not isinstance(files, list) or not files:
+        return [f"export state is missing [[export.files]] entries: {relative_to_repo(path)}"]
+
+    errors: list[str] = []
+    expected_paths = {relative_to_repo(path)}
+    seen_paths: set[str] = set()
+    for index, item in enumerate(files, start=1):
+        if not isinstance(item, dict):
+            errors.append(f"export state entry must be a table: export.files[{index}]")
+            continue
+        rel_path = item.get("path")
+        sha256 = item.get("sha256")
+        executable = item.get("executable")
+        if not isinstance(rel_path, str) or not rel_path:
+            errors.append(f"export state entry is missing path: export.files[{index}]")
+            continue
+        if not isinstance(sha256, str) or not sha256:
+            errors.append(f"export state entry is missing sha256: export.files[{index}]")
+        if not isinstance(executable, bool):
+            errors.append(f"export state entry is missing executable flag: export.files[{index}]")
+        if rel_path in seen_paths:
+            errors.append(f"export state lists the same path multiple times: {rel_path}")
+            continue
+        seen_paths.add(rel_path)
+        expected_paths.add(rel_path)
+
+        file_path = REPO_ROOT / rel_path
+        if not file_path.exists():
+            errors.append(f"exported file listed in export state is missing: {rel_path}")
+            continue
+        actual_sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        if isinstance(sha256, str) and actual_sha256 != sha256:
+            errors.append(f"exported file content drifted from export state: {rel_path}")
+        if isinstance(executable, bool):
+            actual_executable = bool(file_path.stat().st_mode & 0o111)
+            if actual_executable != executable:
+                errors.append(f"exported file executable bit drifted from export state: {rel_path}")
+
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+        errors.append(f"unable to inspect tracked repo files for export-state validation: {detail}")
+        return errors
+
+    tracked_paths = {entry for entry in result.stdout.split("\0") if entry}
+    for extra_path in sorted(tracked_paths - expected_paths):
+        errors.append(f"tracked repo file is outside the canonical export state: {extra_path}")
 
     return errors
 

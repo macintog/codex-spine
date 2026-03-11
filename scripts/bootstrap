@@ -110,7 +110,7 @@ preflight_existing_config() {
 Found an existing Codex config:
   $LIVE_CONFIG_PATH
 
-codex-spine manages the memory and qmd_codex MCP entries itself.
+codex-spine manages the memory MCP entry itself and removes any deprecated qmd_codex alias during import.
 To preserve the rest of your current Codex settings, it can import them into:
   $ADOPTED_CONFIG_PATH
 

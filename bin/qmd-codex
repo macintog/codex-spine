@@ -148,6 +148,17 @@ function statusContextCount(statusText) {
   return match ? Number(match[1]) : 0;
 }
 
+function normalizeCollectionFilter(collection) {
+  const requested = String(collection || "").trim();
+  if (!requested) {
+    return "";
+  }
+  if (requested === DEFAULT_INDEX) {
+    return statusCollectionName(readStatusText());
+  }
+  return requested;
+}
+
 function fileMtimeIso(file) {
   try {
     return fs.statSync(file).mtime.toISOString();
@@ -206,8 +217,14 @@ function buildSearchArgs(commandName, args) {
   if (typeof args.minScore === "number") {
     cliArgs.push("--min-score", String(args.minScore));
   }
+  if (typeof args.intent === "string" && args.intent.trim().length > 0) {
+    cliArgs.push("--intent", args.intent.trim());
+  }
   if (typeof args.collection === "string" && args.collection.length > 0) {
-    cliArgs.push("-c", args.collection);
+    const collection = normalizeCollectionFilter(args.collection);
+    if (collection) {
+      cliArgs.push("-c", collection);
+    }
   }
   cliArgs.push("--json");
   return cliArgs;
@@ -217,8 +234,22 @@ function callSearch(commandName, args) {
   return { results: runQmd(buildSearchArgs(commandName, args), { expectJson: true }) };
 }
 
+function requirePublicQmdUri(file) {
+  if (!file.startsWith("qmd://codex-chat/")) {
+    throw new Error("file must be a qmd://codex-chat/... document from the public memory surface");
+  }
+  return file;
+}
+
+function requirePublicQmdPattern(pattern) {
+  if (!pattern.startsWith("qmd://codex-chat/")) {
+    throw new Error("pattern must target qmd://codex-chat/... documents from the public memory surface");
+  }
+  return pattern;
+}
+
 function callGet(args) {
-  const file = String(args.file || "").trim();
+  const file = requirePublicQmdUri(String(args.file || "").trim());
   if (!file) {
     throw new Error("file is required");
   }
@@ -237,7 +268,7 @@ function callGet(args) {
 }
 
 function callMultiGet(args) {
-  const pattern = String(args.pattern || "").trim();
+  const pattern = requirePublicQmdPattern(String(args.pattern || "").trim());
   if (!pattern) {
     throw new Error("pattern is required");
   }
@@ -271,6 +302,10 @@ function toolListResult() {
           properties: {
             query: { type: "string" },
             collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
             limit: { type: "integer" },
             minScore: { type: "number" },
           },
@@ -286,6 +321,10 @@ function toolListResult() {
           properties: {
             query: { type: "string" },
             collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
             limit: { type: "integer" },
             minScore: { type: "number" },
           },
@@ -301,6 +340,10 @@ function toolListResult() {
           properties: {
             query: { type: "string" },
             collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
             limit: { type: "integer" },
             minScore: { type: "number" },
           },
