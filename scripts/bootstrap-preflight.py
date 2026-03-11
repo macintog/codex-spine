@@ -256,16 +256,9 @@ def exec_stage1(*, managed_python: str, args: Sequence[str], ui) -> None:
         ui.finish_step(3, status="ok", note="Launching Stage 2 with {}.".format(managed_python))
         ui.footer = "Launching the managed Python installer..."
         ui.render()
-        time_sleep()
         ui.close()
     os.environ["CODEX_SPINE_STAGE_SPLIT_RUNTIME"] = "1"
     os.execvpe(managed_python, [managed_python, str(STAGE1_BOOTSTRAP)] + list(args), os.environ.copy())
-
-
-def time_sleep() -> None:
-    import time
-
-    time.sleep(0.3)
 
 
 def main() -> int:

@@ -228,7 +228,8 @@ def _prepare_pnpm_global_bin() -> None:
     _run(["pnpm", "config", "set", "global-bin-dir", str(pnpm_home)], check=True, env=_pnpm_env())
 
 
-def _rebuild_better_sqlite3(*, heartbeat_message: str) -> bool:
+def _rebuild_better_sqlite3(*, heartbeat_message: str, run_live_with_heartbeat_fn=None) -> bool:
+    run_live_with_heartbeat_fn = run_live_with_heartbeat_fn or _run_live_with_heartbeat
     search_roots: list[Path] = [HOME / "Library/pnpm/global"]
     workspace = _pnpm_global_workspace()
     if workspace is not None and workspace not in search_roots:
@@ -242,7 +243,7 @@ def _rebuild_better_sqlite3(*, heartbeat_message: str) -> bool:
         for candidate in root.glob("**/.pnpm/better-sqlite3@*/node_modules/better-sqlite3"):
             if candidate in seen:
                 continue
-            _run_live_with_heartbeat(
+            run_live_with_heartbeat_fn(
                 ["pnpm", "rebuild"],
                 cwd=candidate,
                 check=True,
@@ -457,29 +458,41 @@ def component_status(component: ResolvedComponent) -> dict:
     raise ValueError(f"unsupported backend kind: {kind}")
 
 
-def update_component(component: ResolvedComponent) -> list[str]:
+def update_component(
+    component: ResolvedComponent,
+    *,
+    run_live_fn=None,
+    run_live_with_heartbeat_fn=None,
+    progress_fn=None,
+) -> list[str]:
+    run_live_fn = run_live_fn or _run_live
+    run_live_with_heartbeat_fn = run_live_with_heartbeat_fn or _run_live_with_heartbeat
+    progress_fn = progress_fn or _progress
     if component.backend["kind"] == "pnpm_global":
         _prepare_pnpm_global_bin()
     action = component_status(component)["action"]
-    _run_live(action, check=True, env=_pnpm_env())
-    _progress(f"{component.name}: verifying health...")
+    run_live_fn(action, check=True, env=_pnpm_env())
+    progress_fn(f"{component.name}: verifying health...")
     status = component_status(component)
     if not status["healthy"]:
-        _progress(f"{component.name}: rebuilding native addons and rechecking health...")
-        if _rebuild_better_sqlite3(heartbeat_message=f"{component.name}: still rebuilding native addons..."):
+        progress_fn(f"{component.name}: rebuilding native addons and rechecking health...")
+        if _rebuild_better_sqlite3(
+            heartbeat_message=f"{component.name}: still rebuilding native addons...",
+            run_live_with_heartbeat_fn=run_live_with_heartbeat_fn,
+        ):
             status = component_status(component)
     if not status["healthy"]:
         workspace = _pnpm_global_workspace()
         if workspace is not None:
-            _progress(f"{component.name}: rebuilding the global pnpm workspace...")
-            _run_live_with_heartbeat(
+            progress_fn(f"{component.name}: rebuilding the global pnpm workspace...")
+            run_live_with_heartbeat_fn(
                 ["pnpm", "rebuild"],
                 cwd=workspace,
                 check=True,
                 env=_pnpm_env(),
                 heartbeat_message=f"{component.name}: still rebuilding the global pnpm workspace...",
             )
-            _progress(f"{component.name}: rechecking health after workspace rebuild...")
+            progress_fn(f"{component.name}: rechecking health after workspace rebuild...")
             status = component_status(component)
     if not status["healthy"]:
         raise RuntimeError(f"{component.name} remains unhealthy after update: {status['detail']}")

@@ -66,7 +66,11 @@ def run_script(script_name: str, *args: str, ui=None) -> None:
 def run_sync(*, ui=None) -> None:
     command = [str(REPO_ROOT / "bin" / "sync-codex-chat-qmd.sh")]
     if ui is not None:
-        ui.run_command(command, heartbeat_message="Transcript sync is still running...")
+        ui.run_command(
+            command,
+            heartbeat_message="Transcript sync is still running...",
+            heartbeat_interval=0.5,
+        )
         return
     _run_live_with_heartbeat(
         command,
@@ -149,11 +153,41 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
 
     package_name = component.backend.get("package_name", component.name)
     if ui is not None:
+        def ui_run_live(args, *, cwd=None, check=True, env=None):
+            ui.run_command(args, cwd=cwd, env=env)
+            return subprocess.CompletedProcess(args, 0)
+
+        def ui_run_live_with_heartbeat(
+            args,
+            *,
+            heartbeat_message,
+            cwd=None,
+            check=True,
+            env=None,
+            heartbeat_interval=5.0,
+        ):
+            ui.run_command(
+                args,
+                cwd=cwd,
+                env=env,
+                heartbeat_message=heartbeat_message,
+                heartbeat_interval=heartbeat_interval,
+            )
+            return subprocess.CompletedProcess(args, 0)
+
+        def ui_progress(message):
+            print(message, flush=True)
+
         ui.status("info", f"Installing/updating optional {component.name} inside the fullscreen installer.")
         with ui.capture_output():
             print(f"{component.name}: installing/updating {package_name}...", flush=True)
             print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
-            for line in update_component(component):
+            for line in update_component(
+                component,
+                run_live_fn=ui_run_live,
+                run_live_with_heartbeat_fn=ui_run_live_with_heartbeat,
+                progress_fn=ui_progress,
+            ):
                 print(line)
     else:
         print(f"{component.name}: installing/updating {package_name}...", flush=True)

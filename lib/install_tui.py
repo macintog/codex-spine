@@ -19,6 +19,8 @@ from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CARET_ANSI_ESCAPE_RE = re.compile(r"\^\[\[[0-?]*[ -/]*[@-~]")
+ACTIVITY_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
+ACTIVITY_FRAME_INTERVAL = 0.08
 
 
 @dataclass
@@ -61,6 +63,7 @@ class InstallTUI:
         self.bottom_panel_lines: List[str] = []
         self.activity_message = ""
         self.activity_frame = 0
+        self.activity_updated_at = 0.0
         self.last_modal_size: Optional[Tuple[int, int]] = None
         self.footer = "Fullscreen prototype."
         self._init_screen()
@@ -320,13 +323,35 @@ class InstallTUI:
         self.render()
 
     def pulse_activity(self, message: str) -> None:
-        self.activity_message = message
-        self.activity_frame = (self.activity_frame + 1) % 4
+        now = time.monotonic()
+        if message != self.activity_message:
+            self.activity_message = message
+            self.activity_frame = 0
+            self.activity_updated_at = now
+            self.render()
+            return
+        self.tick_activity(now=now)
+
+    def tick_activity(self, *, now: Optional[float] = None) -> None:
+        if not self.activity_message:
+            return
+        if now is None:
+            now = time.monotonic()
+        if self.activity_updated_at == 0.0:
+            self.activity_updated_at = now
+            return
+        elapsed = now - self.activity_updated_at
+        if elapsed < ACTIVITY_FRAME_INTERVAL:
+            return
+        frames = max(1, int(elapsed / ACTIVITY_FRAME_INTERVAL))
+        self.activity_frame = (self.activity_frame + frames) % len(ACTIVITY_FRAMES)
+        self.activity_updated_at += frames * ACTIVITY_FRAME_INTERVAL
         self.render()
 
     def clear_activity(self) -> None:
         if self.activity_message:
             self.activity_message = ""
+            self.activity_updated_at = 0.0
             self.render()
 
     def render_modal(
@@ -418,7 +443,10 @@ class InstallTUI:
         assert process.stdout is not None
         next_heartbeat = time.monotonic() + heartbeat_interval
         stream = process.stdout
+        if heartbeat_message:
+            self.pulse_activity(heartbeat_message)
         while True:
+            self.tick_activity()
             ready, _, _ = select.select([stream], [], [], 0.25)
             if ready:
                 line = stream.readline()
@@ -569,7 +597,7 @@ class InstallTUI:
 
         footer_text = self.footer
         if self.activity_message:
-            spinner = ["|", "/", "-", "\\"][self.activity_frame]
+            spinner = ACTIVITY_FRAMES[self.activity_frame]
             footer_text = "{} {}".format(spinner, self.activity_message)
         self._safe_addstr(height - 2, 2, footer_text[: width - 4], curses.A_DIM)
         self.stdscr.refresh()
