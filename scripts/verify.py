@@ -579,6 +579,22 @@ def validate_memory_bootstrap_contract() -> list[str]:
             errors.append("memory bootstrap_context structured output returned the wrong canonical project path")
         if structured.get("project_frame") != "Example durable context for the current working directory.":
             errors.append("memory bootstrap_context structured output did not preserve project_frame")
+        recent_sessions = structured.get("recent_sessions")
+        if not isinstance(recent_sessions, list):
+            errors.append("memory bootstrap_context structured output returned invalid recent_sessions")
+        else:
+            for item in recent_sessions:
+                if not isinstance(item, dict) or not str(item.get("path", "")).startswith("qmd://codex-chat/"):
+                    errors.append("memory bootstrap_context recent_sessions must use qmd://codex-chat/... paths")
+                    break
+        evidence_paths = structured.get("evidence_paths")
+        if not isinstance(evidence_paths, list):
+            errors.append("memory bootstrap_context structured output returned invalid evidence_paths")
+        else:
+            for item in evidence_paths:
+                if not isinstance(item, str) or not item.startswith("qmd://codex-chat/"):
+                    errors.append("memory bootstrap_context evidence_paths must use qmd://codex-chat/... paths")
+                    break
         if "Current objective:" in response_text:
             errors.append("memory bootstrap_context text response still uses Current objective")
         for required_text in ("Project frame:", "Durable constraints:", "Historical open loops:", "Recent sessions:"):

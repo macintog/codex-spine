@@ -111,7 +111,7 @@ executable = true
 [[export.files]]
 path = "bin/sync-codex-chat-qmd.sh"
 component = "qmd_memory_stack"
-sha256 = "22a161c8941b3da1b7a488868d008700b17500522725c1748a5c04f0dc08d3a8"
+sha256 = "feccd42d66ddace93d58aef21bce4612f21d75697b64434d7fd087d5c679ba1c"
 executable = true
 
 [[export.files]]
@@ -231,7 +231,7 @@ executable = true
 [[export.files]]
 path = "scripts/verify.py"
 component = "codex_spine_public_repo"
-sha256 = "1accadd7d640ab59921ba51da488325bb355c2f2b5a410f3fc7469a0c412c213"
+sha256 = "f68558995f41d6de697e960afc94fa2b72773376fd19216d41d4d7b92ccae147"
 executable = false
 
 [[export.files]]

@@ -507,12 +507,12 @@ build_project_state() {
         intent_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$intent_out_file")"
         open_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$open_out_file")"
         decision_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$decisions_out_file")"
-        recent_sessions_json="$("$JQ" -cs --argjson limit "$RECENT_SESSION_LIMIT" '
+        recent_sessions_json="$("$JQ" -cs --arg collection "$COLLECTION_NAME" --argjson limit "$RECENT_SESSION_LIMIT" '
             [.[] | select(.projected == true and (.projection_rel // "") != "")
-            | {path: .projection_rel, started_utc: (.started_utc // "")}][0:$limit]
+            | {path: ("qmd://" + $collection + "/" + .projection_rel), started_utc: (.started_utc // "")}][0:$limit]
         ' "$sorted_file")"
-        evidence_json="$("$JQ" -cs '
-            [.[] | select(.projected == true and (.projection_rel // "") != "") | .projection_rel][0:8]
+        evidence_json="$("$JQ" -cs --arg collection "$COLLECTION_NAME" '
+            [.[] | select(.projected == true and (.projection_rel // "") != "") | ("qmd://" + $collection + "/" + .projection_rel)][0:8]
         ' "$sorted_file")"
 
         summary="$("$JQ" -nr \
