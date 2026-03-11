@@ -183,6 +183,7 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> str:
         )
         if not approved:
             raise RuntimeError("codex-spine needs Homebrew plus a small set of Homebrew packages. Install Homebrew from https://brew.sh, then rerun `make install`.")
+        os.environ["CODEX_SPINE_BREW_INSTALL_APPROVED"] = "1"
         installer_url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
         with tempfile.NamedTemporaryFile(prefix="codex-spine-homebrew-", suffix=".sh", delete=False) as handle:
             installer_path = Path(handle.name)

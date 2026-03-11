@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+CARET_ANSI_ESCAPE_RE = re.compile(r"\^\[\[[0-?]*[ -/]*[@-~]")
 
 
 @dataclass
@@ -58,6 +59,9 @@ class InstallTUI:
         self.logs: Deque[Tuple[str, str]] = deque(maxlen=400)
         self.bottom_panel_title = ""
         self.bottom_panel_lines: List[str] = []
+        self.activity_message = ""
+        self.activity_frame = 0
+        self.last_modal_size: Optional[Tuple[int, int]] = None
         self.footer = "Fullscreen prototype."
         self._init_screen()
         self.render()
@@ -225,10 +229,12 @@ class InstallTUI:
         prompt: str,
         *,
         prompt_hint: str = "Type and press Enter",
+        modal_size: Optional[Tuple[int, int]] = None,
     ) -> Optional[str]:
         typed: List[str] = []
         while True:
-            self.render_modal([title, "", prompt, "".join(typed)], prompt_hint=prompt_hint)
+            field = "> {}".format("".join(typed) if typed else "_")
+            self.render_modal([title, "", prompt, "", field], prompt_hint=prompt_hint, modal_size=modal_size)
             key = self.stdscr.get_wch()
             if key == curses.KEY_RESIZE:
                 continue
@@ -254,17 +260,27 @@ class InstallTUI:
         prompt_hint: str = "Enter advances; q or Esc cancels",
     ) -> bool:
         lines = text.splitlines() or [""]
+        height, width = self.stdscr.getmaxyx()
+        page_body_limit = max(6, height - 12)
+        wrapped_all: List[str] = []
+        for line in lines:
+            wrapped_all.extend(textwrap.wrap(line, width=max(20, min(width - 14, 88))) or [""])
+        modal_size = (
+            min(width - 6, max([len(title)] + [len(line) for line in wrapped_all] + [24]) + 4),
+            min(height - 6, page_body_limit + 4),
+        )
+        self.last_modal_size = modal_size
         offset = 0
         while True:
             height, width = self.stdscr.getmaxyx()
             wrapped: List[str] = []
             for line in lines[offset:]:
                 wrapped.extend(textwrap.wrap(line, width=max(20, min(width - 14, 88))) or [""])
-                if len(wrapped) >= max(6, height - 12):
+                if len(wrapped) >= page_body_limit:
                     break
             total = len(lines)
             header = "{} ({}/{})".format(title, min(total, offset + 1), total)
-            self.render_modal([header, ""] + wrapped, prompt_hint=prompt_hint)
+            self.render_modal([header, ""] + wrapped, prompt_hint=prompt_hint, modal_size=modal_size)
             key = self.stdscr.get_wch()
             if key == curses.KEY_RESIZE:
                 continue
@@ -281,7 +297,7 @@ class InstallTUI:
                 if lowered in ("\n", "\r", " "):
                     if offset >= max(0, total - 1):
                         return True
-                    offset = min(max(0, total - 1), offset + max(1, height - 12))
+                    offset = min(max(0, total - 1), offset + page_body_limit)
                     continue
             curses.beep()
 
@@ -303,14 +319,33 @@ class InstallTUI:
         self.bottom_panel_lines = []
         self.render()
 
-    def render_modal(self, lines: Sequence[str], *, prompt_hint: Optional[str] = None) -> None:
+    def pulse_activity(self, message: str) -> None:
+        self.activity_message = message
+        self.activity_frame = (self.activity_frame + 1) % 4
+        self.render()
+
+    def clear_activity(self) -> None:
+        if self.activity_message:
+            self.activity_message = ""
+            self.render()
+
+    def render_modal(
+        self,
+        lines: Sequence[str],
+        *,
+        prompt_hint: Optional[str] = None,
+        modal_size: Optional[Tuple[int, int]] = None,
+    ) -> None:
         self.render()
         height, width = self.stdscr.getmaxyx()
         body: List[str] = []
         for line in lines:
             body.extend(textwrap.wrap(line, width=max(12, min(width - 12, 68))) or [""])
-        box_width = min(width - 6, max(len(line) for line in body) + 4 if body else 24)
-        box_height = min(height - 6, len(body) + 4)
+        if modal_size is None:
+            box_width = min(width - 6, max(len(line) for line in body) + 4 if body else 24)
+            box_height = min(height - 6, len(body) + 4)
+        else:
+            box_width, box_height = modal_size
         start_y = max(2, (height - box_height) // 2)
         start_x = max(2, (width - box_width) // 2)
         with contextlib.suppress(curses.error):
@@ -389,16 +424,19 @@ class InstallTUI:
                 line = stream.readline()
                 if line:
                     self.log(line.rstrip("\n"))
+                    self.clear_activity()
                     next_heartbeat = time.monotonic() + heartbeat_interval
                     continue
             if process.poll() is not None:
                 for line in stream.readlines():
                     self.log(line.rstrip("\n"))
+                self.clear_activity()
                 break
             if heartbeat_message and time.monotonic() >= next_heartbeat:
-                self.status("info", heartbeat_message)
+                self.pulse_activity(heartbeat_message)
                 next_heartbeat = time.monotonic() + heartbeat_interval
         returncode = process.wait()
+        self.clear_activity()
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, [str(part) for part in args])
 
@@ -529,7 +567,11 @@ class InstallTUI:
                 self._safe_addstr(panel_y, 2, line[: width - 4], curses.A_NORMAL)
                 panel_y += 1
 
-        self._safe_addstr(height - 2, 2, self.footer[: width - 4], curses.A_DIM)
+        footer_text = self.footer
+        if self.activity_message:
+            spinner = ["|", "/", "-", "\\"][self.activity_frame]
+            footer_text = "{} {}".format(spinner, self.activity_message)
+        self._safe_addstr(height - 2, 2, footer_text[: width - 4], curses.A_DIM)
         self.stdscr.refresh()
 
     def _safe_addstr(self, y: int, x: int, text: str, attr: int = 0) -> None:
@@ -555,9 +597,23 @@ def open_tui(*, title: str, subtitle: str, steps: List[Step]) -> Iterator[Option
 
 def _clean_terminal_text(text: str) -> str:
     text = ANSI_ESCAPE_RE.sub("", text)
-    text = text.replace("\r", "\n")
-    cleaned_chars = []
+    text = CARET_ANSI_ESCAPE_RE.sub("", text)
+    lines: List[str] = []
+    current: List[str] = []
     for char in text:
-        if char in ("\n", "\t") or ord(char) >= 32:
-            cleaned_chars.append(char)
-    return "".join(cleaned_chars)
+        if char == "\r":
+            current = []
+            continue
+        if char in ("\x08", "\x7f"):
+            if current:
+                current.pop()
+            continue
+        if char == "\n":
+            lines.append("".join(current))
+            current = []
+            continue
+        if char == "\t" or ord(char) >= 32:
+            current.append(char)
+    if current:
+        lines.append("".join(current))
+    return "\n".join(lines)

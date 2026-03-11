@@ -109,14 +109,25 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         ):
             ui.status("info", "Continuing install without optional jCodeMunch MCP.")
             return False
-        reply = ui.prompt_text_input(
-            "Optional jCodeMunch MCP",
-            "Type 'accept' to continue, or press Esc to skip:",
-            prompt_hint="Type accept and press Enter",
-        )
-        if (reply or "").strip().lower() != "accept":
-            ui.status("info", "Continuing install without optional jCodeMunch MCP.")
-            return False
+        while True:
+            reply = ui.prompt_text_input(
+                "Optional jCodeMunch MCP",
+                "Type 'accept' to continue, or press Esc to skip:",
+                prompt_hint="Type accept and press Enter",
+                modal_size=ui.last_modal_size,
+            )
+            normalized = (reply or "").strip().lower()
+            if normalized == "accept":
+                break
+            if normalized in {"", "skip", "s", "no", "n", "q", "quit"} or reply is None:
+                if ui.prompt_yes_no(["Skip optional jCodeMunch MCP for now?"], default=False):
+                    ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                    return False
+                continue
+            ui.show_message(
+                ["Type 'accept' to continue, or press Esc to skip."],
+                prompt_hint="Press Enter to return",
+            )
         record_license_acknowledgement(component, bundle)
     else:
         print("\nYou chose to include optional jCodeMunch MCP in this install.")
