@@ -311,6 +311,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
 
 def main() -> int:
+    ui = None
     try:
         parser = argparse.ArgumentParser()
         parser.add_argument("--non-interactive", action="store_true")
@@ -327,9 +328,32 @@ def main() -> int:
             run_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
         return 0
     except RuntimeError as exc:
+        if ui is not None and not non_interactive:
+            ui.fail_step(ui.current_step, note="Install stopped before completion.")
+            ui.show_message(
+                [
+                    "Managed install stopped:",
+                    "",
+                    str(exc),
+                ],
+                prompt_hint="Press Enter to exit",
+            )
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as exc:
+        if ui is not None and not non_interactive:
+            ui.fail_step(ui.current_step, note="A managed-runtime command failed.")
+            ui.show_message(
+                [
+                    "A managed-runtime command failed:",
+                    "",
+                    f"Command: {' '.join(exc.cmd)}",
+                    f"Exit status: {exc.returncode}",
+                    "",
+                    "See the terminal output above for the failing command details.",
+                ],
+                prompt_hint="Press Enter to exit",
+            )
         print(f"ERROR: command failed with exit status {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
         print("See output above for details.", file=sys.stderr)
         return exc.returncode or 1

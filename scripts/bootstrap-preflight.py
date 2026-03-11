@@ -190,7 +190,14 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> str:
             if ui is not None:
                 ui.status("info", "Installing Homebrew inside the preflight runtime.")
                 ui.run_command(["curl", "-fL", installer_url, "-o", str(installer_path)])
-                ui.run_command(["/bin/bash", str(installer_path)])
+                ui.run_command(
+                    ["/bin/bash", str(installer_path)],
+                    use_terminal=True,
+                    terminal_intro=[
+                        "codex-spine is temporarily handing Homebrew installation to the terminal below.",
+                        "If macOS asks for your password, type it here so the prompt stays readable.",
+                    ],
+                )
             else:
                 subprocess.run(["curl", "-fL", installer_url, "-o", str(installer_path)], check=True)
                 subprocess.run(["/bin/bash", str(installer_path)], check=True)
@@ -260,6 +267,7 @@ def main() -> int:
     non_interactive = args.non_interactive or not sys.stdin.isatty()
     title = "codex-spine preflight runtime"
     subtitle = "Stage 1 of 2: stock macOS Python drives first-run install before the managed runtime takes over."
+    ui = None
     try:
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
             preflight_existing_config(non_interactive=non_interactive, ui=None if non_interactive else ui)
@@ -267,9 +275,32 @@ def main() -> int:
             managed_python = ensure_homebrew_and_runtime(non_interactive=non_interactive, ui=None if non_interactive else ui)
             exec_stage1(managed_python=managed_python, args=passthrough + (["--non-interactive"] if non_interactive and "--non-interactive" not in passthrough else []), ui=None if non_interactive else ui)
     except RuntimeError as exc:
+        if ui is not None and not non_interactive:
+            ui.fail_step(ui.current_step, note="Install stopped before the next stage.")
+            ui.show_message(
+                [
+                    "Preflight stopped:",
+                    "",
+                    str(exc),
+                ],
+                prompt_hint="Press Enter to exit",
+            )
         print("ERROR: {}".format(exc), file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as exc:
+        if ui is not None and not non_interactive:
+            ui.fail_step(ui.current_step, note="A command failed before Stage 2 could start.")
+            ui.show_message(
+                [
+                    "A preflight command failed:",
+                    "",
+                    "Command: {}".format(" ".join(exc.cmd)),
+                    "Exit status: {}".format(exc.returncode),
+                    "",
+                    "See the terminal output above for the failing command details.",
+                ],
+                prompt_hint="Press Enter to exit",
+            )
         print("ERROR: command failed with exit status {}: {}".format(exc.returncode, " ".join(exc.cmd)), file=sys.stderr)
         print("See output above for details.", file=sys.stderr)
         return exc.returncode or 1

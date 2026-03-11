@@ -52,7 +52,7 @@ class InstallTUI:
         self.steps = steps
         self.current_step = 0
         self.logs: Deque[Tuple[str, str]] = deque(maxlen=400)
-        self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
+        self.footer = "Fullscreen prototype."
         self._init_screen()
         self.render()
 
@@ -119,6 +119,11 @@ class InstallTUI:
             self.steps[index].note = note
         self.render()
 
+    def fail_step(self, index: int, *, note: str) -> None:
+        self.steps[index].status = "stop"
+        self.steps[index].note = note
+        self.render()
+
     def status(self, kind: str, message: str) -> None:
         self.log(f"{self.step_marker(kind)} {message}", level=kind)
 
@@ -153,17 +158,34 @@ class InstallTUI:
                 curses.curs_set(0)
             except curses.error:
                 pass
-        self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
+        self.footer = "Fullscreen prototype."
         self.render()
 
     def prompt_yes_no(self, prompt: Union[str, Sequence[str]], *, default: bool) -> bool:
         lines = prompt.splitlines() if isinstance(prompt, str) else [str(line) for line in prompt]
-        default_hint = "Enter = Yes" if default else "Enter = No"
+        prompt_hint = "Enter = Yes" if default else "Enter = No"
         footer = self.footer
-        self.footer = "{}, y = yes, n = no, Esc = no".format(default_hint)
+        self.footer = "Use Enter, y, n, or Esc."
+        self.render_modal(lines, prompt_hint="{}   y = yes   n = no   Esc = no".format(prompt_hint))
         while True:
-            self.render_modal(lines)
             key = self.stdscr.get_wch()
+            if isinstance(key, int):
+                if key in (
+                    curses.KEY_UP,
+                    curses.KEY_DOWN,
+                    curses.KEY_LEFT,
+                    curses.KEY_RIGHT,
+                    curses.KEY_RESIZE,
+                    curses.KEY_HOME,
+                    curses.KEY_END,
+                    curses.KEY_NPAGE,
+                    curses.KEY_PPAGE,
+                ):
+                    if key == curses.KEY_RESIZE:
+                        self.render_modal(lines, prompt_hint="{}   y = yes   n = no   Esc = no".format(prompt_hint))
+                    continue
+                curses.beep()
+                continue
             if isinstance(key, str):
                 lowered = key.lower()
                 if lowered in ("\n", "\r"):
@@ -182,8 +204,26 @@ class InstallTUI:
                     self.footer = footer
                     self.render()
                     return False
+            curses.beep()
 
-    def render_modal(self, lines: Sequence[str]) -> None:
+    def show_message(self, lines: Sequence[str], *, prompt_hint: str = "Press Enter to continue") -> None:
+        footer = self.footer
+        self.footer = prompt_hint
+        self.render_modal(lines, prompt_hint=prompt_hint)
+        while True:
+            key = self.stdscr.get_wch()
+            if key == curses.KEY_RESIZE:
+                self.render_modal(lines, prompt_hint=prompt_hint)
+                continue
+            if key in ("\n", "\r", " ", "\x1b"):
+                break
+            if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
+                break
+            curses.beep()
+        self.footer = footer
+        self.render()
+
+    def render_modal(self, lines: Sequence[str], *, prompt_hint: Optional[str] = None) -> None:
         self.render()
         height, width = self.stdscr.getmaxyx()
         body: List[str] = []
@@ -203,6 +243,10 @@ class InstallTUI:
                 elif x in (0, box_width - 1):
                     ch = "│"
                 self._safe_addstr(start_y + y, start_x + x, ch, curses.A_BOLD)
+        if prompt_hint:
+            hint = prompt_hint[: max(0, box_width - 6)]
+            hint_x = max(start_x + 2, start_x + box_width - len(hint) - 2)
+            self._safe_addstr(start_y + 1, hint_x, hint, curses.A_DIM)
         text_y = start_y + 2
         for line in body[: max(0, box_height - 4)]:
             self._safe_addstr(text_y, start_x + 2, line, curses.A_NORMAL)
@@ -217,8 +261,36 @@ class InstallTUI:
         env: Optional[dict[str, str]] = None,
         heartbeat_message: Optional[str] = None,
         heartbeat_interval: float = 5.0,
+        use_terminal: bool = False,
+        terminal_intro: Optional[Sequence[str]] = None,
     ) -> None:
         self.log(f"$ {shlex.join([str(part) for part in args])}")
+        if use_terminal:
+            command = [str(part) for part in args]
+            with self.suspend("Terminal handoff in progress below."):
+                if terminal_intro:
+                    print()
+                    for line in terminal_intro:
+                        print(line)
+                print()
+                print("$ {}".format(shlex.join(command)), flush=True)
+                try:
+                    subprocess.run(
+                        command,
+                        cwd=str(cwd) if cwd else None,
+                        env=env,
+                        check=True,
+                    )
+                except subprocess.CalledProcessError as exc:
+                    print()
+                    print("codex-spine stopped because the command above failed.", flush=True)
+                    print("Press Return to restore the installer.", flush=True)
+                    with contextlib.suppress(EOFError):
+                        input()
+                    self.log("Terminal handoff failed: {}".format(shlex.join(command)), level="stop")
+                    raise exc
+            self.log("Terminal handoff completed: {}".format(shlex.join(command)), level="ok")
+            return
         process = subprocess.Popen(
             [str(part) for part in args],
             cwd=str(cwd) if cwd else None,
@@ -256,6 +328,7 @@ class InstallTUI:
         left_width = max(34, min(44, width // 3))
         right_x = left_width + 2
         log_width = max(20, width - right_x - 1)
+        content_bottom = max(4, height - 4)
 
         self._safe_addstr(0, 2, self.title, self.color("in_progress"))
         self._safe_addstr(1, 2, self.subtitle, curses.A_DIM)
@@ -263,16 +336,22 @@ class InstallTUI:
         self._safe_addstr(3, 2, "Plan", curses.A_BOLD)
         y = 4
         for index, step in enumerate(self.steps):
+            if y > content_bottom:
+                break
             marker = self.step_marker(step.status)
             attrs = self.color(step.status)
             prefix = f"{marker} {step.label}: {step.title}"
             self._safe_addstr(y, 2, prefix[: left_width - 3], attrs)
             y += 1
             for line in textwrap.wrap(step.detail, width=max(10, left_width - 6)) or [""]:
+                if y > content_bottom:
+                    break
                 self._safe_addstr(y, 4, line, curses.A_DIM)
                 y += 1
             if step.note:
                 for line in textwrap.wrap(step.note, width=max(10, left_width - 6)) or [""]:
+                    if y > content_bottom:
+                        break
                     self._safe_addstr(y, 4, line, self.color(step.status))
                     y += 1
             if index != len(self.steps) - 1:
@@ -284,9 +363,11 @@ class InstallTUI:
             wrapped = textwrap.wrap(line, width=log_width) or [""]
             for part in wrapped:
                 log_lines.append((level, part))
-        visible = log_lines[-max(1, height - 6) :]
+        visible = log_lines[-max(1, height - 7) :]
         log_y = 4
         for level, line in visible:
+            if log_y > content_bottom:
+                break
             self._safe_addstr(log_y, right_x, line[:log_width], self.color(level))
             log_y += 1
 
