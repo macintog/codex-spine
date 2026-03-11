@@ -609,6 +609,8 @@ class InstallTUI:
         left_width = 38 if width >= 90 else max(30, min(38, (width // 2) - 4))
         right_x = left_width + 2
         log_width = max(20, width - right_x - 1)
+        plan_header_y = 2 if not self.subtitle else 3
+        plan_start_y = plan_header_y + 1
         bottom_panel_height = 0
         if self.bottom_panel_title or self.bottom_panel_lines:
             bottom_panel_height = min(5, max(4, len(self.bottom_panel_lines) + 2))
@@ -622,10 +624,11 @@ class InstallTUI:
             start_index = max(0, len(self.steps) - 1)
 
         self._safe_addstr(0, 2, self.title, self.color("in_progress"))
-        self._safe_addstr(1, 2, self.subtitle, curses.A_DIM)
+        if self.subtitle:
+            self._safe_addstr(1, 2, self.subtitle, curses.A_DIM)
 
-        self._safe_addstr(3, 2, "Plan", curses.A_BOLD)
-        y = 4
+        self._safe_addstr(plan_header_y, 2, "Plan", curses.A_BOLD)
+        y = plan_start_y
         visible_steps = self.steps[start_index:]
         for offset, step in enumerate(visible_steps):
             if y > content_bottom:
@@ -649,14 +652,14 @@ class InstallTUI:
             if offset != len(visible_steps) - 1:
                 y += 1
 
-        self._safe_addstr(3, right_x, "Live Log", curses.A_BOLD)
+        self._safe_addstr(plan_header_y, right_x, "Live Log", curses.A_BOLD)
         log_lines: List[Tuple[str, str]] = []
         for level, line in self.logs:
             wrapped = textwrap.wrap(_clean_terminal_text(line), width=log_width) or [""]
             for part in wrapped:
                 log_lines.append((level, part))
-        visible = log_lines[-max(1, height - 7) :]
-        log_y = 4
+        visible = log_lines[-max(1, height - (plan_start_y + 3)) :]
+        log_y = plan_start_y
         for level, line in visible:
             if log_y > content_bottom:
                 break

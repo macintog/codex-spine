@@ -57,10 +57,20 @@ from component_manager import (  # noqa: E402
 from install_tui import Step, open_tui  # noqa: E402
 
 
-def run_script(script_name: str, *args: str, ui=None) -> None:
+def run_script(
+    script_name: str,
+    *args: str,
+    ui=None,
+    heartbeat_message: str | None = None,
+    heartbeat_interval: float = 5.0,
+) -> None:
     command = [str(REPO_ROOT / "scripts" / script_name), *args]
     if ui is not None:
-        ui.run_command(command)
+        ui.run_command(
+            command,
+            heartbeat_message=heartbeat_message,
+            heartbeat_interval=heartbeat_interval,
+        )
         return
     subprocess.run(command, check=True)
 
@@ -317,7 +327,14 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         note = "Managed links and shell integration are in place." if shell_plan.supported else "Managed links are in place; shell integration is skipped for non-zsh shells."
         ui.finish_step(1, status="ok", note=note)
         ui.set_step(2, note="Installing or updating default managed components.")
-        run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []), ui=ui)
+        run_script(
+            "update",
+            "--defaults-only",
+            *(["--non-interactive"] if non_interactive else []),
+            ui=ui,
+            heartbeat_message="Installing default managed components; this can take a while...",
+            heartbeat_interval=0.5,
+        )
         maybe_enable_jcodemunch(non_interactive=non_interactive, ui=ui)
         ui.finish_step(2, status="ok", note="Managed component maintenance completed.")
     else:
@@ -441,7 +458,7 @@ def main() -> int:
         args = parser.parse_args()
         non_interactive = args.non_interactive or not sys.stdin.isatty()
         title = "codex-spine installer"
-        subtitle = "Persistent plan view on the left, live logs on the right."
+        subtitle = ""
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
             run_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
         return 0

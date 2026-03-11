@@ -257,7 +257,7 @@ def main() -> int:
     args = parser.parse_args()
     non_interactive = args.non_interactive or not sys.stdin.isatty()
     title = "codex-spine installer"
-    subtitle = "Guided install from first prompt through verification."
+    subtitle = ""
     ui = None
     try:
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
