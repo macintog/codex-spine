@@ -316,8 +316,13 @@ def main() -> int:
         parser.add_argument("--non-interactive", action="store_true")
         args = parser.parse_args()
         non_interactive = args.non_interactive or not sys.stdin.isatty()
-        title = "codex-spine fullscreen install prototype"
-        subtitle = "Stage 1 of 2: persistent plan view on the left, live logs on the right."
+        split_runtime = os.environ.get("CODEX_SPINE_STAGE_SPLIT_RUNTIME") == "1"
+        title = "codex-spine managed runtime"
+        subtitle = (
+            "Stage 2 of 2: the managed Python runtime is finalizing install, sync, and verification."
+            if split_runtime
+            else "Managed Python install: persistent plan view on the left, live logs on the right."
+        )
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
             run_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
         return 0

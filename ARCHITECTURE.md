@@ -39,7 +39,10 @@ codex-spine/
 ```text
 tracked repo policy + config fragments + wrappers
     -> scripts/bootstrap
-    -> Homebrew presence + baseline package checks
+    -> stock Python preflight under macOS-shipped python3
+    -> existing-config review + optional jCodeMunch choice
+    -> Homebrew install if needed + baseline package checks
+    -> scripts/bootstrap.py under the managed Python runtime
     -> default managed component install/update
     -> managed symlinks under ~/.codex and ~/.local/bin
     -> zsh-only managed shell source blocks

@@ -5,10 +5,10 @@
 ## Requirements
 
 - macOS with a user-space Codex installation under `~/.codex`
-- Homebrew
+- stock `/usr/bin/python3` 3.9+ available on macOS 15.7.4 or later
 
 `make install` uses Homebrew as the baseline package manager for `python`, `ripgrep`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
-Install starts from macOS-shipped shell tools and will provision Homebrew Python first when the machine's default `python3` is too old for the managed runtime.
+Interactive install now starts from the macOS-shipped `python3` runtime, uses that stock Python for the first fullscreen preflight, and only hands off to the managed Python runtime after the baseline Homebrew floor is ready.
 
 ## Homebrew Packages
 
@@ -38,7 +38,7 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 5. Run `make verify`.
 6. If you skipped the optional `jCodeMunch MCP` prompt during install and later want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
-`make install` is interactive when run from a TTY. It will explain the Homebrew packages it is about to install and ask for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
+`make install` is interactive when run from a TTY. On stock macOS, the first fullscreen preflight runs under `/usr/bin/python3`, explains the Homebrew packages it is about to install, and asks for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
 Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local qmd index before the final verification step, so the first run can take noticeably longer than later runs.
 
 `zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, install warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
@@ -47,9 +47,10 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 `make install` is the install step, not just a validation step. It:
 
+- starts in a stock-Python fullscreen preflight before the managed Python runtime exists yet
 - checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
 - for interactive installs, asks early whether you want to include the optional `jCodeMunch MCP` integration later in the same install; that prompt defaults to yes
-- checks that Homebrew exists and installs any missing baseline packages needed by the managed runtime
+- installs Homebrew if needed and then installs any missing baseline packages needed by the managed runtime
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
@@ -63,6 +64,8 @@ Optional `jCodeMunch MCP` stays out of the default core path, but interactive in
 If you choose `jCodeMunch MCP` during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
+
+macOS may also show a one-time `Background Items Added` notification for `sync-codex-chat-qmd.sh` during install. That is expected because `codex-spine` registers the transcript-sync LaunchAgent under Login Items & Extensions.
 
 ## Existing Codex Configs
 
@@ -120,6 +123,7 @@ When testing a branch or release candidate, do the QA pass from a `codex-spine` 
 - If transcript sync is missing, check `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` and re-run `make install`.
 - If install warns that your login shell is not `zsh`, add `~/.local/bin` to that shell's startup and source the repo fragments manually if you want shell integration.
 - If `launchctl` warnings appear during install, rerun `make install` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load fails.
+- If macOS shows `Background Items Added` for `sync-codex-chat-qmd.sh`, that is the expected one-time notice for the managed transcript-sync LaunchAgent.
 - If shell changes do not appear in your current terminal, open a new shell session after install.
 - If `jCodeMunch MCP` will not enable, inspect the stored upstream terms retrieval error first; the enable flow intentionally hard-fails when it cannot verify the upstream terms for the pinned version.
 

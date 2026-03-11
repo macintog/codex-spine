@@ -13,7 +13,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
 
 
 @dataclass
@@ -45,13 +45,13 @@ class _LogWriter(io.TextIOBase):
 
 
 class InstallTUI:
-    def __init__(self, stdscr, *, title: str, subtitle: str, steps: list[Step]) -> None:
+    def __init__(self, stdscr, *, title: str, subtitle: str, steps: List[Step]) -> None:
         self.stdscr = stdscr
         self.title = title
         self.subtitle = subtitle
         self.steps = steps
         self.current_step = 0
-        self.logs: deque[tuple[str, str]] = deque(maxlen=400)
+        self.logs: Deque[Tuple[str, str]] = deque(maxlen=400)
         self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
         self._init_screen()
         self.render()
@@ -153,16 +153,69 @@ class InstallTUI:
                 curses.curs_set(0)
             except curses.error:
                 pass
-            self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
-            self.render()
+        self.footer = "Fullscreen prototype. Prompts that need raw input may temporarily return to the terminal."
+        self.render()
+
+    def prompt_yes_no(self, prompt: Union[str, Sequence[str]], *, default: bool) -> bool:
+        lines = prompt.splitlines() if isinstance(prompt, str) else [str(line) for line in prompt]
+        default_hint = "Enter = Yes" if default else "Enter = No"
+        footer = self.footer
+        self.footer = "{}, y = yes, n = no, Esc = no".format(default_hint)
+        while True:
+            self.render_modal(lines)
+            key = self.stdscr.get_wch()
+            if isinstance(key, str):
+                lowered = key.lower()
+                if lowered in ("\n", "\r"):
+                    self.footer = footer
+                    self.render()
+                    return default
+                if lowered == "y":
+                    self.footer = footer
+                    self.render()
+                    return True
+                if lowered == "n":
+                    self.footer = footer
+                    self.render()
+                    return False
+                if lowered == "\x1b":
+                    self.footer = footer
+                    self.render()
+                    return False
+
+    def render_modal(self, lines: Sequence[str]) -> None:
+        self.render()
+        height, width = self.stdscr.getmaxyx()
+        body: List[str] = []
+        for line in lines:
+            body.extend(textwrap.wrap(line, width=max(12, min(width - 12, 68))) or [""])
+        box_width = min(width - 6, max(len(line) for line in body) + 4 if body else 24)
+        box_height = min(height - 6, len(body) + 4)
+        start_y = max(2, (height - box_height) // 2)
+        start_x = max(2, (width - box_width) // 2)
+        with contextlib.suppress(curses.error):
+            self.stdscr.attron(curses.A_BOLD)
+        for y in range(box_height):
+            for x in range(box_width):
+                ch = " "
+                if y in (0, box_height - 1):
+                    ch = "─" if 0 < x < box_width - 1 else ("┌" if (y, x) == (0, 0) else "┐" if (y, x) == (0, box_width - 1) else "└" if (y, x) == (box_height - 1, 0) else "┘")
+                elif x in (0, box_width - 1):
+                    ch = "│"
+                self._safe_addstr(start_y + y, start_x + x, ch, curses.A_BOLD)
+        text_y = start_y + 2
+        for line in body[: max(0, box_height - 4)]:
+            self._safe_addstr(text_y, start_x + 2, line, curses.A_NORMAL)
+            text_y += 1
+        self.stdscr.refresh()
 
     def run_command(
         self,
         args: Sequence[str],
         *,
-        cwd: Path | None = None,
-        env: dict[str, str] | None = None,
-        heartbeat_message: str | None = None,
+        cwd: Optional[Path] = None,
+        env: Optional[dict[str, str]] = None,
+        heartbeat_message: Optional[str] = None,
         heartbeat_interval: float = 5.0,
     ) -> None:
         self.log(f"$ {shlex.join([str(part) for part in args])}")
@@ -226,7 +279,7 @@ class InstallTUI:
                 y += 1
 
         self._safe_addstr(3, right_x, "Live Log", curses.A_BOLD)
-        log_lines: list[tuple[str, str]] = []
+        log_lines: List[Tuple[str, str]] = []
         for level, line in self.logs:
             wrapped = textwrap.wrap(line, width=log_width) or [""]
             for part in wrapped:
@@ -249,7 +302,7 @@ class InstallTUI:
 
 
 @contextlib.contextmanager
-def open_tui(*, title: str, subtitle: str, steps: list[Step]) -> Iterator[InstallTUI | None]:
+def open_tui(*, title: str, subtitle: str, steps: List[Step]) -> Iterator[Optional[InstallTUI]]:
     if not InstallTUI.supported():
         yield None
         return
