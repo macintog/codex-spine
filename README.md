@@ -24,10 +24,12 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 ## What It Includes
 
 - managed install, verify, update, and component status commands
+- manifest-driven component maintenance pinned in `MAINTAINED_COMPONENTS.toml`
 - generated Codex config for the public core
 - shell integration and launchd-backed transcript sync on macOS
 - [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
 - optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a managed enablement flow
+- shipped first-party skills for public maintenance and multi-session continuity
 
 ## Quick Start
 
@@ -136,6 +138,7 @@ When testing a branch or release candidate, do the QA pass from a fresh or fresh
 - `codex/AGENTS.md`: repo-specific agent/operator rules for public-safe maintenance work
 
 Maintainer-only export and QA docs are intentionally kept outside the shipped public tree. This repo should remain safe to publish as-is.
+The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`; private export provenance and boundary classification stay in the paired private source repo.
 
 ## Third-Party Components And Licensing
 

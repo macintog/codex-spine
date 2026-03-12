@@ -25,16 +25,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FRAGMENT_PATHS = [
     REPO_ROOT / "codex/config/00-base.toml",
     REPO_ROOT / "codex/config/20-codex-spine-mcps.toml",
-    REPO_ROOT / "codex/config/30-skills.toml",
 ]
 LOCAL_CONFIG_EXAMPLE = REPO_ROOT / "codex/config/90-local.toml.example"
 LOCAL_CONFIG_OVERLAY = REPO_ROOT / "codex/config/90-local.toml"
 ADOPTED_CONFIG_OVERLAY = REPO_ROOT / "codex/config/80-adopted.toml"
 LOCAL_ENV_EXAMPLE = REPO_ROOT / "shell/codex.local.env.example"
 LOCAL_ENV_FILE = REPO_ROOT / "shell/codex.local.env"
-COMPONENTS_PATH = REPO_ROOT / "COMPONENTS.toml"
 MAINTAINED_COMPONENTS_PATH = REPO_ROOT / "MAINTAINED_COMPONENTS.toml"
-EXPORT_STATE_PATH = REPO_ROOT / "EXPORT_STATE.toml"
 
 LIVE_CONFIG_PATH = HOME / ".codex/config.toml"
 LAUNCH_AGENTS_DIR = HOME / "Library/LaunchAgents"
@@ -132,25 +129,6 @@ FORBIDDEN_PUBLIC_DOC_PATTERNS = {
     "QA_MATRIX.md": re.compile(r"\bQA_MATRIX\.md\b"),
     "private Gitea": re.compile(r"\bprivate Gitea\b", re.IGNORECASE),
 }
-
-REQUIRED_COMPONENT_FIELDS = {
-    "name",
-    "summary",
-    "boundary_class",
-    "release_ready",
-    "release_blockers",
-    "install_model",
-    "maintenance_model",
-    "upstream_source",
-    "license_mode",
-    "license_source",
-    "optionality",
-    "formal_affiliation",
-    "notes",
-}
-
-ALLOWED_BOUNDARY_CLASSES = {"public-core"}
-
 
 @dataclass(frozen=True)
 class ManagedLink:
@@ -431,52 +409,6 @@ def load_toml_file(path: Path) -> dict:
     if not content.strip():
         return {}
     return tomllib.loads(content)
-
-
-def validate_components_registry(path: Path = COMPONENTS_PATH) -> list[str]:
-    if not path.exists():
-        return [f"missing component registry: {path}"]
-
-    try:
-        parsed = load_toml_file(path)
-    except tomllib.TOMLDecodeError as exc:
-        return [f"invalid component registry TOML: {path}: {exc}"]
-
-    components = parsed.get("components")
-    if not isinstance(components, dict) or not components:
-        return [f"component registry must define at least one [components.<name>] table: {path}"]
-
-    errors: list[str] = []
-    for component_key, raw_component in components.items():
-        if not isinstance(raw_component, dict):
-            errors.append(f"component entry must be a table: components.{component_key}")
-            continue
-
-        missing = sorted(REQUIRED_COMPONENT_FIELDS - raw_component.keys())
-        if missing:
-            errors.append(
-                f"component entry is missing required fields: components.{component_key}: {', '.join(missing)}"
-            )
-            continue
-
-        boundary_class = raw_component.get("boundary_class")
-        if boundary_class not in ALLOWED_BOUNDARY_CLASSES:
-            errors.append(
-                f"component entry has invalid boundary_class: components.{component_key}: {boundary_class!r}"
-            )
-
-        if not isinstance(raw_component.get("release_ready"), bool):
-            errors.append(
-                f"component entry field must be boolean: components.{component_key}.release_ready"
-            )
-        for field_name in ("release_blockers", "notes"):
-            value = raw_component.get(field_name)
-            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-                errors.append(
-                    f"component entry field must be a list of strings: components.{component_key}.{field_name}"
-                )
-
-    return errors
 
 
 def deep_merge(base: dict, overlay: dict) -> dict:
@@ -928,77 +860,6 @@ def validate_public_doc_surface() -> list[str]:
                 )
 
     return errors
-
-
-def validate_export_state(path: Path = EXPORT_STATE_PATH) -> list[str]:
-    if not path.exists():
-        return [f"missing export state manifest: {relative_to_repo(path)}"]
-
-    try:
-        parsed = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
-        return [f"invalid export state TOML: {relative_to_repo(path)}: {exc}"]
-
-    export = parsed.get("export")
-    if not isinstance(export, dict):
-        return [f"export state is missing [export]: {relative_to_repo(path)}"]
-
-    files = export.get("files")
-    if not isinstance(files, list) or not files:
-        return [f"export state is missing [[export.files]] entries: {relative_to_repo(path)}"]
-
-    errors: list[str] = []
-    expected_paths = {relative_to_repo(path)}
-    seen_paths: set[str] = set()
-    for index, item in enumerate(files, start=1):
-        if not isinstance(item, dict):
-            errors.append(f"export state entry must be a table: export.files[{index}]")
-            continue
-        rel_path = item.get("path")
-        sha256 = item.get("sha256")
-        executable = item.get("executable")
-        if not isinstance(rel_path, str) or not rel_path:
-            errors.append(f"export state entry is missing path: export.files[{index}]")
-            continue
-        if not isinstance(sha256, str) or not sha256:
-            errors.append(f"export state entry is missing sha256: export.files[{index}]")
-        if not isinstance(executable, bool):
-            errors.append(f"export state entry is missing executable flag: export.files[{index}]")
-        if rel_path in seen_paths:
-            errors.append(f"export state lists the same path multiple times: {rel_path}")
-            continue
-        seen_paths.add(rel_path)
-        expected_paths.add(rel_path)
-
-        file_path = REPO_ROOT / rel_path
-        if not file_path.exists():
-            errors.append(f"exported file listed in export state is missing: {rel_path}")
-            continue
-        actual_sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
-        if isinstance(sha256, str) and actual_sha256 != sha256:
-            errors.append(f"exported file content drifted from export state: {rel_path}")
-        if isinstance(executable, bool):
-            actual_executable = bool(file_path.stat().st_mode & 0o111)
-            if actual_executable != executable:
-                errors.append(f"exported file executable bit drifted from export state: {rel_path}")
-
-    result = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
-        errors.append(f"unable to inspect tracked repo files for export-state validation: {detail}")
-        return errors
-
-    tracked_paths = {entry for entry in result.stdout.split("\0") if entry}
-    for extra_path in sorted(tracked_paths - expected_paths):
-        errors.append(f"tracked repo file is outside the canonical export state: {extra_path}")
-
-    return errors
-
 
 def detect_secret_hits(text: str) -> list[str]:
     hits: list[str] = []

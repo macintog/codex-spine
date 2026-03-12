@@ -19,8 +19,6 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 from codex_spine import (  # noqa: E402
     BLOCK_END,
     BLOCK_START,
-    COMPONENTS_PATH,
-    EXPORT_STATE_PATH,
     HOME,
     LIVE_CONFIG_PATH,
     LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
@@ -40,8 +38,6 @@ from codex_spine import (  # noqa: E402
     runtime_env,
     shell_source_targets,
     text_file_paths,
-    validate_components_registry,
-    validate_export_state,
     validate_public_doc_surface,
 )
 from component_manager import component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
@@ -715,9 +711,7 @@ def main() -> int:
 
     errors: list[str] = []
     warnings: list[str] = []
-    errors.extend(validate_components_registry(COMPONENTS_PATH))
     errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
-    errors.extend(validate_export_state())
     errors.extend(validate_public_doc_surface())
     errors.extend(validate_public_agents_policy())
     errors.extend(validate_memory_public_surface())
@@ -731,8 +725,6 @@ def main() -> int:
         secret_hits = detect_secret_hits(text)
         if secret_hits:
             errors.append(f"tracked repo file appears to contain a secret: {path}")
-        if path == EXPORT_STATE_PATH:
-            continue
         private_hits = detect_private_reference_hits(text, public_surface=True)
         if private_hits:
             errors.append(f"tracked repo file still contains private references: {path}: {', '.join(private_hits)}")

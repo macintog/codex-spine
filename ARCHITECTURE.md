@@ -11,7 +11,6 @@ codex-spine/
 ├── ARCHITECTURE.md
 ├── SECURITY.md
 ├── CHANGELOG.md
-├── COMPONENTS.toml
 ├── MAINTAINED_COMPONENTS.toml
 ├── lib/
 │   ├── codex_spine.py          # Shared bootstrap/verify/config helpers and registry validation
@@ -58,8 +57,7 @@ tracked repo policy + config fragments + wrappers
 ```text
 repo state + live machine state
     -> scripts/verify
-    -> component registry validation
-    -> export-state hash validation against tracked repo files
+    -> maintenance manifest validation
     -> private-reference and secret scanning
     -> symlink, shell, config, and LaunchAgent drift checks
     -> default and enabled-optional component health checks
@@ -100,7 +98,7 @@ The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch
 - [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) is optional but first-class.
 - `zsh` is the only tested shell integration path. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation.
 - launchd, shell, and config surfaces must remain free of private paths and personal-service assumptions.
-- `MAINTAINED_COMPONENTS.toml` owns acquisition/update shape; `COMPONENTS.toml` owns boundary and licensing posture.
+- `MAINTAINED_COMPONENTS.toml` owns shipped acquisition/update shape; private export tooling owns boundary classification and export provenance.
 - Managed update paths must fail closed when post-update health is red instead of accepting version-only success.
 
 ## Security and Trust Boundaries
