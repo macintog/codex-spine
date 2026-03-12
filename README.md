@@ -101,7 +101,7 @@ If `~/.codex/config.toml` already exists and is not already `codex-spine`-manage
 If you accept:
 
 - `codex-spine` imports the non-`codex-spine` parts of the current live config into the local gitignored `codex/config/80-adopted.toml`
-- backs up the previous live `~/.codex/config.toml`
+- backs up the previous live `~/.codex/config.toml` as `~/.codex/config.toml.bak.<timestamp>` before writing the managed replacement
 - renders a new live config that includes the imported settings plus the `codex-spine`-managed memory entry and wrapper support
 
 If you decline:
