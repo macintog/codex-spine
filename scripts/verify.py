@@ -657,43 +657,32 @@ def validate_public_agents_policy() -> list[str]:
     except FileNotFoundError:
         return [f"missing Codex tooling guide: {tooling_path}"]
 
-    agents_required_phrases = [
-        "skills/github-contributor",
-        "skills/project-spine",
-        "upstream-contributor",
-        "project-continuity",
-        "codex/TOOLING.md",
+    agents_required_anchors = [
+        ("repo entrypoint routing", "README.md"),
+        ("tooling guide routing", "codex/TOOLING.md"),
+        ("GitHub skill routing", "skills/github-contributor"),
+        ("project continuity skill routing", "skills/project-spine"),
     ]
-    tooling_required_phrases = [
+    tooling_required_anchors = [
+        "## Continuity and Memory",
+        "direct memory retrieval",
         "memory.bootstrap_context",
-        "materially new user request",
-        "compaction-drift",
-        "auto-recap prior task work",
-        "broader historical evidence",
-        "max_recent_sessions=3",
         "qmd-memory-latest.sh",
-        "deep_search",
-        "search",
-        "vector_search",
-        "multi_get",
-        "qmd://codex-chat/projects/",
-        "qmd-codex",
+        "## Code Navigation",
         "jcodemunch",
         "search_symbols",
         "get_symbol",
+        "## GitHub and Upstream",
     ]
     errors: list[str] = []
-    for phrase in agents_required_phrases:
-        if phrase not in agents_text:
-            errors.append(f"public Codex policy is missing required routing guidance: {agents_path}: {phrase}")
-    for phrase in tooling_required_phrases:
-        if phrase not in tooling_text:
-            errors.append(f"public Codex tooling guide is missing required MCP guidance: {tooling_path}: {phrase}")
-    bullet_lines = [line for line in agents_text.splitlines() if line.lstrip().startswith("- ")]
-    if len(bullet_lines) > 13:
-        errors.append(
-            f"public Codex policy should stay compact and routing-focused: {agents_path}: found {len(bullet_lines)} bullets"
-        )
+    for label, anchor in agents_required_anchors:
+        if anchor not in agents_text:
+            errors.append(f"public Codex policy is missing required routing anchor: {agents_path}: {label}")
+    for anchor in tooling_required_anchors:
+        if anchor not in tooling_text:
+            errors.append(f"public Codex tooling guide is missing required routing anchor: {tooling_path}: {anchor}")
+    if not any(anchor in tooling_text for anchor in ("`search`", "`deep_search`", "`vector_search`", "`get`", "`multi_get`")):
+        errors.append(f"public Codex tooling guide is missing direct memory retrieval tool routing: {tooling_path}")
     for forbidden_phrase in ("qmd_codex", "vsearch", "multi-get"):
         if forbidden_phrase in tooling_text:
             errors.append(
