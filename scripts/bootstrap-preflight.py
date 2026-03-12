@@ -29,7 +29,7 @@ def install_steps() -> List[Step]:
         Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
         Step("Step 2 of 4", "Optional code search", "Choose whether to add optional indexed code navigation."),
         Step("Step 3 of 4", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
-        Step("Step 4 of 4", "Install Codex tools", "Install qmd and the rest of the codex-spine tools in this same window."),
+        Step("Step 4 of 4", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
     ]
 
 def find_brew() -> Optional[str]:
@@ -239,8 +239,8 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
 
 def continue_into_managed_install(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(3, note="Continuing straight into the rest of setup.")
-        ui.finish_step(3, status="ok", note="Preflight is done. Setup is continuing in this same window.")
+        ui.set_step(3, note="Installing qmd and the rest of the codex-spine tools next.")
+        ui.finish_step(3, status="ok", note="Preflight is done.")
         ui.reconfigure(
             title="codex-spine installer",
             subtitle="",

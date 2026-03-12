@@ -146,8 +146,8 @@ class InstallTUI:
             self.footer = footer
         if clear_logs:
             self.logs.clear()
-            self.clear_bottom_panel()
-            self.clear_activity()
+            self.clear_bottom_panel(render=False)
+            self.clear_activity(render=False)
         self.render()
 
     def set_step(self, index: int, *, status: str = "in_progress", note: str = "") -> None:
@@ -411,10 +411,11 @@ class InstallTUI:
         self.bottom_panel_lines = self.bottom_panel_lines[-3:]
         self.render()
 
-    def clear_bottom_panel(self) -> None:
+    def clear_bottom_panel(self, *, render: bool = True) -> None:
         self.bottom_panel_title = ""
         self.bottom_panel_lines = []
-        self.render()
+        if render:
+            self.render()
 
     def pulse_activity(self, message: str, *, render: bool = True) -> bool:
         now = time.monotonic()
