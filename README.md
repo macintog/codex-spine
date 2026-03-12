@@ -116,7 +116,7 @@ After a successful first run:
 
 ## Branch QA
 
-When testing a branch or release candidate, do the QA pass from a `codex-spine` clone, print the exact commit with `git rev-parse --short HEAD`, then run `make install` and `make verify`. Avoid validating shipped behavior from the paired private source repo instead of the public checkout you intend to ship.
+When testing a branch or release candidate, do the QA pass from a fresh or freshly-updated `codex-spine` clone of the exact remote branch you intend to bless or publish, print the exact commit with `git rev-parse --short HEAD`, then run `make install` and `make verify`. Avoid validating shipped behavior from the paired private source repo instead of the public checkout you intend to ship.
 
 ## Troubleshooting
 

@@ -51,7 +51,7 @@ executable = false
 [[export.files]]
 path = "README.md"
 component = "qmd_memory_stack"
-sha256 = "6222f2a4f6e84443135e9cffec7cb26e19933b15abdc789b980cc54832b59467"
+sha256 = "50d3cd077ed508c86efcea716317632a3a9449ab52914f3198ddb768ea864f2e"
 executable = false
 
 [[export.files]]
