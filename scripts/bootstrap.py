@@ -310,11 +310,6 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     if shell_plan.warning:
         warn(shell_plan.warning, ui=ui)
-    if ui is not None:
-        ui.set_log_notice(
-            ["macOS may later show a one-time Background Items Added notification for sync-codex-chat-qmd.sh."],
-            level="info",
-        )
 
     if not preflight_completed:
         if ui is not None:
@@ -410,7 +405,6 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             legacy_path.unlink()
 
     write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
-
     if ui is not None:
         run_sync(ui=ui)
         ui.finish_step(3, status="ok", note="Your Codex setup, background sync, and search are ready.")
