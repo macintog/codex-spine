@@ -282,11 +282,10 @@ def run_launchctl(args: list[str], *, label: str, ui=None) -> bool:
     return False
 def install_steps() -> list[Step]:
     return [
-        Step("Step 1 of 5", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
-        Step("Step 2 of 5", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
-        Step("Step 3 of 5", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
-        Step("Step 4 of 5", "Finish setup", "Write your Codex setup, turn on background sync, and prepare search."),
-        Step("Step 5 of 5", "Verify install", "Run one last verification."),
+        Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
+        Step("Step 2 of 4", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
+        Step("Step 3 of 4", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
+        Step("Step 4 of 4", "Finish setup", "Write your Codex setup, turn on background sync, prepare search, and run the final verification."),
     ]
 
 
@@ -416,7 +415,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         run_sync()
 
     if ui is not None:
-        ui.set_step(4, note="Starting background sync and the final verification.")
+        ui.set_step(3, note="Starting background sync and the final verification.")
     run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist", ui=ui)
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
         run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}", ui=ui)
@@ -428,7 +427,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     verify_command = [str(REPO_ROOT / "scripts" / "verify")]
     if ui is not None:
-        ui.finish_step(4, status="ok", note="Installation complete.")
+        ui.finish_step(3, status="ok", note="Installation complete.")
         ui.wait_for_acknowledgement(
             [
                 "Installation complete.",

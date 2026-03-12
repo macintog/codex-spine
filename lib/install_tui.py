@@ -72,6 +72,7 @@ class InstallTUI:
         self.detached_to_terminal = False
         self._closed = False
         self._nodelay = False
+        self._pending_escape_tail: List[object] = []
         self._init_screen()
         self.render()
 
@@ -244,6 +245,8 @@ class InstallTUI:
         self.render_modal(lines, prompt_hint=prompt_hint)
         while True:
             key = self._read_key()
+            if key is None:
+                continue
             if isinstance(key, int):
                 if _is_enter_key(key):
                     return default
@@ -287,6 +290,8 @@ class InstallTUI:
         try:
             while True:
                 key = self._read_key()
+                if key is None:
+                    continue
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
@@ -328,6 +333,9 @@ class InstallTUI:
                     key = self._read_key()
                 except curses.error:
                     key = None
+                if key is None:
+                    time.sleep(0.05)
+                    continue
                 if key == curses.KEY_RESIZE:
                     if modal:
                         self.render_modal(lines, prompt_hint=prompt_hint)
@@ -353,11 +361,13 @@ class InstallTUI:
         *,
         prompt_hint: str = "Type and press Enter",
         modal_size: Optional[Tuple[int, int]] = None,
+        mask_input: bool = False,
     ) -> Optional[str]:
         typed: List[str] = []
         needs_full_redraw = True
         while True:
-            field = "> {}".format("".join(typed) if typed else "_")
+            visible = ("*" * len(typed)) if mask_input and typed else "".join(typed)
+            field = "> {}".format(visible if visible else "_")
             lines = [title, "", prompt, "", field]
             if needs_full_redraw:
                 self.render_modal(lines, prompt_hint=prompt_hint, modal_size=modal_size)
@@ -366,6 +376,8 @@ class InstallTUI:
                 layout = self._modal_layout(lines, modal_size=modal_size)
                 self._draw_modal(layout, prompt_hint=prompt_hint)
             key = self._read_key()
+            if key is None:
+                continue
             if key == curses.KEY_RESIZE:
                 needs_full_redraw = True
                 continue
@@ -436,6 +448,8 @@ class InstallTUI:
                 modal_size=modal_size,
             )
             key = self._read_key()
+            if key is None:
+                continue
             if key == curses.KEY_RESIZE:
                 continue
             if _is_enter_key(key):
@@ -687,6 +701,7 @@ class InstallTUI:
         self.log("$ {}".format(shlex.join(command)))
         master_fd, slave_fd = pty.openpty()
         self.set_bottom_panel(panel_title, intro_lines)
+        transcript = ""
         process = subprocess.Popen(
             command,
             cwd=str(cwd) if cwd else None,
@@ -707,11 +722,14 @@ class InstallTUI:
                 if ready:
                     chunk = os.read(master_fd, 1024)
                     if chunk:
-                        self.append_bottom_panel_text(chunk.decode("utf-8", errors="replace"))
+                        transcript += chunk.decode("utf-8", errors="replace")
+                        self._render_bottom_prompt_transcript(panel_title, intro_lines, transcript)
                 try:
                     key = self._read_key()
                 except curses.error:
                     key = None
+                if key is None:
+                    continue
                 if key == curses.KEY_RESIZE:
                     self.render()
                 elif isinstance(key, str):
@@ -738,6 +756,7 @@ class InstallTUI:
             raise subprocess.CalledProcessError(returncode, command)
 
     def render(self, *, refresh: bool = True) -> None:
+        self.stdscr.clear()
         self.stdscr.erase()
         height, width = self.stdscr.getmaxyx()
         left_width = 38 if width >= 90 else max(30, min(38, (width // 2) - 4))
@@ -830,13 +849,34 @@ class InstallTUI:
             return
         self._safe_addstr(y, x, " " * width)
 
+    def _render_bottom_prompt_transcript(
+        self,
+        title: str,
+        intro_lines: Sequence[str],
+        transcript: str,
+    ) -> None:
+        cleaned = _clean_terminal_text(transcript)
+        lines = [line.lstrip() for line in cleaned.splitlines()]
+        lines = [line for line in lines if line.strip()]
+        self.bottom_panel_title = title
+        self.bottom_panel_lines = [*intro_lines, *lines][-3:]
+        self.render()
+
     def _read_key(self):
         key = self.stdscr.get_wch()
+        if self._pending_escape_tail:
+            combined = [*self._pending_escape_tail, key]
+            self._pending_escape_tail = []
+            if combined in (["O", "M"], ["[", "M"]):
+                return curses.KEY_ENTER
         if key != "\x1b":
             return key
         trailing = self._read_escape_sequence_tail(limit=2)
-        if trailing == ["O", "M"]:
+        if trailing in (["O", "M"], ["[", "M"]):
             return curses.KEY_ENTER
+        if trailing in (["O"], ["["]):
+            self._pending_escape_tail = trailing
+            return None
         return key
 
     def _read_escape_sequence_tail(self, *, limit: int) -> List[object]:
@@ -847,7 +887,7 @@ class InstallTUI:
             self.stdscr.nodelay(True)
             self._nodelay = True
         trailing: List[object] = []
-        deadline = time.monotonic() + 0.03
+        deadline = time.monotonic() + 0.1
         try:
             while len(trailing) < limit and time.monotonic() < deadline:
                 try:

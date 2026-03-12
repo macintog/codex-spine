@@ -88,6 +88,48 @@ def brew_formula_installed(brew_path: str, formula: str) -> bool:
     return result.returncode == 0
 
 
+def first_nonempty_line(*chunks: str) -> str:
+    for chunk in chunks:
+        for line in chunk.splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped
+    return ""
+
+
+def confirm_sudo_access(ui) -> None:
+    if ui is None:
+        subprocess.run(["sudo", "-v"], check=True)
+        return
+    while True:
+        password = ui.prompt_text_input(
+            "macOS password",
+            "macOS needs your password before Homebrew can be installed.",
+            prompt_hint="Type password and press Enter",
+            mask_input=True,
+        )
+        if password is None:
+            raise RuntimeError("Install stopped before Homebrew password confirmation.")
+        result = subprocess.run(
+            ["sudo", "-S", "-v", "-p", ""],
+            input=password + "\n",
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        detail = first_nonempty_line(result.stderr, result.stdout) or "Password was not accepted."
+        ui.show_message(
+            [
+                "Password was not accepted.",
+                "",
+                detail,
+            ],
+            prompt_hint="Press Enter to retry",
+        )
+
+
 def preflight_existing_config(*, non_interactive: bool, ui) -> None:
     if ui is not None:
         ui.set_step(0, note="Checking whether there are existing Codex settings to carry forward.")
@@ -150,13 +192,7 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
             if ui is not None:
                 ui.status("info", "Installing Homebrew now.")
                 ui.run_command(["curl", "-fL", installer_url, "-o", str(installer_path)])
-                ui.run_bottom_prompt_command(
-                    ["sudo", "-v"],
-                    panel_title="",
-                    intro_lines=[
-                        "macOS needs your password before Homebrew can be installed.",
-                    ],
-                )
+                confirm_sudo_access(ui)
                 installer_env = os.environ.copy()
                 installer_env["NONINTERACTIVE"] = "1"
                 ui.run_command(
