@@ -19,7 +19,7 @@ from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CARET_ANSI_ESCAPE_RE = re.compile(r"\^\[\[[0-?]*[ -/]*[@-~]")
-DOWNLOAD_PROGRESS_RE = re.compile(r"^\s*[⏵▶▸▹►]?\s*([^\s]+)\s+\d+(?:\.\d+)?%\b")
+DOWNLOAD_PROGRESS_RE = re.compile(r"^\s*[⏵▶▸▹►]?\s*([^\s]+)\s+\d+(?:\.\d+)?%")
 SPINNER_STATUS_RE = re.compile(r"^[.:·⠁-⣿]+\s+(.+)$")
 ACTIVITY_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
 ACTIVITY_FRAME_INTERVAL = 0.04
@@ -175,18 +175,28 @@ class InstallTUI:
         cleaned = _clean_terminal_text(message)
         if not cleaned and level == "info":
             return
+        changed = False
         for line in cleaned.splitlines() or [""]:
             line_key = _replacement_key(line)
+            if line_key is not None:
+                replaced = False
+                for index in range(len(self.logs) - 1, -1, -1):
+                    _, previous_line = self.logs[index]
+                    if _replacement_key(previous_line) == line_key:
+                        self.logs[index] = (level, line)
+                        replaced = True
+                        changed = True
+                        break
+                if replaced:
+                    continue
             if self.logs:
                 previous_line = self.logs[-1][1]
-                previous_key = _replacement_key(previous_line)
-                if line_key is not None and line_key == previous_key:
-                    self.logs[-1] = (level, line)
-                    continue
                 if _normalize_log_line(line) == _normalize_log_line(previous_line):
                     continue
             self.logs.append((level, line))
-        self.render()
+            changed = True
+        if changed:
+            self.render()
 
     @contextlib.contextmanager
     def capture_output(self) -> Iterator[None]:

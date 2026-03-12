@@ -276,6 +276,20 @@ def install_steps() -> list[Step]:
     ]
 
 
+def _carry_preflight_step_statuses(ui) -> None:
+    carried_notes = [
+        "Your Codex settings are ready for setup.",
+        "Optional code search has been decided.",
+        "The required tools are ready.",
+    ]
+    for index, note in enumerate(carried_notes):
+        step = ui.steps[index]
+        if step.status == "pending":
+            step.status = "ok"
+        if not step.note:
+            step.note = note
+
+
 def run_install(*, non_interactive: bool, ui=None) -> None:
     shell_plan = detect_shell_integration_plan()
     preflight_completed = os.environ.get("CODEX_SPINE_PREFLIGHT_COMPLETED") == "1"
@@ -304,6 +318,9 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             )
             if installed_formulas:
                 print(f"Installed Homebrew packages: {', '.join(installed_formulas)}")
+
+    if ui is not None and preflight_completed:
+        _carry_preflight_step_statuses(ui)
 
     if ui is not None:
         ui.set_step(3, note="Getting your Codex files ready and installing qmd.")
