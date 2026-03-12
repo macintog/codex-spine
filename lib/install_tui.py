@@ -103,6 +103,8 @@ class InstallTUI:
             curses.echo()
             curses.nocbreak()
             curses.endwin()
+        sys.stdout.write("\r\n")
+        sys.stdout.flush()
 
     def color(self, status: str) -> int:
         if not curses.has_colors():
@@ -225,9 +227,18 @@ class InstallTUI:
         self.footer = ""
         self.render()
 
-    def prompt_yes_no(self, prompt: Union[str, Sequence[str]], *, default: bool) -> bool:
+    def prompt_yes_no(
+        self,
+        prompt: Union[str, Sequence[str]],
+        *,
+        default: bool,
+        allow_escape: bool = False,
+        escape_label: str = "cancel",
+    ) -> Optional[bool]:
         lines = prompt.splitlines() if isinstance(prompt, str) else [str(line) for line in prompt]
-        prompt_hint = "Enter=yes, n=no, Esc=no" if default else "y=yes, Enter=no, Esc=no"
+        prompt_hint = "Enter=yes, n=no" if default else "y=yes, Enter=no"
+        if allow_escape:
+            prompt_hint = "{}, Esc={}".format(prompt_hint, escape_label)
         self.render_modal(lines, prompt_hint=prompt_hint)
         while True:
             key = self.stdscr.get_wch()
@@ -254,19 +265,21 @@ class InstallTUI:
                 lowered = key.lower()
                 if lowered in ("\n", "\r"):
                     return default
-                if lowered == " ":
-                    return default
                 if lowered == "y":
                     return True
                 if lowered == "n":
                     return False
-                if lowered == "q":
-                    return False
-                if lowered == "\x1b":
-                    return False
+                if lowered == "\x1b" and allow_escape:
+                    return None
             curses.beep()
 
-    def show_message(self, lines: Sequence[str], *, prompt_hint: str = "Press Enter to continue") -> None:
+    def show_message(
+        self,
+        lines: Sequence[str],
+        *,
+        prompt_hint: str = "Press Enter to continue",
+        allow_escape: bool = False,
+    ) -> None:
         footer = self.footer
         self.render_modal(lines, prompt_hint=prompt_hint)
         try:
@@ -275,7 +288,7 @@ class InstallTUI:
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
-                if _is_ack_key(key):
+                if _is_ack_key(key, allow_escape=allow_escape):
                     break
         finally:
             pass
@@ -288,6 +301,7 @@ class InstallTUI:
         *,
         prompt_hint: str = "Press Enter to continue",
         on_tick=None,
+        allow_escape: bool = False,
     ) -> None:
         footer = self.footer
         self.render_modal(lines, prompt_hint=prompt_hint)
@@ -306,7 +320,7 @@ class InstallTUI:
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
-                if _is_ack_key(key):
+                if _is_ack_key(key, allow_escape=allow_escape):
                     break
                 if key is not None:
                     curses.beep()
@@ -361,7 +375,7 @@ class InstallTUI:
         title: str,
         text: str,
         *,
-        prompt_hint: str = "Enter advances; q or Esc cancels",
+        prompt_hint: str = "Enter advances; Esc cancels",
     ) -> bool:
         height, width = self.stdscr.getmaxyx()
         modal_width = max(28, min(width - 6, 96))
@@ -399,9 +413,9 @@ class InstallTUI:
                 continue
             if isinstance(key, str):
                 lowered = key.lower()
-                if lowered == "\x1b" or lowered == "q":
+                if lowered == "\x1b":
                     return False
-                if lowered in ("\n", "\r", " "):
+                if lowered in ("\n", "\r"):
                     if page_index >= len(pages) - 1:
                         return True
                     page_index = min(len(pages) - 1, page_index + 1)
@@ -472,8 +486,12 @@ class InstallTUI:
         prompt_hint: Optional[str] = None,
         modal_size: Optional[Tuple[int, int]] = None,
     ) -> None:
-        self.render()
-        self._draw_modal(self._modal_layout(lines, modal_size=modal_size), prompt_hint=prompt_hint)
+        self.render(refresh=False)
+        self._draw_modal(
+            self._modal_layout(lines, modal_size=modal_size),
+            prompt_hint=prompt_hint,
+            refresh=True,
+        )
 
     def _modal_layout(
         self,
@@ -500,6 +518,7 @@ class InstallTUI:
         layout: Tuple[int, int, int, int, List[str]],
         *,
         prompt_hint: Optional[str] = None,
+        refresh: bool = True,
     ) -> None:
         start_y, start_x, box_width, box_height, body = layout
         with contextlib.suppress(curses.error):
@@ -520,7 +539,8 @@ class InstallTUI:
         for line in body[: max(0, box_height - 4)]:
             self._safe_addstr(text_y, start_x + 2, line, curses.A_NORMAL)
             text_y += 1
-        self.stdscr.refresh()
+        if refresh:
+            self.stdscr.refresh()
 
     def run_command(
         self,
@@ -673,7 +693,7 @@ class InstallTUI:
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, command)
 
-    def render(self) -> None:
+    def render(self, *, refresh: bool = True) -> None:
         self.stdscr.erase()
         height, width = self.stdscr.getmaxyx()
         left_width = 38 if width >= 90 else max(30, min(38, (width // 2) - 4))
@@ -748,7 +768,8 @@ class InstallTUI:
             spinner = ACTIVITY_FRAMES[self.activity_frame]
             footer_text = "{} {}".format(spinner, self.activity_message)
         self._safe_addstr(height - 2, 2, footer_text[: width - 4], curses.A_DIM)
-        self.stdscr.refresh()
+        if refresh:
+            self.stdscr.refresh()
 
     def _safe_addstr(self, y: int, x: int, text: str, attr: int = 0) -> None:
         height, width = self.stdscr.getmaxyx()
@@ -857,11 +878,13 @@ def _is_enter_key(key: object) -> bool:
     return key == curses.KEY_ENTER or key in (10, 13)
 
 
-def _is_ack_key(key: object) -> bool:
+def _is_ack_key(key: object, *, allow_escape: bool = False) -> bool:
     if _is_enter_key(key):
         return True
-    if key in (" ", "\x1b"):
+    if allow_escape and key == "\x1b":
         return True
-    if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b", "q"):
+    if isinstance(key, str) and key.lower() in ("\n", "\r"):
+        return True
+    if allow_escape and isinstance(key, str) and key.lower() == "\x1b":
         return True
     return False

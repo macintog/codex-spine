@@ -55,11 +55,24 @@ def plain_prompt_yes_no(prompt: Sequence[str], *, default: bool) -> bool:
     return reply in ("y", "yes")
 
 
-def prompt_yes_no(prompt: Sequence[str], *, default: bool, non_interactive: bool, ui) -> bool:
+def prompt_yes_no(
+    prompt: Sequence[str],
+    *,
+    default: bool,
+    non_interactive: bool,
+    ui,
+    allow_escape: bool = False,
+    escape_label: str = "cancel",
+) -> bool | None:
     if non_interactive or not sys.stdin.isatty():
         return default
     if ui is not None:
-        return ui.prompt_yes_no(prompt, default=default)
+        return ui.prompt_yes_no(
+            prompt,
+            default=default,
+            allow_escape=allow_escape,
+            escape_label=escape_label,
+        )
     return plain_prompt_yes_no(prompt, default=default)
 
 
@@ -160,7 +173,11 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
         default=True,
         non_interactive=non_interactive,
         ui=ui,
+        allow_escape=True,
+        escape_label="exit",
     )
+    if include_component is None:
+        raise RuntimeError("Install stopped before choosing whether to include the optional jCodeMunch stage.")
     os.environ["CODEX_SPINE_JCODEMUNCH_CHOICE"] = "enable" if include_component else "skip"
     if ui is not None:
         note = (
@@ -281,7 +298,8 @@ def main() -> int:
                     "",
                     str(exc),
                 ],
-                prompt_hint="Press Enter, Space, or Esc to exit",
+                prompt_hint="Press Enter or Esc to exit",
+                allow_escape=True,
             )
         print("ERROR: {}".format(exc), file=sys.stderr)
         return 1
@@ -297,7 +315,8 @@ def main() -> int:
                     "",
                     "See the terminal output above for the failing command details.",
                 ],
-                prompt_hint="Press Enter, Space, or Esc to exit",
+                prompt_hint="Press Enter or Esc to exit",
+                allow_escape=True,
             )
         print("ERROR: command failed with exit status {}: {}".format(exc.returncode, " ".join(exc.cmd)), file=sys.stderr)
         print("See output above for details.", file=sys.stderr)

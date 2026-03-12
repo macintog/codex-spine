@@ -134,7 +134,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         if bundle is not None and not ui.page_text(
             "Optional jCodeMunch MCP terms",
             bundle["text"],
-            prompt_hint="Enter advances; q or Esc cancels",
+            prompt_hint="Enter advances; Esc cancels",
         ):
             ui.status("info", "Continuing install without optional jCodeMunch MCP.")
             return False
@@ -161,7 +161,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
                     continue
                 ui.show_message(
                     ["Type 'accept' to continue, or press Esc to skip."],
-                    prompt_hint="Press Enter, Space, or Esc to return",
+                    prompt_hint="Press Enter to return",
                 )
     else:
         try:
@@ -499,7 +499,8 @@ def main() -> int:
                     "",
                     str(exc),
                 ],
-                prompt_hint="Press Enter, Space, or Esc to exit",
+                prompt_hint="Press Enter or Esc to exit",
+                allow_escape=True,
             )
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -515,7 +516,8 @@ def main() -> int:
                     "",
                     "See the terminal output above for the failing command details.",
                 ],
-                prompt_hint="Press Enter, Space, or Esc to exit",
+                prompt_hint="Press Enter or Esc to exit",
+                allow_escape=True,
             )
         print(f"ERROR: command failed with exit status {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
         print("See output above for details.", file=sys.stderr)
