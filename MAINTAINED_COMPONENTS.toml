@@ -15,15 +15,14 @@ version_args = ["--version"]
 health_args = ["status"]
 
 [components."jcodemunch-mcp"]
-summary = "jCodeMunch MCP command used for indexed code navigation through a pinned uvx invocation."
+summary = "jCodeMunch MCP command used for indexed code navigation through a managed uvx invocation."
 default_enabled = false
 
 [components."jcodemunch-mcp".backends.codex_spine]
 kind = "uvx_tool"
 package_name = "jcodemunch-mcp"
-pinned_version = "1.1.1"
+version_spec = "<2.0"
 executable = "uvx"
 tool_name = "jcodemunch-mcp"
 version_args = ["--version"]
-license_source_url = "https://raw.githubusercontent.com/jgravelle/jcodemunch-mcp/v1.1.1/README.md"
-license_start_marker = "## License (Dual Use)"
+requires_acknowledgement = true

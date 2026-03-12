@@ -145,7 +145,7 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
         "Optional component: jCodeMunch MCP",
         "",
         "If you want indexed code navigation, codex-spine can include the optional jCodeMunch MCP integration later in this install.",
-        "Later in the install, codex-spine will still fetch the pinned upstream terms and require explicit acknowledgement before enabling it.",
+        "Later in the install, codex-spine will still ask for one acknowledgement before enabling it.",
     ]
     if already_enabled:
         prompt_lines = [

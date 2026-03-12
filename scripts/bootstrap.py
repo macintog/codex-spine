@@ -47,10 +47,10 @@ from codex_spine import (  # noqa: E402
 )
 from component_manager import (  # noqa: E402
     _run_live_with_heartbeat,
+    component_acknowledgement_lines,
     component_status,
-    ensure_license_acknowledged,
-    fetch_license_terms,
-    record_license_acknowledgement,
+    ensure_component_acknowledged,
+    record_component_enabled,
     resolve_components,
     update_component,
 )
@@ -124,46 +124,14 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         raise RuntimeError("missing optional component definition: jcodemunch-mcp")
 
     if ui is not None:
-        try:
-            bundle = fetch_license_terms(component)
-        except RuntimeError as exc:
-            warn(str(exc), ui=ui)
-            return False
-        if bundle is None:
-            raise RuntimeError(f"missing pinned upstream terms for {component.name}")
-        if not ui.page_text(
-            "Optional jCodeMunch MCP terms",
-            bundle["text"],
-            prompt_hint="Enter advances; q or Esc cancels",
-        ):
+        lines = component_acknowledgement_lines(component)
+        accepted = ui.prompt_yes_no(lines + ["", "Enable it now?"], default=True)
+        if not accepted:
             ui.status("info", "Continuing install without optional jCodeMunch MCP.")
             return False
-        while True:
-            reply = ui.prompt_text_input(
-                "Optional jCodeMunch MCP",
-                "Type 'accept' to continue, or press Esc to skip:",
-                prompt_hint="Type accept and press Enter",
-                modal_size=ui.last_modal_size,
-            )
-            normalized = (reply or "").strip().lower()
-            if normalized == "accept":
-                break
-            if normalized in {"", "skip", "s", "no", "n", "q", "quit"} or reply is None:
-                if ui.prompt_yes_no(["Skip optional jCodeMunch MCP for now?"], default=False):
-                    ui.status("info", "Continuing install without optional jCodeMunch MCP.")
-                    return False
-                continue
-            ui.show_message(
-                ["Type 'accept' to continue, or press Esc to skip."],
-                prompt_hint="Press Enter to return",
-            )
-        record_license_acknowledgement(component, bundle)
     else:
-        print("\nYou chose to include optional jCodeMunch MCP in this install.")
-        print("codex-spine will fetch the pinned upstream terms now and ask for explicit acknowledgement before enabling it.")
-        print()
         try:
-            ensure_license_acknowledged(
+            ensure_component_acknowledged(
                 component,
                 accept_license=False,
                 non_interactive=non_interactive or not sys.stdin.isatty(),
@@ -177,7 +145,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             return False
 
     package_name = component.backend.get("package_name", component.name)
-    action_label = "validating pinned invocation for" if component.backend.get("kind") == "uvx_tool" else "installing/updating"
+    action_label = "validating compatible invocation for" if component.backend.get("kind") == "uvx_tool" else "installing/updating"
     if ui is not None:
         def ui_run_live(args, *, cwd=None, check=True, env=None):
             ui.run_command(args, cwd=cwd, env=env)
@@ -220,6 +188,8 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
         for line in update_component(component):
             print(line)
+
+    record_component_enabled(component)
 
     if ui is not None:
         ui.status("ok", "Optional jCodeMunch setup is ready.")

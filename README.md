@@ -39,7 +39,7 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 ## What It Includes
 
 - managed install, verify, update, and component status commands
-- manifest-driven component maintenance pinned in `MAINTAINED_COMPONENTS.toml`
+- manifest-driven component maintenance in `MAINTAINED_COMPONENTS.toml`
 - generated Codex config for the managed core environment
 - shell integration and launchd-backed transcript sync on macOS
 - [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
@@ -79,7 +79,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) stays out of the default core path, but interactive install can include it when you opt in.
 
-If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. The managed overlay then wires Codex to the pinned upstream MCP through `uvx` instead of relying on a separate installed launcher path. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
+If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later asks for one acknowledgement before enabling it. The managed overlay then wires Codex to the latest compatible upstream MCP under `<2.0` through `uvx` instead of relying on a separate installed launcher path. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 
@@ -126,7 +126,7 @@ After a successful first run:
 
 ## Daily Commands
 
-- `make update`: refresh default and enabled optional components to the repo's pinned versions
+- `make update`: refresh default and enabled optional components to the repo's managed versions and compatibility constraints
 - `make verify`: validate repo state, live-machine state, component health, and wrapper health
 - `./scripts/component-status`: inspect managed component health
 - `./scripts/component-enable jcodemunch-mcp`: enable the optional upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration
@@ -143,7 +143,7 @@ When testing a branch or release candidate, start from a fresh or freshly update
 - If `launchctl` warnings appear during install, rerun `make install` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load fails.
 - If macOS shows `Background Items Added` for `sync-codex-chat-qmd.sh`, that is the expected one-time notice for the managed transcript-sync LaunchAgent.
 - If shell changes do not appear in your current terminal, open a new shell session after install.
-- If [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) will not enable, inspect the stored upstream terms retrieval error first; the enable flow intentionally hard-fails when it cannot verify the upstream terms for the pinned version.
+- If [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) will not enable, rerun `./scripts/component-enable jcodemunch-mcp` and check the reported `uvx` or version-compatibility error.
 
 ## Docs
 
@@ -162,6 +162,6 @@ The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
 
 The default retrieval foundation is built around [@tobi/qmd](https://github.com/tobi/qmd). `codex-spine` adds the public Codex-facing wrappers, transcript sync, config rendering, and operator flow around that upstream project while keeping the upstream package boundary explicit.
 
-The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project is one of the optional integrations. Its current upstream terms permit free non-commercial use and require a separate upstream commercial license for commercial use. `codex-spine` is not the upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project and does not imply formal affiliation, official distribution, or any re-licensing of upstream artifacts. Enabling [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) causes `codex-spine` to fetch the exact upstream terms for the pinned version, save a local copy, and require explicit acknowledgement before install or update. If the exact upstream terms cannot be retrieved, `codex-spine` will not enable or update [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp).
+The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project is one of the optional integrations. It remains governed by its own upstream terms, including any commercial-use restrictions the upstream project applies. `codex-spine` is not the upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project and does not imply formal affiliation, official distribution, or any re-licensing of upstream artifacts. Enabling [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) asks for one acknowledgement when you opt in, then runs the latest compatible upstream release under `<2.0` through `uvx`.
 
 When [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) is not enabled, `codex-spine` remains fully usable without that optional component.

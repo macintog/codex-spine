@@ -9,7 +9,7 @@ First public release line for `codex-spine`. Additional pre-public edits should 
 - Initial release-candidate line for `codex-spine`
 - Managed install, verify, update, and component-status commands
 - Default [@tobi/qmd](https://github.com/tobi/qmd) and memory integration
-- Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) enablement with fetched-term acknowledgement
+- Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) enablement through `uvx`, with one acknowledgement at opt-in time and a managed `<2.0` compatibility ceiling
 - Install now starts from the macOS-shipped `python3` runtime, uses it for a first-run fullscreen preflight, provisions Homebrew when needed, and then hands off to the managed Python implementation
 - Install now runs the first transcript sync and [@tobi/qmd](https://github.com/tobi/qmd) index refresh before its final `verify`, with an explicit notice that first-run memory setup may take a while
 - Interactive install now treats Homebrew as the baseline package manager, warns and skips untested non-zsh shell mutation, and keeps optional component enablement outside first-run install

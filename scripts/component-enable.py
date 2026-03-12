@@ -25,7 +25,8 @@ from codex_spine import (  # noqa: E402
     write_generated_config,
 )
 from component_manager import (  # noqa: E402
-    ensure_license_acknowledged,
+    ensure_component_acknowledged,
+    record_component_enabled,
     resolve_components,
     update_component,
 )
@@ -49,12 +50,13 @@ def main() -> int:
             return 0
 
         ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
-        ensure_license_acknowledged(
+        ensure_component_acknowledged(
             component,
             accept_license=args.accept_license,
             non_interactive=args.non_interactive or not sys.stdin.isatty(),
         )
         update_component(component)
+        record_component_enabled(component)
 
         if component.name == "jcodemunch-mcp":
             replace_managed_block(

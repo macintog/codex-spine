@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPO_ROOT / "lib"))
 from codex_spine import enabled_component_names  # noqa: E402
 from component_manager import (  # noqa: E402
     component_status,
-    ensure_license_acknowledged,
+    ensure_component_acknowledged,
     resolve_components,
     update_component,
 )
@@ -48,7 +48,7 @@ def main() -> int:
             return 1
         if not component.default_enabled and name not in enabled_optional and not args.components:
             continue
-        ensure_license_acknowledged(
+        ensure_component_acknowledged(
             component,
             accept_license=args.accept_license,
             non_interactive=args.non_interactive or not sys.stdin.isatty(),

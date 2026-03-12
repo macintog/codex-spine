@@ -31,7 +31,6 @@ from codex_spine import (  # noqa: E402
     detect_private_reference_hits,
     detect_secret_hits,
     enabled_component_names,
-    enabled_component_record,
     first_nonempty_line,
     managed_links,
     render_config_text,
@@ -41,7 +40,7 @@ from codex_spine import (  # noqa: E402
     text_file_paths,
     validate_public_doc_surface,
 )
-from component_manager import component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
+from component_manager import component_requirement, component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
 
 
 def fail(errors: list[str]) -> int:
@@ -794,7 +793,7 @@ def validate_jcodemunch_overlay_contract() -> list[str]:
     expected_args = json.dumps(
         [
             "--from",
-            f'{component.backend["package_name"]}=={component.backend["pinned_version"]}',
+            component_requirement(component),
             component.backend.get("tool_name", component.backend["package_name"]),
         ]
     )
@@ -903,10 +902,6 @@ def main() -> int:
             errors.append(f"[behavior-contract] default component is unhealthy: {component.name}: {status['detail']}")
         if component.name in enabled and not status["healthy"]:
             errors.append(f"[behavior-contract] enabled optional component is unhealthy: {component.name}: {status['detail']}")
-        if component.name in enabled:
-            record = enabled_component_record(component.name)
-            if component.backend.get("license_source_url") and not record.get("license_sha256"):
-                errors.append(f"[behavior-contract] enabled licensed component is missing license provenance: {component.name}")
 
     wrapper_checks = [
         ("qmd-codex wrapper", [str(HOME / ".local/bin/qmd-codex"), "status"]),

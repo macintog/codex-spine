@@ -781,10 +781,11 @@ def jcodemunch_mcp_overlay_body() -> str:
     kind = str(backend.get("kind", ""))
     command = str(backend.get("executable", ""))
     package_name = str(backend.get("package_name", "jcodemunch-mcp"))
-    desired = str(backend.get("pinned_version", ""))
+    version_spec = str(backend.get("version_spec", "")).strip()
+    requirement = f"{package_name}{version_spec}" if version_spec else f"{package_name}=={backend.get('pinned_version', '')}"
     tool_name = str(backend.get("tool_name", package_name))
     if kind == "uvx_tool":
-        args = ["--from", f"{package_name}=={desired}", tool_name]
+        args = ["--from", requirement, tool_name]
         return f"""[mcp_servers.jcodemunch]
 command = "{command}"
 args = {json.dumps(args)}
