@@ -92,13 +92,12 @@ class InstallTUI:
         if curses.has_colors():
             curses.start_color()
             curses.use_default_colors()
-            advice_color = 179 if getattr(curses, "COLORS", 0) >= 256 else curses.COLOR_YELLOW
             curses.init_pair(1, curses.COLOR_CYAN, -1)
             curses.init_pair(2, curses.COLOR_GREEN, -1)
             curses.init_pair(3, curses.COLOR_YELLOW, -1)
             curses.init_pair(4, curses.COLOR_RED, -1)
             curses.init_pair(5, curses.COLOR_WHITE, -1)
-            curses.init_pair(6, advice_color, -1)
+            curses.init_pair(6, curses.COLOR_MAGENTA, -1)
 
     def close(self) -> None:
         if self._closed:
@@ -370,7 +369,7 @@ class InstallTUI:
         typed: List[str] = []
         needs_full_redraw = True
         while True:
-            visible = ("*" if typed else "") if mask_input else "".join(typed)
+            visible = ("[hidden]" if typed else "") if mask_input else "".join(typed)
             field = "> {}".format(visible if visible else "_")
             lines = [title, "", prompt, "", field]
             if needs_full_redraw:
@@ -497,7 +496,7 @@ class InstallTUI:
         if render:
             self.render()
 
-    def set_log_notice(self, lines: Sequence[str], *, level: str = "info") -> None:
+    def set_log_notice(self, lines: Sequence[str], *, level: str = "advice") -> None:
         self.log_notice_lines = [(level, _clean_terminal_text(line)) for line in lines]
         self.render()
 
@@ -818,8 +817,8 @@ class InstallTUI:
                 y += 1
 
         self._safe_addstr(plan_header_y, right_x, "Live Log", curses.A_BOLD)
-        notice_lines: List[Tuple[str, str]] = []
         log_lines: List[Tuple[str, str]] = []
+        notice_lines: List[Tuple[str, str]] = []
         for level, line in self.log_notice_lines:
             wrapped = textwrap.wrap(_clean_terminal_text(line), width=log_width) or [""]
             for part in wrapped:
@@ -836,7 +835,8 @@ class InstallTUI:
             log_y += 1
         if notice_lines and log_y <= content_bottom:
             log_y += 1
-        visible = log_lines[-max(1, content_bottom - log_y + 1) :]
+        visible_capacity = max(1, content_bottom - log_y + 1)
+        visible = log_lines[-visible_capacity:]
         for level, line in visible:
             if log_y > content_bottom:
                 break
