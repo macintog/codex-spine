@@ -40,11 +40,11 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 
 - managed install, verify, update, and component status commands
 - manifest-driven component maintenance pinned in `MAINTAINED_COMPONENTS.toml`
-- generated Codex config for the public core
+- generated Codex config for the managed core environment
 - shell integration and launchd-backed transcript sync on macOS
 - [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
 - optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a managed enablement flow
-- shipped first-party skills for public maintenance and multi-session continuity
+- shipped first-party skills for GitHub work and multi-session continuity
 
 ## Quick Start
 
@@ -150,9 +150,9 @@ When testing a branch or release candidate, start from a fresh or freshly update
 - `ARCHITECTURE.md`: subsystem map, flows, and invariants
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
-- `codex/AGENTS.md`: repo-specific agent/operator rules for public-safe maintenance work
+- `codex/AGENTS.md`: shipped Codex policy and workflow guidance
 
-This repo ships the public docs needed to install, operate, and maintain `codex-spine`.
+This repo ships the docs needed to install, operate, and maintain `codex-spine`.
 The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
 
 ## Third-Party Components And Licensing

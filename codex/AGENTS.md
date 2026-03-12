@@ -5,10 +5,8 @@
 - Use `skills/github-contributor` for GitHub-hosted work such as release discipline, documentation quality, component boundaries, repo shaping, and upstreamability decisions.
 - Use `skills/project-spine` for project-focused continuity work that needs to stay coherent across threads, branches, and longer runs of work.
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits or one-off environment mutations.
-- Keep public docs honest about optional third-party components, their licenses, and the lack of formal affiliation with upstream projects.
-- Keep this repository safe to publish. Do not add secrets, personal paths, internal-only URLs, or transient maintainer notes here.
 - Prefer durable fixes at the source that actually owns a behavior instead of duplicating the same change across multiple layers.
-- Keep user-facing guidance runnable from this repo with the commands and files it actually ships.
+- Keep guidance runnable with the commands and files actually available in the working tree.
 - Before non-trivial repo-touching work, give a short task-start brief that names the repo or branch posture, adjacent surfaces, validation plan, and any destructive-move guard.
 - Build a required-surface checklist before non-trivial edits. If a change affects a managed or advertised surface, update implementation, verification, and shipped guidance together.
 - Treat Git as an explicit operating discipline: reason about repo role, base, current branch or worktree, unique local state, and intended integration path before mutating history or files.
