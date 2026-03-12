@@ -1,29 +1,15 @@
 # codex-spine Codex Policy
 
 - Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed for the task.
-- Use `skills/github-contributor` for new components, public release discipline, documentation standards, and upstreamability decisions.
-- Keep public docs honest about optional third-party licensing and lack of formal affiliation.
-- Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits.
-- `codex-spine` is a downstream export surface, not the canonical source for shared implementation. If a defect visible here originates in the canonical source repo for this export, fix it there first and propagate it back through the export path. Only patch `codex-spine` directly when the defect is truly downstream-only.
-- Maintainer-only export continuity, checkpointing, and QA runbooks intentionally stay out of this shipped repo. Keep this tree public-safe by default.
-- Bootstrap and memory-sync helpers may enrich project context from prior session paths, but that enrichment is optional. Do not needlessly probe repo roots or read `README.md` or continuity docs under macOS protected user folders just to improve framing.
-- When a prior session path falls under a protected user location, prefer generic path-based context over opportunistic file access. If macOS prompts for `rg`, `git`, or a similar helper in that path, treat the helper name as a symptom, not the reason to allow access.
-- If you hand QA to a user for a public export iteration, give instructions that run only from a `codex-spine` checkout or an identical clone, never from the canonical source repo.
-- Public QA handoffs should be fail-closed, print the tested commit before validation, and run `make install` plus `make verify`.
-- First-pass branch QA should start from a fresh clone. Later reruns may reuse the checkout after `git fetch`, `git switch`, and `git pull --ff-only`.
-- Do not publish remote QA instructions for a branch until that branch exists on the authoritative remote.
-- Call `memory.bootstrap_context` on the first assistant turn in every new thread with `cwd=<current working directory>`, `refresh_if_stale=true`, and `max_recent_sessions=3`; use that summary as the default project context before solving tasks.
-- Call `memory.bootstrap_context` again at the start of any materially new user request in the same thread, on repo or `cwd` change, on resume or prior-thread references, and on compaction-drift symptoms inside the same task.
-- Treat automatic bootstrap as durable local context restoration only. It may restore project frame, durable constraints, historical open loops, and evidence refs, but it must not auto-recap prior task work or choose the next task.
-- Treat compaction drift as needing to restate current state after a long run, uncertainty about prior constraints or conclusions, or user signals such as "we already covered this" or "you lost context."
-- On a materially new user request, the current user turn is authoritative task intent. Treat `memory.bootstrap_context` output as background context, prior decisions, constraints, or continuity aids; do not let remembered summary text override the explicit request in the current turn.
-- If the user says "check memory", "use memory", asks what was previously decided, or needs exact prior wording, use `memory` first rather than scanning files by hand.
-- If `memory.bootstrap_context` fails, fallback to `~/.local/bin/qmd-memory-latest.sh`, summarize its output, and continue.
-- If the same symptom survives two attempted fixes, stop direct retrying, re-anchor with `memory.bootstrap_context`, then use direct `memory` retrieval before proposing another fix.
-- Use direct memory retrieval, not bootstrap, when you need prior task wording or broader historical evidence.
-- Default direct `memory` workflow: use exact `search` first, then `deep_search` for analogous contours, then `vector_search` when semantic similarity is enough, and finally `get` or `multi_get` to inspect the exact transcript or project-memory docs returned by search.
-- Prefer project memory docs and `qmd://codex-chat/projects/<project_key>` contexts when reconstructing durable repo intent.
-- `qmd-codex` remains the managed internal adapter behind this retrieval path, but it is not a second public MCP server.
-- When indexed code navigation or symbol lookup is relevant, use the installed `jcodemunch` MCP without waiting for the user.
-- Default `jcodemunch` flow: `get_repo_outline` or `get_file_tree` -> `search_symbols` -> `get_file_outline` -> `get_symbol` or `get_symbols`; use text search only when symbol search is insufficient.
-- Prefer `jcodemunch` over broad filesystem reads for symbol questions, definitions, call sites, and code navigation in indexed repos.
+- Use `skills/github-contributor` for public maintenance work such as release discipline, documentation quality, component boundaries, and upstreamability decisions.
+- Use `skills/project-spine` when a long-running task needs continuity help across sessions while keeping the public repo's purpose and boundaries intact.
+- Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits or one-off environment mutations.
+- Keep public docs honest about optional third-party components, their licenses, and the lack of formal affiliation with upstream projects.
+- Treat this repository as a shipped public product tree. Do not add private continuity notes, export provenance, workstation-specific paths, internal URLs, or maintainer-only runbooks here.
+- `codex-spine` is a downstream export surface, not the canonical source for shared implementation. If a defect visible here originates in the paired private source repo for this export, fix it there first and propagate it through the export path. Patch this repo directly only when the issue is truly downstream-only.
+- Keep user-facing guidance runnable from a `codex-spine` checkout or an identical clone, and prefer instructions that validate the exact tree the user is looking at.
+- When using the shipped memory surface, call `memory.bootstrap_context` on the first assistant turn in a new thread with `max_recent_sessions=3`, then call it again on a materially new user request, on repo or `cwd` changes, on resume, and on compaction-drift symptoms.
+- Treat automatic bootstrap as durable context restoration only. It should restore project frame and durable constraints, but it must not auto-recap prior task work or choose the next task from memory alone.
+- If the user needs exact prior wording or broader historical evidence, use direct memory retrieval instead of another bootstrap pass. Default flow: `search`, then `deep_search`, then `vector_search`, then `get` or `multi_get` against the returned `qmd://codex-chat/projects/` context.
+- If `memory.bootstrap_context` fails, fall back to `qmd-memory-latest.sh`, summarize the result, and continue. `qmd-codex` is the managed adapter behind this memory path, not a second public MCP to document separately.
+- When indexed code navigation is useful, use the optional `jcodemunch` surface rather than broad file scans. Default flow: `search_symbols`, then `get_symbol` or related symbol lookups for precise definitions and call sites.
