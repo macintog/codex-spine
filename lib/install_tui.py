@@ -22,7 +22,7 @@ CARET_ANSI_ESCAPE_RE = re.compile(r"\^\[\[[0-?]*[ -/]*[@-~]")
 DOWNLOAD_PROGRESS_RE = re.compile(r"^\s*[⏵▶▸▹►]?\s*([^\s]+)\s+\d+(?:\.\d+)?%\b")
 SPINNER_STATUS_RE = re.compile(r"^[.:·⠁-⣿]+\s+(.+)$")
 ACTIVITY_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
-ACTIVITY_FRAME_INTERVAL = 0.08
+ACTIVITY_FRAME_INTERVAL = 0.04
 
 
 @dataclass

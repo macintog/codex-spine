@@ -195,7 +195,7 @@ executable = false
 [[export.files]]
 path = "lib/install_tui.py"
 component = "qmd_memory_stack"
-sha256 = "eac94982ddec1d743dc229e4961d0efcaa3ee125b758d40160055dda69e8cf56"
+sha256 = "bfa4775758a7926ee5c2f4e8fa92b9dbcd5a8cac26549e13e11f299b3da0a56f"
 executable = false
 
 [[export.files]]
