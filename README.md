@@ -1,11 +1,11 @@
 # codex-spine
 
-`codex-spine` is a macOS-first public Codex environment spine for shareable retrieval, indexing, workflow, and maintenance tooling. It installs and maintains the core pieces for you instead of turning the setup into a README scavenger hunt.
+`codex-spine` is a macOS-first public Codex environment spine for shareable retrieval, indexing, workflow, and maintenance tooling. It installs and maintains the core pieces for you instead of turning the setup into a README scavenger hunt. When everything is working, your token counts should go down while accuracy goes up.
 
 ## Requirements
 
 - macOS with a user-space Codex installation under `~/.codex`
-- stock `/usr/bin/python3` 3.9+ available on macOS 15.7.4 or later
+- stock `/usr/bin/python3` 3.9+ available as the only bootstrap dependency; tested on macOS 15.7.4 and 26.3
 
 `make install` uses Homebrew as the baseline package manager for `python`, `ripgrep`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
 Interactive install stays in one fullscreen session from the first prompt through completion.
@@ -26,21 +26,21 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 - managed install, verify, update, and component status commands
 - generated Codex config for the public core
 - shell integration and launchd-backed transcript sync on macOS
-- qmd-backed memory and retrieval plumbing by default
-- optional `jCodeMunch MCP` integration through a managed enablement flow
+- [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
+- optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a managed enablement flow
 
 ## Quick Start
 
 1. Clone the repo wherever you want to keep the managed environment.
 2. Run `make install`.
 3. Restart Codex app.
-4. Open a new shell if install updated your zsh startup files.
+4. Open a new shell if install updated your zsh startup files or installed Homebrew during setup.
 5. Run `make verify`.
-6. If you skipped the optional `jCodeMunch MCP` prompt during install and later want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
+6. If you skipped the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) prompt during install and later want indexed code navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
 `make install` is interactive when run from a TTY. On stock macOS, the installer explains the Homebrew packages it is about to install and asks for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
-If Homebrew installation needs macOS password authentication, `codex-spine` temporarily hands just that prompt back to the terminal, then returns to fullscreen for the rest of the install.
-Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local qmd index before the final verification step, so the first run can take noticeably longer than later runs.
+If Homebrew installation needs macOS password authentication, `codex-spine` keeps that prompt inside the installer's bottom panel and then continues in the same fullscreen session.
+Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local [@tobi/qmd](https://github.com/tobi/qmd) index before the final verification step, so the first run can take noticeably longer than later runs.
 
 `zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, install warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
 
@@ -50,7 +50,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 - keeps one fullscreen session through the whole interactive install
 - checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
-- for interactive installs, asks early whether you want to include the optional `jCodeMunch MCP` integration later in the same install; that prompt defaults to yes
+- for interactive installs, asks early whether you want to include the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration later in the same install; that prompt defaults to yes
 - installs Homebrew if needed and then installs any missing baseline runtime packages
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
@@ -58,11 +58,11 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 - renders `~/.codex/config.toml`
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installs or updates the default managed components
-- runs the first transcript sync and qmd index refresh so memory and transcript retrieval are warm before install finishes
+- runs the first transcript sync and [@tobi/qmd](https://github.com/tobi/qmd) index refresh so memory and transcript retrieval are warm before install finishes
 
-Optional `jCodeMunch MCP` stays out of the default core path, but interactive install can include it when you opt in.
+Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) stays out of the default core path, but interactive install can include it when you opt in.
 
-If you choose `jCodeMunch MCP` during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
+If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 
@@ -105,14 +105,14 @@ After a successful first run:
 - `make verify` proves both the native components and the Codex-facing wrapper layer (`qmd-codex` and the memory MCP launcher)
 - `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` exists
 - `~/.codex/config.toml` exists and starts with `Generated by codex-spine`
-- if you enabled `jCodeMunch MCP`, `./scripts/component-enable jcodemunch-mcp` completes and `make verify` still passes
+- if you enabled [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), `./scripts/component-enable jcodemunch-mcp` completes and `make verify` still passes
 
 ## Daily Commands
 
 - `make update`: refresh default and enabled optional components to the repo's pinned versions
 - `make verify`: validate repo state, live-machine state, component health, and wrapper health
 - `./scripts/component-status`: inspect managed component health
-- `./scripts/component-enable jcodemunch-mcp`: enable the optional upstream `jCodeMunch MCP` integration
+- `./scripts/component-enable jcodemunch-mcp`: enable the optional upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration
 
 ## Branch QA
 
@@ -126,7 +126,7 @@ When testing a branch or release candidate, do the QA pass from a fresh or fresh
 - If `launchctl` warnings appear during install, rerun `make install` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load fails.
 - If macOS shows `Background Items Added` for `sync-codex-chat-qmd.sh`, that is the expected one-time notice for the managed transcript-sync LaunchAgent.
 - If shell changes do not appear in your current terminal, open a new shell session after install.
-- If `jCodeMunch MCP` will not enable, inspect the stored upstream terms retrieval error first; the enable flow intentionally hard-fails when it cannot verify the upstream terms for the pinned version.
+- If [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) will not enable, inspect the stored upstream terms retrieval error first; the enable flow intentionally hard-fails when it cannot verify the upstream terms for the pinned version.
 
 ## Docs
 
@@ -141,6 +141,8 @@ Maintainer-only export and QA docs are intentionally kept outside the shipped pu
 
 `codex-spine` is licensed under MIT, which permits commercial use. Some managed integrations are optional and continue to be governed by their own upstream terms.
 
-The upstream [`jgravelle/jcodemunch-mcp`](https://github.com/jgravelle/jcodemunch-mcp) project (`jCodeMunch MCP`) is one of those optional integrations. Its current upstream terms permit free non-commercial use and require a separate upstream commercial license for commercial use. `codex-spine` is not the upstream `jCodeMunch MCP` project and does not imply formal affiliation, official distribution, or any re-licensing of upstream artifacts. Enabling `jCodeMunch MCP` causes `codex-spine` to fetch the exact upstream terms for the pinned version, save a local copy, and require explicit acknowledgement before install or update. If the exact upstream terms cannot be retrieved, `codex-spine` will not enable or update `jCodeMunch MCP`.
+The default retrieval foundation is built around [@tobi/qmd](https://github.com/tobi/qmd). `codex-spine` adds the public Codex-facing wrappers, transcript sync, config rendering, and operator flow around that upstream project while keeping the upstream package boundary explicit.
 
-When `jCodeMunch MCP` is not enabled, `codex-spine` remains fully usable without that optional component.
+The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project is one of the optional integrations. Its current upstream terms permit free non-commercial use and require a separate upstream commercial license for commercial use. `codex-spine` is not the upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project and does not imply formal affiliation, official distribution, or any re-licensing of upstream artifacts. Enabling [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) causes `codex-spine` to fetch the exact upstream terms for the pinned version, save a local copy, and require explicit acknowledgement before install or update. If the exact upstream terms cannot be retrieved, `codex-spine` will not enable or update [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp).
+
+When [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) is not enabled, `codex-spine` remains fully usable without that optional component.

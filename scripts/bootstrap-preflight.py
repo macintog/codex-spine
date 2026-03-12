@@ -131,21 +131,32 @@ def preflight_existing_config(*, non_interactive: bool, ui) -> None:
 def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
     if ui is not None:
         ui.set_step(1, note="Choosing whether to include optional indexed code navigation.")
-    if jcodemunch_already_enabled():
-        if ui is not None:
-            ui.finish_step(1, status="ok", note="Optional jCodeMunch support is already turned on.")
-        return
+    already_enabled = jcodemunch_already_enabled()
     if non_interactive or not sys.stdin.isatty():
         if ui is not None:
-            ui.finish_step(1, status="ok", note="Optional jCodeMunch support stays off by default in non-interactive runs.")
+            note = (
+                "Optional jCodeMunch support is already turned on."
+                if already_enabled
+                else "Optional jCodeMunch support stays off by default in non-interactive runs."
+            )
+            ui.finish_step(1, status="ok", note=note)
         return
-    include_component = prompt_yes_no(
-        [
+    prompt_lines = [
+        "Optional component: jCodeMunch MCP",
+        "",
+        "If you want indexed code navigation, codex-spine can include the optional jCodeMunch MCP integration later in this install.",
+        "Later in the install, codex-spine will still fetch the pinned upstream terms and require explicit acknowledgement before enabling it.",
+    ]
+    if already_enabled:
+        prompt_lines = [
             "Optional component: jCodeMunch MCP",
             "",
-            "If you want indexed code navigation, codex-spine can include the optional jCodeMunch MCP integration in this install.",
-            "Later in the install, codex-spine will still fetch the pinned upstream terms and require explicit acknowledgement before enabling it.",
-        ],
+            "jCodeMunch MCP is already enabled in this checkout.",
+            "codex-spine should still confirm now whether to keep the optional jCodeMunch step in this install.",
+            "If you choose no, install skips the optional jCodeMunch stage later in this run, but it does not remove an existing setup.",
+        ]
+    include_component = prompt_yes_no(
+        prompt_lines,
         default=True,
         non_interactive=non_interactive,
         ui=ui,
@@ -154,6 +165,8 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
     if ui is not None:
         note = (
             "Optional jCodeMunch setup will be offered later in the install."
+            if include_component and not already_enabled
+            else "Optional jCodeMunch support will stay in the install plan."
             if include_component
             else "Optional jCodeMunch support will be skipped for now."
         )

@@ -22,7 +22,7 @@ codex-spine/
 │   ├── render-config           # Renders ~/.codex/config.toml from tracked fragments
 │   ├── update                  # Installs or refreshes default and enabled optional components
 │   ├── component-status        # Reports managed component health
-│   └── component-enable        # Enables optional components such as jCodeMunch MCP
+│   └── component-enable        # Enables optional third-party code-navigation integrations
 ├── codex/
 │   ├── AGENTS.md               # Shipped Codex runtime policy for installations using codex-spine
 │   └── config/                 # Managed config fragments rendered into ~/.codex/config.toml
@@ -40,7 +40,7 @@ codex-spine/
 tracked repo policy + config fragments + wrappers
     -> scripts/bootstrap
     -> stock Python preflight under macOS-shipped python3
-    -> existing-config review + optional jCodeMunch choice
+    -> existing-config review + optional code-navigation choice
     -> Homebrew install if needed + baseline package checks
     -> continue in the same fullscreen installer session
     -> scripts/bootstrap.py under the current Python runtime
@@ -72,14 +72,14 @@ repo state + live machine state
 ```text
 Codex transcripts + project-memory material
     -> sync-codex-chat-qmd.sh
-    -> projected markdown + refreshed qmd index under ~/.cache/qmd/codex_chat
+    -> projected markdown + refreshed retrieval index under ~/.cache/qmd/codex_chat
     -> codex-memory-mcp public MCP surface backed by the internal qmd-codex adapter
     -> Codex startup context and transcript archaeology
 ```
 
-This subsystem is the default public core. It exists to give Codex better startup context and retrieval without requiring manual transcript spelunking.
+This subsystem is the default public core. It is built around [@tobi/qmd](https://github.com/tobi/qmd) and exists to give Codex better startup context and retrieval without requiring manual transcript spelunking.
 
-### Optional jCodeMunch MCP Flow
+### Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) Flow
 
 ```text
 user requests optional indexed code navigation
@@ -91,13 +91,13 @@ user requests optional indexed code navigation
     -> render local overlay that wires the MCP server
 ```
 
-The upstream `jgravelle/jcodemunch-mcp` project stays a separate license boundary throughout this flow. Optional enablement fails closed if the pinned upstream terms cannot be retrieved.
+The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project stays a separate license boundary throughout this flow. Optional enablement fails closed if the pinned upstream terms cannot be retrieved.
 
 ## Key Invariants
 
-- `qmd` and memory are part of the default public core.
+- [@tobi/qmd](https://github.com/tobi/qmd) and memory are part of the default public core.
 - `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
-- `jCodeMunch MCP` is optional but first-class.
+- [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) is optional but first-class.
 - `zsh` is the only tested shell integration path. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation.
 - launchd, shell, and config surfaces must remain free of private paths and personal-service assumptions.
 - `MAINTAINED_COMPONENTS.toml` owns acquisition/update shape; `COMPONENTS.toml` owns boundary and licensing posture.
@@ -107,7 +107,7 @@ The upstream `jgravelle/jcodemunch-mcp` project stays a separate license boundar
 
 - `codex-spine` is a user-space workstation tool. It does not require root, install privileged daemons, or expose a network listener.
 - Tracked repo content and generated public config are intended to remain secret-free.
-- Transcript sync and project-memory material are stored locally under `~/.cache/qmd/codex_chat`; users should treat that store as sensitive when transcripts contain sensitive material.
+- Transcript sync and project-memory material are stored locally under the [@tobi/qmd](https://github.com/tobi/qmd)-backed cache at `~/.cache/qmd/codex_chat`; users should treat that store as sensitive when transcripts contain sensitive material.
 - Optional third-party artifacts and retrieved upstream terms are external inputs. The repo reduces risk through pinned versions and explicit license-aware gating, not through sandboxing.
 
 ## Storage and Update Model
