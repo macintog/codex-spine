@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
@@ -19,8 +19,6 @@ from install_tui import Step, open_tui  # noqa: E402
 
 LIVE_CONFIG_PATH = Path.home() / ".codex" / "config.toml"
 ADOPTED_CONFIG_PATH = REPO_ROOT / "codex" / "config" / "80-adopted.toml"
-LOCAL_CONFIG_OVERLAY_PATH = REPO_ROOT / "codex" / "config" / "90-local.toml"
-COMPONENT_STATE_PATH = REPO_ROOT / ".state" / "components.toml"
 REQUIRED_FORMULAS = ["python", "ripgrep", "node", "pnpm", "uv", "jq"]
 
 
@@ -85,19 +83,6 @@ def config_is_managed() -> bool:
         return False
 
 
-def jcodemunch_already_enabled() -> bool:
-    for path in (LOCAL_CONFIG_OVERLAY_PATH, COMPONENT_STATE_PATH):
-        if not path.exists():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if "jcodemunch-mcp" in text or "[mcp_servers.jcodemunch]" in text:
-            return True
-    return False
-
-
 def brew_formula_installed(brew_path: str, formula: str) -> bool:
     result = subprocess.run([brew_path, "list", "--versions", formula], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return result.returncode == 0
@@ -140,59 +125,9 @@ def preflight_existing_config(*, non_interactive: bool, ui) -> None:
     if ui is not None:
         ui.finish_step(0, status="ok", note="Your current Codex settings will be carried into this install.")
 
-
-def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
-    if ui is not None:
-        ui.set_step(1, note="Choosing whether to include optional indexed code navigation.")
-    already_enabled = jcodemunch_already_enabled()
-    if non_interactive or not sys.stdin.isatty():
-        if ui is not None:
-            note = (
-                "Optional jCodeMunch support is already turned on."
-                if already_enabled
-                else "Optional jCodeMunch support stays off by default in non-interactive runs."
-            )
-            ui.finish_step(1, status="ok", note=note)
-        return
-    prompt_lines = [
-        "Optional component: jCodeMunch MCP",
-        "",
-        "If you want indexed code navigation, codex-spine can include the optional jCodeMunch MCP integration later in this install.",
-        "Later in the install, codex-spine will still show the current upstream terms and require an explicit accept before enabling it.",
-    ]
-    if already_enabled:
-        prompt_lines = [
-            "Optional component: jCodeMunch MCP",
-            "",
-            "jCodeMunch MCP is already enabled in this checkout.",
-            "codex-spine should still confirm now whether to keep the optional jCodeMunch step in this install.",
-            "If you choose no, install skips the optional jCodeMunch stage later in this run, but it does not remove an existing setup.",
-        ]
-    include_component = prompt_yes_no(
-        prompt_lines,
-        default=True,
-        non_interactive=non_interactive,
-        ui=ui,
-        allow_escape=True,
-        escape_label="exit",
-    )
-    if include_component is None:
-        raise RuntimeError("Install stopped before choosing whether to include the optional jCodeMunch stage.")
-    os.environ["CODEX_SPINE_JCODEMUNCH_CHOICE"] = "enable" if include_component else "skip"
-    if ui is not None:
-        note = (
-            "Optional jCodeMunch setup will be offered later in the install."
-            if include_component and not already_enabled
-            else "Optional jCodeMunch support will stay in the install plan."
-            if include_component
-            else "Optional jCodeMunch support will be skipped for now."
-        )
-        ui.finish_step(1, status="ok", note=note)
-
-
 def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(2, note="Checking for Homebrew and any missing required formulae.")
+        ui.set_step(1, note="Checking for Homebrew and any missing required formulae.")
     brew_path = find_brew()
     if brew_path is None:
         approved = prompt_yes_no(
@@ -286,7 +221,6 @@ def main() -> int:
     try:
         with open_tui(title=title, subtitle=subtitle, steps=install_steps()) as ui:
             preflight_existing_config(non_interactive=non_interactive, ui=None if non_interactive else ui)
-            preflight_optional_jcodemunch(non_interactive=non_interactive, ui=None if non_interactive else ui)
             ensure_homebrew_and_runtime(non_interactive=non_interactive, ui=None if non_interactive else ui)
             continue_into_managed_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
     except RuntimeError as exc:

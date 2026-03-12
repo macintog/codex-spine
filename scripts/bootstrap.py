@@ -112,8 +112,6 @@ def warn(message: str, *, ui=None) -> None:
 
 
 def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
-    if os.environ.get("CODEX_SPINE_JCODEMUNCH_CHOICE") != "enable":
-        return False
     if "jcodemunch-mcp" in enabled_component_names():
         if ui is not None:
             ui.status("ok", "Optional jCodeMunch MCP is already enabled.")
@@ -131,13 +129,23 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             warn(str(exc), ui=ui)
             return False
         lines = component_acknowledgement_lines(component)
-        if bundle is not None and not ui.page_text(
-            "Optional jCodeMunch MCP terms",
-            bundle["text"],
-            prompt_hint="Enter advances; Esc cancels",
-        ):
-            ui.status("info", "Continuing install without optional jCodeMunch MCP.")
-            return False
+        if bundle is not None:
+            intro = "\n".join(
+                [
+                    "Optional component: jCodeMunch MCP",
+                    "",
+                    "The next pages show the current upstream terms for this optional indexed code navigation integration.",
+                    "Press Esc to skip it for now, or keep pressing Enter to review the terms and continue.",
+                    "",
+                ]
+            )
+            if not ui.page_text(
+                "Optional jCodeMunch MCP terms",
+                intro + bundle["text"],
+                prompt_hint="Enter advances; Esc cancels",
+            ):
+                ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                return False
         if bundle is None:
             accepted = ui.prompt_yes_no(lines + ["", "Enable it now?"], default=True)
             if not accepted:
@@ -271,19 +279,17 @@ def run_launchctl(args: list[str], *, label: str, ui=None) -> bool:
     return False
 def install_steps() -> list[Step]:
     return [
-        Step("Step 1 of 6", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
-        Step("Step 2 of 6", "Optional code search", "Choose whether to add optional indexed code navigation."),
-        Step("Step 3 of 6", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
-        Step("Step 4 of 6", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
-        Step("Step 5 of 6", "Finish setup", "Write your Codex setup, turn on background sync, and prepare search."),
-        Step("Step 6 of 6", "Verify install", "Run one last verification."),
+        Step("Step 1 of 5", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
+        Step("Step 2 of 5", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
+        Step("Step 3 of 5", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
+        Step("Step 4 of 5", "Finish setup", "Write your Codex setup, turn on background sync, and prepare search."),
+        Step("Step 5 of 5", "Verify install", "Run one last verification."),
     ]
 
 
 def _carry_preflight_step_statuses(ui) -> None:
     carried_notes = [
         "Your Codex settings are ready for setup.",
-        "Optional code search has been decided.",
         "The required tools are ready.",
     ]
     for index, note in enumerate(carried_notes):
@@ -304,7 +310,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     if not preflight_completed:
         if ui is not None:
-            ui.set_step(2, note="Checking that the required tools are ready.")
+            ui.set_step(1, note="Checking that the required tools are ready.")
             with ui.capture_output():
                 brew_path = ensure_homebrew(non_interactive=non_interactive)
                 config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
@@ -312,7 +318,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
                     brew_path,
                     non_interactive=non_interactive,
                 )
-            ui.finish_step(2, status="ok", note="The required tools are ready.")
+            ui.finish_step(1, status="ok", note="The required tools are ready.")
         else:
             brew_path = ensure_homebrew(non_interactive=non_interactive)
             config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
@@ -327,7 +333,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         _carry_preflight_step_statuses(ui)
 
     if ui is not None:
-        ui.set_step(3, note="Getting your Codex files ready and installing qmd.")
+        ui.set_step(2, note="Getting your Codex files ready and installing qmd.")
     ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
     ensure_example_copy(LOCAL_ENV_EXAMPLE, LOCAL_ENV_FILE)
 
@@ -360,7 +366,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         note = "qmd and the rest of the codex-spine tools are ready."
         if not shell_plan.supported:
             note += " Shell setup was skipped because this shell is not zsh."
-        ui.finish_step(3, status="ok", note=note)
+        ui.finish_step(2, status="ok", note=note)
     else:
         print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
         run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
@@ -370,7 +376,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
 
     if ui is not None:
-        ui.set_step(4, note="Writing your settings and warming search.")
+        ui.set_step(3, note="Writing your settings and warming search.")
     rendered = render_config_text()
     write_generated_config(
         LIVE_CONFIG_PATH,
@@ -401,13 +407,13 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     if ui is not None:
         run_sync(ui=ui)
-        ui.finish_step(4, status="ok", note="Your Codex setup, background sync, and search are ready.")
+        ui.finish_step(3, status="ok", note="Your Codex setup, background sync, and search are ready.")
     else:
         print("\nNow we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")
         run_sync()
 
     if ui is not None:
-        ui.set_step(5, note="Starting background sync and the final verification.")
+        ui.set_step(4, note="Starting background sync and the final verification.")
     run_bootout([f"gui/{uid}", str(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH)], label="launchctl bootout codex-spine.qmd-codex-chat plist", ui=ui)
     for legacy_label in LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS:
         run_bootout([f"gui/{uid}/{legacy_label}"], label=f"launchctl bootout {legacy_label}", ui=ui)
@@ -437,7 +443,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
                 )
             return ui.clear_activity(render=False)
 
-        ui.finish_step(5, status="ok", note="Installation complete.")
+        ui.finish_step(4, status="ok", note="Installation complete.")
         ui.wait_for_acknowledgement(
             [
                 "Installation complete.",
@@ -469,7 +475,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             print("Manual follow-up: add `$HOME/.local/bin` to your shell startup and source the repo shell fragments if desired.")
     elif ui is not None:
         ui.status("info", "Current terminals do not automatically pick up shell changes. Open a new shell when you want the refreshed environment.")
-    if os.environ.get("CODEX_SPINE_JCODEMUNCH_CHOICE") is None and "jcodemunch-mcp" not in enabled_component_names():
+    if "jcodemunch-mcp" not in enabled_component_names():
         if ui is not None:
             ui.status("info", "Optional next step: enable jCodeMunch MCP with `./scripts/component-enable jcodemunch-mcp`.")
         else:
