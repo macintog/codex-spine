@@ -366,7 +366,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)
 
     if ui is not None:
-        ui.set_step(4, note="Saving your Codex setup, turning on background sync, and preparing search.")
+        ui.set_step(4, note="Writing your settings and warming search.")
     rendered = render_config_text()
     write_generated_config(
         LIVE_CONFIG_PATH,
