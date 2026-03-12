@@ -21,6 +21,7 @@ This is the volatile handoff for the project. Read it after `PROJECT_SPINE.md`.
 ## Next Safe Step
 
 - The next concrete move that should happen if work resumes now.
+- If recent work changed self-hosted startup, tooling, skill, config, or launcher surfaces, note whether the current thread should reload docs or whether a fresh session is preferable.
 
 ## Archive References
 

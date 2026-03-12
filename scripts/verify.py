@@ -49,6 +49,22 @@ def fail(errors: list[str]) -> int:
     return 1
 
 
+VERIFIER_HARD_FAILURE_CATEGORIES = {
+    "behavior-contract": "Concrete runtime, bootstrap, memory, install, or QA behavior.",
+    "boundary-and-leak-check": "Secrets, private references, scope leaks, or forbidden internal/public boundary crossings.",
+    "shipped-surface-check": "Required shipped docs, files, manifests, and aliases.",
+    "stable-routing-anchor": "Stable startup, skill-routing, or tooling-routing anchors.",
+}
+VERIFIER_ADVISORY_CATEGORIES = {
+    "advisory-style-or-wording": "Non-blocking wording or style observations.",
+    "advisory-operational": "Non-blocking local checkout or operator-state observations.",
+}
+
+
+def tag_verifier_messages(category: str, messages: list[str]) -> list[str]:
+    return [f"[{category}] {message}" for message in messages]
+
+
 def project_key_for_path(project_path: Path) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", project_path.name.lower()).strip("-") or "project"
     digest = hashlib.sha1(str(project_path).encode("utf-8")).hexdigest()[:12]
@@ -645,18 +661,9 @@ def validate_memory_bootstrap_contract() -> list[str]:
     return errors
 
 
-def validate_public_agents_policy() -> list[str]:
-    agents_path = REPO_ROOT / "codex/AGENTS.md"
-    tooling_path = REPO_ROOT / "codex/TOOLING.md"
-    try:
-        agents_text = agents_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return [f"missing Codex policy file: {agents_path}"]
-    try:
-        tooling_text = tooling_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return [f"missing Codex tooling guide: {tooling_path}"]
-
+def validate_public_agents_policy_texts(
+    agents_text: str, tooling_text: str, *, agents_path: Path, tooling_path: Path
+) -> list[str]:
     agents_required_anchors = [
         ("repo entrypoint routing", "README.md"),
         ("tooling guide routing", "codex/TOOLING.md"),
@@ -691,6 +698,83 @@ def validate_public_agents_policy() -> list[str]:
     return errors
 
 
+def validate_public_agents_policy() -> list[str]:
+    agents_path = REPO_ROOT / "codex/AGENTS.md"
+    tooling_path = REPO_ROOT / "codex/TOOLING.md"
+    try:
+        agents_text = agents_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [f"missing Codex policy file: {agents_path}"]
+    try:
+        tooling_text = tooling_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [f"missing Codex tooling guide: {tooling_path}"]
+
+    return validate_public_agents_policy_texts(
+        agents_text,
+        tooling_text,
+        agents_path=agents_path,
+        tooling_path=tooling_path,
+    )
+
+
+def run_public_agents_policy_fixture() -> list[str]:
+    errors: list[str] = []
+
+    paraphrased_agents = """# Fixture Codex Policy
+
+- Start with README.md for human-facing orientation and reach for codex/TOOLING.md only when the task enters a deeper operational lane.
+- Use skills/github-contributor for GitHub-hosted work and skills/project-spine for project-focused continuity work.
+"""
+    paraphrased_tooling = """# Fixture Tooling Guide
+
+## Continuity and Memory
+
+- Start with memory.bootstrap_context, and use direct memory retrieval with `search`, `deep_search`, `vector_search`, `get`, and `multi_get` when prior wording matters.
+- If bootstrap fails, fall back to qmd-memory-latest.sh.
+
+## Code Navigation
+
+- Use jcodemunch for indexed code navigation.
+- Start with search_symbols and then get_symbol for precise symbol reads.
+
+## GitHub and Upstream
+
+- Use the GitHub-facing contribution lane when the task enters hosted review or upstream prep.
+"""
+    fixture_agents_path = Path("/tmp/fixture-codex-AGENTS.md")
+    fixture_tooling_path = Path("/tmp/fixture-codex-TOOLING.md")
+
+    paraphrase_errors = validate_public_agents_policy_texts(
+        paraphrased_agents,
+        paraphrased_tooling,
+        agents_path=fixture_agents_path,
+        tooling_path=fixture_tooling_path,
+    )
+    if paraphrase_errors:
+        errors.append("public policy routing fixture rejected paraphrased but valid routing docs")
+
+    missing_anchor_errors = validate_public_agents_policy_texts(
+        paraphrased_agents.replace("codex/TOOLING.md", "the tooling guide"),
+        paraphrased_tooling,
+        agents_path=fixture_agents_path,
+        tooling_path=fixture_tooling_path,
+    )
+    if not any("routing anchor" in message for message in missing_anchor_errors):
+        errors.append("public policy routing fixture did not reject a missing tooling-guide anchor")
+
+    missing_tool_errors = validate_public_agents_policy_texts(
+        paraphrased_agents,
+        paraphrased_tooling.replace("search_symbols", "symbol search"),
+        agents_path=fixture_agents_path,
+        tooling_path=fixture_tooling_path,
+    )
+    if not any("search_symbols" in message for message in missing_tool_errors):
+        errors.append("public policy routing fixture did not reject a missing code-navigation anchor")
+
+    return errors
+
+
 def validate_memory_public_surface() -> list[str]:
     errors: list[str] = []
 
@@ -720,12 +804,13 @@ def main() -> int:
 
     errors: list[str] = []
     warnings: list[str] = []
-    errors.extend(validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH))
-    errors.extend(validate_public_doc_surface())
-    errors.extend(validate_public_agents_policy())
-    errors.extend(validate_memory_public_surface())
-    errors.extend(validate_memory_scope_isolation())
-    errors.extend(validate_memory_bootstrap_contract())
+    errors.extend(tag_verifier_messages("shipped-surface-check", validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH)))
+    errors.extend(tag_verifier_messages("shipped-surface-check", validate_public_doc_surface()))
+    errors.extend(tag_verifier_messages("stable-routing-anchor", validate_public_agents_policy()))
+    errors.extend(tag_verifier_messages("boundary-and-leak-check", validate_memory_public_surface()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_memory_scope_isolation()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_memory_bootstrap_contract()))
+    errors.extend(tag_verifier_messages("behavior-contract", run_public_agents_policy_fixture()))
 
     for path in text_file_paths(REPO_ROOT):
         if path == LOCAL_CONFIG_OVERLAY:
@@ -733,59 +818,65 @@ def main() -> int:
         text = path.read_text(encoding="utf-8")
         secret_hits = detect_secret_hits(text)
         if secret_hits:
-            errors.append(f"tracked repo file appears to contain a secret: {path}")
+            errors.append(f"[boundary-and-leak-check] tracked repo file appears to contain a secret: {path}")
         private_hits = detect_private_reference_hits(text, public_surface=True)
         if private_hits:
-            errors.append(f"tracked repo file still contains private references: {path}: {', '.join(private_hits)}")
+            errors.append(
+                f"[boundary-and-leak-check] tracked repo file still contains private references: {path}: {', '.join(private_hits)}"
+            )
 
     if args.repo_only:
         if errors:
             return fail(errors)
+        for warning in warnings:
+            print(f"WARNING: {warning}", file=sys.stderr)
         print("verify: ok (repo-only)")
         return 0
 
     for link in managed_links():
         if not link.live_path.is_symlink():
-            errors.append(f"managed path is not a symlink: {link.live_path}")
+            errors.append(f"[behavior-contract] managed path is not a symlink: {link.live_path}")
             continue
         if link.live_path.resolve(strict=False) != link.repo_path.resolve():
-            errors.append(f"managed symlink points to the wrong target: {link.live_path}")
+            errors.append(f"[behavior-contract] managed symlink points to the wrong target: {link.live_path}")
 
     shell_plan = detect_shell_integration_plan()
     if shell_plan.warning:
-        warnings.append(shell_plan.warning)
+        warnings.append(f"[advisory-operational] {shell_plan.warning}")
     for dotfile, fragment in shell_source_targets(shell_plan).items():
         if not dotfile.exists():
-            errors.append(f"missing shell file: {dotfile}")
+            errors.append(f"[behavior-contract] missing shell file: {dotfile}")
             continue
         content = dotfile.read_text(encoding="utf-8")
         if BLOCK_START not in content or BLOCK_END not in content or str(fragment) not in content:
-            errors.append(f"missing managed source block in {dotfile}")
+            errors.append(f"[behavior-contract] missing managed source block in {dotfile}")
 
     if not LIVE_CONFIG_PATH.exists():
-        errors.append(f"missing generated config: {LIVE_CONFIG_PATH}")
+        errors.append(f"[behavior-contract] missing generated config: {LIVE_CONFIG_PATH}")
     else:
         live_text = LIVE_CONFIG_PATH.read_text(encoding="utf-8")
         if live_text != render_config_text():
-            errors.append(f"live config is out of sync with rendered output: {LIVE_CONFIG_PATH}")
+            errors.append(f"[behavior-contract] live config is out of sync with rendered output: {LIVE_CONFIG_PATH}")
 
     if not LIVE_QMD_CHAT_LAUNCH_AGENT_PATH.exists():
-        errors.append(f"missing launch agent: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")
+        errors.append(f"[behavior-contract] missing launch agent: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")
     else:
         if LIVE_QMD_CHAT_LAUNCH_AGENT_PATH.read_text(encoding="utf-8") != render_launch_agent_text():
-            errors.append(f"launch agent is out of sync with rendered template: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")
+            errors.append(
+                f"[behavior-contract] launch agent is out of sync with rendered template: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}"
+            )
 
     enabled = enabled_component_names()
     for component in resolve_components():
         status = component_status(component)
         if component.default_enabled and not status["healthy"]:
-            errors.append(f"default component is unhealthy: {component.name}: {status['detail']}")
+            errors.append(f"[behavior-contract] default component is unhealthy: {component.name}: {status['detail']}")
         if component.name in enabled and not status["healthy"]:
-            errors.append(f"enabled optional component is unhealthy: {component.name}: {status['detail']}")
+            errors.append(f"[behavior-contract] enabled optional component is unhealthy: {component.name}: {status['detail']}")
         if component.name in enabled:
             record = enabled_component_record(component.name)
             if component.backend.get("license_source_url") and not record.get("license_sha256"):
-                errors.append(f"enabled licensed component is missing license provenance: {component.name}")
+                errors.append(f"[behavior-contract] enabled licensed component is missing license provenance: {component.name}")
 
     wrapper_checks = [
         ("qmd-codex wrapper", [str(HOME / ".local/bin/qmd-codex"), "status"]),
@@ -802,15 +893,15 @@ def main() -> int:
                 env=runtime_env(),
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            errors.append(f"{label} check failed to start: {exc}")
+            errors.append(f"[behavior-contract] {label} check failed to start: {exc}")
             continue
         if result.returncode != 0:
             detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
-            errors.append(f"{label} is unhealthy: {detail}")
+            errors.append(f"[behavior-contract] {label} is unhealthy: {detail}")
 
     for cli_name in REQUIRED_CLIS:
         if not cli_available(cli_name):
-            errors.append(f"required CLI not found: {cli_name}")
+            errors.append(f"[behavior-contract] required CLI not found: {cli_name}")
 
     if errors:
         return fail(errors)

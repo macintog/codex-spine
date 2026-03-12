@@ -139,6 +139,10 @@ Default surfaces to inspect:
 - tests or validation
 - docs, examples, and README transparency
 
+When docs, policy files, startup routing, or forwarded public surfaces are changing, inspect the verifier or release gate itself as part of the change surface.
+
+A verifier is part of the supported surface. It should enforce boundaries, shipped interfaces, stable routing anchors, and concrete behavior contracts, not freeze exact doc prose or stale source-only assumptions that the shipped surface is supposed to outgrow.
+
 Assume that GitHub-facing work almost never lives in one file.
 
 ## Phase 7: Choose The Right Public Doc Surfaces
@@ -257,6 +261,7 @@ Watch for these anti-patterns:
 - expecting contributors to reverse-engineer architecture from code when a compact maintainer doc should exist
 - treating changelog maintenance as optional after a release already shipped
 - treating "some answer" as better than an empty answer when preserving scope would require returning no data
+- letting a verify gate encode stale presentation choices or source-only assumptions that block a cleaner public surface
 
 ## Skill Feedback Loop
 

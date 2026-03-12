@@ -14,7 +14,8 @@ The goal is not more documentation. The goal is a tighter startup contract:
 - one compact durable project authority,
 - one small volatile handoff,
 - one small repo-local working-rules file,
-- deeper docs only on demand.
+- deeper docs only on demand,
+- specialized skills and tooling guides only when the task actually enters their lane.
 
 When this pattern is in place, baseline startup should happen automatically on the first turn. The user should not need to remember a startup macro just to recover the project's broad intent.
 
@@ -46,18 +47,24 @@ For spine-based projects, the intended default startup packet is:
 3. `PROJECT_SPINE.md`
 4. `CHECKPOINT.md`
 
-Use that automatically on the first assistant turn in a new thread, and reload that startup packet when the same thread shifts to a materially new request or shows compaction drift. If the user explicitly asks for a reload or a named profile, honor that in plain language rather than depending on a dedicated startup macro.
+Use that automatically on the first assistant turn in a new thread.
+
+Do not add repo-local tooling guides such as `TOOLING.md`, architecture references, or skill bodies to the default packet unless the user explicitly asked for that startup profile. Keep those on-demand so routine startup stays cheap.
+
+Within the same thread, when the user shifts to a materially new request, a prior-thread reference, or compaction-drift symptoms, start by re-anchoring with `memory.bootstrap_context` rather than reloading the full startup packet.
+
+Reload that full startup packet when the repo or `cwd` changes, or when the user explicitly asks for a reload or named startup profile.
 
 Across long-running threads, the durable invocation contract is:
 
 - Call `memory.bootstrap_context` on the first assistant turn in every new thread.
 - Call `memory.bootstrap_context` at the start of any materially new user request in the same thread.
-- Call `memory.bootstrap_context` on any repo or `cwd` change, any resume/prior-thread reference, and any compaction-drift symptoms inside the same task.
+- Call `memory.bootstrap_context` on any repo or `cwd` change, any resume or prior-thread reference, and any compaction-drift symptoms inside the same task.
 - Treat automatic bootstrap as durable local context restoration only. It may restore project frame, durable constraints, historical open loops, and evidence refs, but it must not auto-recap prior task work or choose the next task.
 - Treat these as compaction-drift symptoms inside the same task: needing to restate current state or assumptions after a long run, uncertainty about prior constraints or conclusions, or user signals such as "we already covered this" or "you lost context."
 - If the same symptom survives two attempted fixes, stop direct retrying, re-anchor with `memory.bootstrap_context`, then use direct `memory` retrieval before proposing another fix.
 - The `memory` server also exposes direct retrieval tools: `status`, `deep_search`, `search`, `vector_search`, `get`, and `multi_get`.
-- If a client reaches for generic MCP resources, `memory` may serve bootstrap or project-memory resources, but the normal workflow should still prefer its tools.
+- If a client reaches for generic MCP resources, `memory` may serve explicit scoped project-memory reads, but the normal workflow should still prefer its tools.
 - If `memory.bootstrap_context` fails (startup timeout, handshake error, or unavailable), immediately fallback to `~/.local/bin/qmd-memory-latest.sh`, summarize its output, and continue.
 - Use direct memory retrieval, not bootstrap, when you need prior task wording or broader historical evidence.
 - Use exact `search` for the same bug, identifiers, or literal symptom wording.
@@ -102,6 +109,13 @@ Use these roles unless the repo has a strong reason to differ:
 - project `AGENTS.md`
   - repo-specific working rules and document update rules
   - keep it short enough to load routinely
+  - point to specialized skills or on-demand tooling guides instead of inlining their whole playbooks
+  - keep it as a routing and local-rules file, not a second skill body
+
+- repo-local tooling guides such as `TOOLING.md`
+  - on-demand tool-routing docs for named lanes such as indexed code navigation, authenticated forge flows, or release QA
+  - not part of the routine startup packet
+  - load only the relevant section when the task clearly needs that tool path
 
 - deep docs such as `Docs/ARCHITECTURE.md`, `Docs/SAFETY.md`, design notes, or references
   - on-demand only
@@ -116,6 +130,51 @@ Use these roles unless the repo has a strong reason to differ:
 - Do not let a temporary debugging issue rewrite the project purpose.
 - Prefer preserving intent over preserving old filenames.
 - Keep the startup path compact enough that reloading it is cheaper than drifting away from it.
+- On long-running threads, do not make same-thread re-anchor repay the whole startup packet unless the repo changed or the user explicitly asked for a reload.
+- Keep specialized tool-routing rules and skill bodies out of routine startup. Mention them from startup docs, then load them just in time when the task actually needs them.
+- When the project contains adjacent repos, managed dependency clones, or companion source checkouts that are operationally important, add a durable signpost in the startup path instead of assuming future sessions will infer their role from scripts or Git remotes.
+- For any non-obvious adjacent repo that changes how Git or maintenance reasoning works, document four things explicitly: its role, whether it is disposable or preserved state, the live integration path it powers, and the authoritative comparison axes for Git state.
+- If Git state has multiple meanings, separate them in words.
+
+## On-Demand Tooling And Skills
+
+Startup docs should tell future sessions where deeper operational guidance lives without forcing that guidance into every turn.
+
+- If the repo provides a tool-routing guide such as `TOOLING.md`, keep it outside the default startup packet and load only the relevant section when the task enters one of its named domains.
+- If a named skill and a repo-local tooling guide both apply, use the skill for scoping and decision rules, then use the tooling guide for the concrete local route.
+- Favor progressive disclosure: startup packet first, then one relevant skill or tooling section, then deeper references only if still needed.
+- If the same tool path keeps getting rediscovered ad hoc, that is evidence the startup docs should point to an on-demand tooling guide more clearly.
+
+## Topology Signposts
+
+Continuity is not only about files in the root repo. It is also about making project shape legible enough that future sessions do not have to reverse-engineer it.
+
+When a project includes managed clones, sibling worktrees, nested source checkouts, generated-but-preserved state, or other adjacent repos that materially change decisions, surface them in routine startup context.
+
+- what the adjacent repo or checkout is
+- why it exists
+- whether it is a disposable cache, a live companion source checkout, a downstream fork, an upstream mirror, or preserved local state
+- which branch or remote comparisons answer which question
+- where destructive cleanup rules for that surface live
+
+If a branch is preserved only as an idea source, say so plainly and state that it is not a wholesale merge target.
+
+## Destructive Cleanup Gate
+
+- When work includes branch pruning, ref deletion, archive removal, or other destructive cleanup, define the authoritative base and preserved state before cleanup begins.
+- For Git cleanup, require a read-only proof packet before deletion:
+  - a `unique-commit audit` against the authoritative base (`git log <base>..<branch>` or equivalent) that is empty
+  - an ancestry or containment check whose result is stated in words, not raw exit codes
+- Treat Git warnings during deletion as blockers.
+- If the proof disagrees, or the repo's branch roles are unclear, stop cleanup, checkpoint the discrepancy, and preserve state until clarified.
+
+## Verifiers And Self-Hosting
+
+- If the repo has a verifier, use it to enforce file roles, shipped interfaces, stable routing anchors, scope or boundary checks, and concrete behavior contracts.
+- Do not let a verifier fail hard on exact sentence-level copies of docs or skills. Phrase drift belongs in review or advisory output unless it breaks a real interface, boundary, or routing anchor.
+- When a repo mutates its own startup docs, tooling guides, skill bodies or templates, generated config, launchers, or managed links, treat that as a self-hosting change.
+- For self-hosting changes, update the coordinated surfaces together and close out with explicit reload expectations: whether the current thread should reload docs, whether a fresh Codex session or relaunch is recommended, and whether new shells, app restarts, or reboots are affected.
+- If a self-hosting change materially alters startup or tool-routing semantics, re-read the changed understanding surfaces before continuing in the same thread.
 
 ## Migration Workflow
 
@@ -141,7 +200,8 @@ Refresh `PROJECT_SPINE.md` only when durable strategy actually changes, such as:
 - the project goal sharpens,
 - success criteria change,
 - non-goals become explicit,
-- the main product strategy or workstream map changes.
+- the main product strategy or workstream map changes,
+- the set of adjacent repos or companion source checkouts that materially affect startup understanding changes.
 
 Refresh `CHECKPOINT.md` whenever execution state changes, especially:
 
@@ -160,8 +220,17 @@ Refresh project `AGENTS.md` only for repo-specific working rules that materially
 - letting `CHECKPOINT.md` become a mini diary or archive
 - storing product strategy only in old session notes
 - making startup depend on too many files
+- stuffing startup docs with detailed tool-routing playbooks that should live in an on-demand tooling guide instead
+- loading specialized skill bodies or tooling guides by default instead of only when the task needs them
+- letting a verifier become a hidden co-author of docs by freezing exact prose instead of enforcing real contracts
 - preserving a confused continuity file out of habit
 - copying a reference project's exact filenames or machinery when only the role split matters
+- leaving non-obvious adjacent repos undocumented so every session has to rediscover their role
+- collapsing multi-axis Git state into one vague ahead or behind statement when different comparisons answer different questions
+- treating raw exit codes as self-explanatory branch-safety conclusions
+- deleting refs after Git warns they are not merged
+- performing destructive cleanup before writing down the authoritative base and recovery path
+- changing self-hosted startup, tooling, or skill surfaces without stating whether the current thread should reload docs or whether a fresh session is advisable
 
 ## Templates
 

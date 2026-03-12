@@ -1,6 +1,6 @@
 # Project Spine
 
-This is the compact startup authority for this project. Read it with `CHECKPOINT.md` and the project `AGENTS.md`. Open deeper docs only when the task requires them.
+This is the compact startup authority for this project. Read it with `CHECKPOINT.md` and the project `AGENTS.md` on first turn or repo or `cwd` change. Within one thread, start re-anchor with `memory.bootstrap_context` and reload disk docs only when needed. Open deeper docs only when the task requires them. If the repo self-hosts the very startup docs, tooling guides, skills, generated config, or launchers that agents rely on, record that relationship and the expected reload or relaunch handling in `Stable Constraints / Invariants`.
 
 ## Purpose
 
@@ -34,15 +34,23 @@ This is the compact startup authority for this project. Read it with `CHECKPOINT
 - The main lanes of work in the project.
 - Each line should describe a durable area, not a one-session task.
 
+## Repository Topology / Adjacent Managed Repos
+
+- Optional section. Use when sibling repos, managed clones, worktrees, generated-but-preserved state, or companion source checkouts materially affect startup understanding.
+- For each important adjacent surface, state its role, why it exists, whether it is disposable or preserved state, and what live path or runtime surface it powers.
+- If Git interpretation differs by comparison target, name those axes explicitly here and put the stricter cleanup rules in `AGENTS.md`.
+
 ## Stable Constraints / Invariants
 
 - Durable environment, data, architecture, or operating facts.
 - Stable paths, source-of-truth files, or boundaries that should survive across sessions.
+- If the repo self-hosts its own understanding surfaces, state which ones they are and whether verification is behavior-first, anchor-based, or only advisory for wording drift.
 
 ## Authority Map
 
 - `README.md`: human entrypoint
 - `AGENTS.md`: repo-specific working rules
 - `CHECKPOINT.md`: current focus and next safe step
+- Tooling guides and specialized skills: on-demand only
 - Deep reference docs: on-demand only
 - Archive: dated history only
