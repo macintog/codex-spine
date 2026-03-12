@@ -25,14 +25,7 @@ REQUIRED_FORMULAS = ["python", "ripgrep", "node", "pnpm", "uv", "jq"]
 
 
 def install_steps() -> List[Step]:
-    return [
-        Step("Step 1 of 6", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
-        Step("Step 2 of 6", "Optional code search", "Choose whether to add optional indexed code navigation."),
-        Step("Step 3 of 6", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
-        Step("Step 4 of 6", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
-        Step("Step 5 of 6", "Finish setup", "Write your Codex setup and turn on background sync."),
-        Step("Step 6 of 6", "Verify install", "Run one last verification."),
-    ]
+    return managed_install_steps()
 
 def find_brew() -> Optional[str]:
     if shutil_which("brew"):
@@ -241,14 +234,13 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
 
 def continue_into_managed_install(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(3, note="Installing qmd and the rest of the codex-spine tools next.")
-        ui.finish_step(3, status="ok", note="Preflight is done.")
+        ui.status("info", "Moving on to qmd and the rest of the codex-spine tools.")
         ui.reconfigure(
             title="codex-spine installer",
             subtitle="",
-            steps=managed_install_steps(),
             clear_logs=True,
         )
+    os.environ["CODEX_SPINE_PREFLIGHT_COMPLETED"] = "1"
     os.environ["CODEX_SPINE_PYTHON"] = sys.executable
     run_managed_install(non_interactive=non_interactive, ui=None if non_interactive else ui)
 

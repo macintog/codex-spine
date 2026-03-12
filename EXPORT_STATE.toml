@@ -213,7 +213,7 @@ executable = true
 [[export.files]]
 path = "scripts/bootstrap-preflight.py"
 component = "qmd_memory_stack"
-sha256 = "c58eed5fbc87d2312ee8498a34d6fa9a13c9102c7d0c3e0c1c7af01018efc584"
+sha256 = "e5c2ef25f5c533f91590c0319f7b02f1a33dc35129ab57f6f440268c392cb3b7"
 executable = true
 
 [[export.files]]
