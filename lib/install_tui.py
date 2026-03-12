@@ -96,6 +96,7 @@ class InstallTUI:
             curses.init_pair(3, curses.COLOR_YELLOW, -1)
             curses.init_pair(4, curses.COLOR_RED, -1)
             curses.init_pair(5, curses.COLOR_WHITE, -1)
+            curses.init_pair(6, curses.COLOR_MAGENTA, -1)
 
     def close(self) -> None:
         if self._closed:
@@ -119,6 +120,7 @@ class InstallTUI:
             "warn": curses.color_pair(3) | curses.A_BOLD,
             "stop": curses.color_pair(4) | curses.A_BOLD,
             "info": curses.color_pair(1),
+            "advice": curses.color_pair(6) | curses.A_BOLD,
         }
         return mapping.get(status, curses.A_NORMAL)
 
@@ -366,7 +368,7 @@ class InstallTUI:
         typed: List[str] = []
         needs_full_redraw = True
         while True:
-            visible = ("*" * len(typed)) if mask_input and typed else "".join(typed)
+            visible = ("[hidden]" if typed else "") if mask_input else "".join(typed)
             field = "> {}".format(visible if visible else "_")
             lines = [title, "", prompt, "", field]
             if needs_full_redraw:

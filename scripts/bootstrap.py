@@ -406,7 +406,8 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
     if ui is not None:
-        ui.status("info", "macOS may show a one-time Background Items Added notification for sync-codex-chat-qmd.sh.")
+        ui.status("advice", "macOS may show a one-time Background Items Added notification for sync-codex-chat-qmd.sh.")
+        ui.log("", level="advice")
 
     if ui is not None:
         run_sync(ui=ui)
