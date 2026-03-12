@@ -11,7 +11,7 @@
 - it can optionally install [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), which can substantially improve token efficiency when working through code
 - it ships two Codex skills:
   - `github-contributor`: public-maintenance guidance for release discipline, documentation quality, component boundaries, and upstreamability
-  - `project-spine`: multi-session continuity guidance for keeping a long-lived project aligned while technical work moves through narrower local problems
+  - `project-spine`: project-focused continuity guidance for keeping a long-lived effort coherent across threads, branches, and days of work
 
 ## Audience
 

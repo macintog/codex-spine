@@ -2,7 +2,7 @@
 
 - Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed for the task.
 - Use `skills/github-contributor` for public maintenance work such as release discipline, documentation quality, component boundaries, and upstreamability decisions.
-- Use `skills/project-spine` when a long-running task needs continuity help across sessions while keeping the public repo's purpose and boundaries intact.
+- Use `skills/project-spine` for project-focused continuity work that needs to stay coherent across threads, branches, and longer runs of work.
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits or one-off environment mutations.
 - Keep public docs honest about optional third-party components, their licenses, and the lack of formal affiliation with upstream projects.
 - Keep this repository safe to publish. Do not add secrets, personal paths, internal-only URLs, or transient maintainer notes here.
