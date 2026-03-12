@@ -194,7 +194,7 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
         else:
             subprocess.run([brew_path, "install"] + missing, check=True)
     if ui is not None:
-        ui.finish_step(2, status="ok", note="The required tools are ready.")
+        ui.finish_step(1, status="ok", note="The required tools are ready.")
 
 
 def continue_into_managed_install(*, non_interactive: bool, ui) -> None:

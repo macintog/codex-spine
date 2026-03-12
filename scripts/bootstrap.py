@@ -445,13 +445,10 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
         ui.finish_step(4, status="ok", note="Installation complete.")
         ui.wait_for_acknowledgement(
-            [
-                "Installation complete.",
-                "",
-                "One brief verification will finish after you press Enter.",
-            ],
-            prompt_hint="Press Enter to finish",
+            [],
+            prompt_hint="Installation complete. Press Enter to finish.",
             on_tick=pump_verify,
+            modal=False,
         )
         ui.detached_to_terminal = True
         ui.close()

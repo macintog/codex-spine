@@ -70,6 +70,7 @@ class InstallTUI:
         self.footer = ""
         self.detached_to_terminal = False
         self._closed = False
+        self._nodelay = False
         self._init_screen()
         self.render()
 
@@ -241,7 +242,7 @@ class InstallTUI:
             prompt_hint = "{}, Esc={}".format(prompt_hint, escape_label)
         self.render_modal(lines, prompt_hint=prompt_hint)
         while True:
-            key = self.stdscr.get_wch()
+            key = self._read_key()
             if isinstance(key, int):
                 if _is_enter_key(key):
                     return default
@@ -284,7 +285,7 @@ class InstallTUI:
         self.render_modal(lines, prompt_hint=prompt_hint)
         try:
             while True:
-                key = self.stdscr.get_wch()
+                key = self._read_key()
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
@@ -302,23 +303,35 @@ class InstallTUI:
         prompt_hint: str = "Press Enter to continue",
         on_tick=None,
         allow_escape: bool = False,
+        modal: bool = True,
     ) -> None:
         footer = self.footer
-        self.render_modal(lines, prompt_hint=prompt_hint)
+        if modal:
+            self.render_modal(lines, prompt_hint=prompt_hint)
+        else:
+            self.footer = prompt_hint
+            self.render()
         if hasattr(self.stdscr, "nodelay"):
             self.stdscr.nodelay(True)
+            self._nodelay = True
         try:
             while True:
                 if on_tick is not None:
                     if on_tick():
-                        self.render_modal(lines, prompt_hint=prompt_hint)
+                        if modal:
+                            self.render_modal(lines, prompt_hint=prompt_hint)
+                        else:
+                            self.render()
                 key = None
                 try:
-                    key = self.stdscr.get_wch()
+                    key = self._read_key()
                 except curses.error:
                     key = None
                 if key == curses.KEY_RESIZE:
-                    self.render_modal(lines, prompt_hint=prompt_hint)
+                    if modal:
+                        self.render_modal(lines, prompt_hint=prompt_hint)
+                    else:
+                        self.render()
                     continue
                 if _is_ack_key(key, allow_escape=allow_escape):
                     break
@@ -328,6 +341,7 @@ class InstallTUI:
         finally:
             if hasattr(self.stdscr, "nodelay"):
                 self.stdscr.nodelay(False)
+                self._nodelay = False
         self.footer = footer
         self.render()
 
@@ -350,7 +364,7 @@ class InstallTUI:
             else:
                 layout = self._modal_layout(lines, modal_size=modal_size)
                 self._draw_modal(layout, prompt_hint=prompt_hint)
-            key = self.stdscr.get_wch()
+            key = self._read_key()
             if key == curses.KEY_RESIZE:
                 needs_full_redraw = True
                 continue
@@ -397,7 +411,7 @@ class InstallTUI:
         while True:
             header = "{} ({}/{})".format(title, page_index + 1, len(pages))
             self.render_modal([header, ""] + pages[page_index], prompt_hint=prompt_hint, modal_size=modal_size)
-            key = self.stdscr.get_wch()
+            key = self._read_key()
             if key == curses.KEY_RESIZE:
                 continue
             if _is_enter_key(key):
@@ -658,6 +672,7 @@ class InstallTUI:
         os.close(slave_fd)
         if hasattr(self.stdscr, "nodelay"):
             self.stdscr.nodelay(True)
+            self._nodelay = True
         try:
             while True:
                 ready, _, _ = select.select([master_fd], [], [], 0.05)
@@ -666,7 +681,7 @@ class InstallTUI:
                     if chunk:
                         self.append_bottom_panel_text(chunk.decode("utf-8", errors="replace"))
                 try:
-                    key = self.stdscr.get_wch()
+                    key = self._read_key()
                 except curses.error:
                     key = None
                 if key == curses.KEY_RESIZE:
@@ -688,6 +703,7 @@ class InstallTUI:
         finally:
             if hasattr(self.stdscr, "nodelay"):
                 self.stdscr.nodelay(False)
+                self._nodelay = False
             os.close(master_fd)
             self.clear_bottom_panel()
         if returncode != 0:
@@ -719,6 +735,7 @@ class InstallTUI:
         for offset, step in enumerate(visible_steps):
             if y > content_bottom:
                 break
+            self._clear_line_range(y, 2, left_width)
             marker = self.step_marker(step.status)
             attrs = self.color(step.status)
             prefix = f"{marker} {step.label}: {step.title}"
@@ -727,12 +744,14 @@ class InstallTUI:
             for line in textwrap.wrap(step.detail, width=max(10, left_width - 6)) or [""]:
                 if y > content_bottom:
                     break
+                self._clear_line_range(y, 4, left_width - 2)
                 self._safe_addstr(y, 4, line, curses.A_DIM)
                 y += 1
             if step.note:
                 for line in textwrap.wrap(step.note, width=max(10, left_width - 6)) or [""]:
                     if y > content_bottom:
                         break
+                    self._clear_line_range(y, 4, left_width - 2)
                     self._safe_addstr(y, 4, line, self.color(step.status))
                     y += 1
             if offset != len(visible_steps) - 1:
@@ -777,6 +796,43 @@ class InstallTUI:
             return
         with contextlib.suppress(curses.error):
             self.stdscr.addstr(y, x, text[: max(0, width - x - 1)], attr)
+
+    def _clear_line_range(self, y: int, x: int, width: int) -> None:
+        if width <= 0:
+            return
+        self._safe_addstr(y, x, " " * width)
+
+    def _read_key(self):
+        key = self.stdscr.get_wch()
+        if key != "\x1b":
+            return key
+        trailing = self._read_escape_sequence_tail(limit=2)
+        if trailing == ["O", "M"]:
+            return curses.KEY_ENTER
+        return key
+
+    def _read_escape_sequence_tail(self, *, limit: int) -> List[object]:
+        if limit <= 0:
+            return []
+        previous_nodelay = self._nodelay
+        if hasattr(self.stdscr, "nodelay") and not previous_nodelay:
+            self.stdscr.nodelay(True)
+            self._nodelay = True
+        trailing: List[object] = []
+        deadline = time.monotonic() + 0.03
+        try:
+            while len(trailing) < limit and time.monotonic() < deadline:
+                try:
+                    next_key = self.stdscr.get_wch()
+                except curses.error:
+                    time.sleep(0.005)
+                    continue
+                trailing.append(next_key)
+        finally:
+            if hasattr(self.stdscr, "nodelay") and not previous_nodelay:
+                self.stdscr.nodelay(False)
+                self._nodelay = False
+        return trailing
 
     def _steps_render_height(self, steps: Sequence[Step], *, left_width: int) -> int:
         total = 0
