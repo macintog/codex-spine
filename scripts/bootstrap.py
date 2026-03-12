@@ -406,11 +406,16 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     write_managed_launch_agent(LIVE_QMD_CHAT_LAUNCH_AGENT_PATH, render_launch_agent_text())
     if ui is not None:
-        ui.status("advice", "macOS may show a one-time Background Items Added notification for sync-codex-chat-qmd.sh.")
-        ui.log("", level="advice")
+        ui.set_log_notice(
+            ["macOS may show a one-time Background Items Added notification for sync-codex-chat-qmd.sh."],
+            level="advice",
+        )
 
     if ui is not None:
-        run_sync(ui=ui)
+        try:
+            run_sync(ui=ui)
+        finally:
+            ui.clear_log_notice()
         ui.finish_step(3, status="ok", note="Your Codex setup, background sync, and search are ready.")
     else:
         print("\nNow we'll sync your local Codex transcripts from ~/.codex/sessions into the local qmd index. This can take a while the first time.")

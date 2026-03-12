@@ -62,6 +62,7 @@ class InstallTUI:
         self.steps = steps
         self.current_step = 0
         self.logs: Deque[Tuple[str, str]] = deque(maxlen=400)
+        self.log_notice_lines: List[Tuple[str, str]] = []
         self.bottom_panel_title = ""
         self.bottom_panel_lines: List[str] = []
         self.activity_message = ""
@@ -495,6 +496,15 @@ class InstallTUI:
         if render:
             self.render()
 
+    def set_log_notice(self, lines: Sequence[str], *, level: str = "advice") -> None:
+        self.log_notice_lines = [(level, _clean_terminal_text(line)) for line in lines]
+        self.render()
+
+    def clear_log_notice(self, *, render: bool = True) -> None:
+        self.log_notice_lines = []
+        if render:
+            self.render()
+
     def pulse_activity(self, message: str, *, render: bool = True) -> bool:
         now = time.monotonic()
         if message != self.activity_message:
@@ -808,12 +818,25 @@ class InstallTUI:
 
         self._safe_addstr(plan_header_y, right_x, "Live Log", curses.A_BOLD)
         log_lines: List[Tuple[str, str]] = []
+        notice_lines: List[Tuple[str, str]] = []
+        for level, line in self.log_notice_lines:
+            wrapped = textwrap.wrap(_clean_terminal_text(line), width=log_width) or [""]
+            for part in wrapped:
+                notice_lines.append((level, part))
         for level, line in self.logs:
             wrapped = textwrap.wrap(_clean_terminal_text(line), width=log_width) or [""]
             for part in wrapped:
                 log_lines.append((level, part))
-        visible = log_lines[-max(1, height - (plan_start_y + 3)) :]
         log_y = plan_start_y
+        for level, line in notice_lines:
+            if log_y > content_bottom:
+                break
+            self._safe_addstr(log_y, right_x, line[:log_width], self.color(level))
+            log_y += 1
+        if notice_lines and log_y <= content_bottom:
+            log_y += 1
+        visible_capacity = max(1, content_bottom - log_y + 1)
+        visible = log_lines[-visible_capacity:]
         for level, line in visible:
             if log_y > content_bottom:
                 break
