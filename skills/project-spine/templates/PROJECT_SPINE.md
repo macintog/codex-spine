@@ -1,6 +1,6 @@
 # Project Spine
 
-This is the compact startup authority for this project. Read it with `CHECKPOINT.md` and the project `AGENTS.md` on first turn or repo or `cwd` change. Within one thread, start re-anchor with `memory.bootstrap_context` and reload disk docs only when needed. Open deeper docs only when the task requires them. If the repo self-hosts the very startup docs, tooling guides, skills, generated config, or launchers that agents rely on, record that relationship and the expected reload or relaunch handling in `Stable Constraints / Invariants`.
+This is the compact startup authority for this project. Read it with `CHECKPOINT.md` and the project `AGENTS.md` on first turn or repo or `cwd` change. Within one thread, start re-anchor by calling `memory.bootstrap_context` and reload disk docs only when needed. Open deeper docs only when the task requires them. If the repo self-hosts the very startup docs, tooling guides, skills, generated config, or launchers that agents rely on, record that relationship and the expected reload or relaunch handling in `Stable Constraints / Invariants`.
 
 ## Purpose
 

@@ -6,7 +6,7 @@ On the first turn or when the repo or `cwd` changes, routine startup context for
 2. `CHECKPOINT.md`
 3. This file
 
-Within one thread, re-anchor with `memory.bootstrap_context` first and reload these docs only on explicit request or repo or `cwd` change.
+Within one thread, re-anchor by calling `memory.bootstrap_context` first and reload these docs only on explicit request or repo or `cwd` change.
 
 Open deeper docs only when the task needs them.
 

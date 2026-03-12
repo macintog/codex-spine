@@ -42,7 +42,7 @@ After the structure is in place, routine startup context should answer five ques
 
 For spine-based projects, the intended default startup packet is:
 
-1. `memory.bootstrap_context`
+1. direct `memory.bootstrap_context` tool call
 2. project `AGENTS.md` if present
 3. `PROJECT_SPINE.md`
 4. `CHECKPOINT.md`
@@ -50,6 +50,8 @@ For spine-based projects, the intended default startup packet is:
 Use that automatically on the first assistant turn in a new thread.
 
 Do not add repo-local tooling guides such as `TOOLING.md`, architecture references, or skill bodies to the default packet unless the user explicitly asked for that startup profile. Keep those on-demand so routine startup stays cheap.
+
+Treat `memory.bootstrap_context` as the fast bootstrap tool lane. Prefer calling it directly instead of spending startup turns trying to open an equivalent file or generic resource view first.
 
 Within the same thread, when the user shifts to a materially new request, a prior-thread reference, or compaction-drift symptoms, start by re-anchoring with `memory.bootstrap_context` rather than reloading the full startup packet.
 
@@ -64,7 +66,7 @@ Across long-running threads, the durable invocation contract is:
 - Treat these as compaction-drift symptoms inside the same task: needing to restate current state or assumptions after a long run, uncertainty about prior constraints or conclusions, or user signals such as "we already covered this" or "you lost context."
 - If the same symptom survives two attempted fixes, stop direct retrying, re-anchor with `memory.bootstrap_context`, then use direct `memory` retrieval before proposing another fix.
 - The `memory` server also exposes direct retrieval tools: `status`, `deep_search`, `search`, `vector_search`, `get`, and `multi_get`.
-- If a client reaches for generic MCP resources, `memory` may serve explicit scoped project-memory reads, but the normal workflow should still prefer its tools.
+- If a client also exposes memory resource reads such as `bootstrap_context` or scoped `qmd://codex-chat/...` URIs, treat them as optional read helpers. The normal startup and re-anchor workflow should still prefer direct memory tool calls.
 - If `memory.bootstrap_context` fails (startup timeout, handshake error, or unavailable), immediately fallback to `~/.local/bin/qmd-memory-latest.sh`, summarize its output, and continue.
 - Use direct memory retrieval, not bootstrap, when you need prior task wording or broader historical evidence.
 - Use exact `search` for the same bug, identifiers, or literal symptom wording.

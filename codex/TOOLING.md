@@ -6,9 +6,10 @@ Load this only when the task actually enters one of these lanes. Routine startup
 
 - Use `skills/project-spine` for project-focused continuity across threads, branches, and longer runs of work.
 - If the installed `project-continuity` skill is available, use it for deeper continuity-file or multi-repo continuity restructuring.
-- Use `memory.bootstrap_context` on the first assistant turn in a new thread, at the start of any materially new user request, on repo or `cwd` changes, on resume or prior-thread references, and on compaction-drift symptoms. Pass `max_recent_sessions=3`.
+- Use the direct `memory.bootstrap_context` tool call on the first assistant turn in a new thread, at the start of any materially new user request, on repo or `cwd` changes, on resume or prior-thread references, and on compaction-drift symptoms. Pass `max_recent_sessions=3`.
+- Prefer calling `memory.bootstrap_context` directly instead of trying to open a startup file or generic resource view first.
 - Treat automatic bootstrap as durable context restoration only. It must not auto-recap prior task work or choose the next task.
-- When exact prior wording or broader historical evidence matters, use direct memory retrieval: `search`, then `deep_search`, then `vector_search`, then `get` or `multi_get` against the returned `qmd://codex-chat/projects/` context.
+- When exact prior wording or broader historical evidence matters, use direct memory retrieval: `search`, then `deep_search`, then `vector_search`, then `get` or `multi_get`. If a client also exposes `qmd://codex-chat/...` reads, treat them as optional read helpers rather than the default startup lane.
 - If `memory.bootstrap_context` fails, fall back to `qmd-memory-latest.sh`, summarize the result, and continue. `qmd-codex` is the managed adapter behind this memory path.
 
 ## Self-Hosting Changes
