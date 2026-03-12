@@ -167,7 +167,7 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
 
 def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
     if ui is not None:
-        ui.set_step(2, note="Checking for Homebrew and any missing formulae.")
+        ui.set_step(2, note="Checking for Homebrew and any missing required formulae.")
     brew_path = find_brew()
     if brew_path is None:
         approved = prompt_yes_no(
@@ -229,8 +229,8 @@ def ensure_homebrew_and_runtime(*, non_interactive: bool, ui) -> None:
             raise RuntimeError("Missing required Homebrew packages: {}. Install them and rerun `make install`.".format(", ".join(missing)))
         os.environ["CODEX_SPINE_BREW_INSTALL_APPROVED"] = "1"
         if ui is not None:
-            ui.status("info", "Installing the remaining required tools.")
-            ui.run_command([brew_path, "install"] + missing, heartbeat_message="Homebrew is still installing baseline formulae...")
+            ui.status("info", "Installing the remaining required formulae.")
+            ui.run_command([brew_path, "install"] + missing, heartbeat_message="Homebrew is still installing required formulae...")
         else:
             subprocess.run([brew_path, "install"] + missing, check=True)
     if ui is not None:

@@ -19,7 +19,8 @@ from typing import Deque, Iterator, List, Optional, Sequence, Tuple, Union
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 CARET_ANSI_ESCAPE_RE = re.compile(r"\^\[\[[0-?]*[ -/]*[@-~]")
-PROGRESS_LINE_RE = re.compile(r"^\s*[⏵▶].*?\b\d+(?:\.\d+)?%.*\bleft\b")
+DOWNLOAD_PROGRESS_RE = re.compile(r"^\s*[⏵▶▸▹►]?\s*([^\s]+)\s+\d+(?:\.\d+)?%\b")
+SPINNER_STATUS_RE = re.compile(r"^[.:·⠁-⣿]+\s+(.+)$")
 ACTIVITY_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
 ACTIVITY_FRAME_INTERVAL = 0.08
 
@@ -175,13 +176,15 @@ class InstallTUI:
         if not cleaned and level == "info":
             return
         for line in cleaned.splitlines() or [""]:
-            if (
-                self.logs
-                and _is_progress_line(line)
-                and _is_progress_line(self.logs[-1][1])
-            ):
-                self.logs[-1] = (level, line)
-                continue
+            line_key = _replacement_key(line)
+            if self.logs:
+                previous_line = self.logs[-1][1]
+                previous_key = _replacement_key(previous_line)
+                if line_key is not None and line_key == previous_key:
+                    self.logs[-1] = (level, line)
+                    continue
+                if _normalize_log_line(line) == _normalize_log_line(previous_line):
+                    continue
             self.logs.append((level, line))
         self.render()
 
@@ -810,5 +813,18 @@ def _reflow_modal_text(text: str, *, width: int) -> List[str]:
     return blocks or [""]
 
 
-def _is_progress_line(text: str) -> bool:
-    return bool(PROGRESS_LINE_RE.search(text))
+def _normalize_log_line(text: str) -> str:
+    return " ".join(text.strip().split())
+
+
+def _replacement_key(text: str) -> Optional[str]:
+    compact = _normalize_log_line(text)
+    if not compact:
+        return None
+    progress_match = DOWNLOAD_PROGRESS_RE.match(compact)
+    if progress_match:
+        return f"download-progress:{progress_match.group(1)}"
+    spinner_match = SPINNER_STATUS_RE.match(compact)
+    if spinner_match:
+        return f"spinner:{spinner_match.group(1)}"
+    return None
