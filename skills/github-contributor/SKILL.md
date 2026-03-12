@@ -1,15 +1,15 @@
 ---
 name: github-contributor
-description: Keep anything that may become public on GitHub professional, actionable, and maintainable by classifying components up front, centralizing public-facing standards, and preserving a clean path to export, release, or upstream contribution.
+description: Keep GitHub-hosted work professional, actionable, and maintainable by classifying components up front, centralizing repo-quality standards, and preserving a clean path to release, export, or upstream contribution when those apply.
 metadata:
-  short-description: Canonical GitHub governance for public readiness, component intake, and upstreamability
+  short-description: Canonical GitHub governance for repo shaping, component intake, releases, and upstreamability
 ---
 
 # GitHub Contributor
 
-Use this skill for work that may become public on GitHub, especially when adding or shaping tools, managed integrations, adapters, workflow assets, or public-facing operational surfaces.
+Use this skill for GitHub-hosted work in general, whether the repo is private or public, especially when adding or shaping tools, managed integrations, adapters, workflow assets, release surfaces, or operational conventions.
 
-This is the canonical umbrella for GitHub-facing quality in this environment. It centralizes the shared standards for component intake, boundary decisions, licensing posture, release readiness, upstreamability, and maintainer-grade citizenship so those lessons do not drift across separate skills.
+This is the canonical umbrella for GitHub-facing quality in this environment. It centralizes the shared standards for component intake, boundary decisions, licensing posture, release readiness, repo hygiene, upstreamability, and maintainer-grade citizenship so those lessons do not drift across separate skills.
 
 ## When To Use This Skill
 

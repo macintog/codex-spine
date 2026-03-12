@@ -10,7 +10,7 @@
   - narrowing the practical `qmd` surface down to the retrieval calls that matter for recalling that material
 - it can optionally install [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), which can substantially improve token efficiency when working through code
 - it ships two Codex skills:
-  - `github-contributor`: public-maintenance guidance for release discipline, documentation quality, component boundaries, and upstreamability
+  - `github-contributor`: GitHub-work guidance for release discipline, documentation quality, component boundaries, repo shaping, and upstreamability
   - `project-spine`: project-focused continuity guidance for keeping a long-lived effort coherent across threads, branches, and days of work
 
 ## Audience
