@@ -23,6 +23,7 @@ DOWNLOAD_PROGRESS_RE = re.compile(r"^\s*[⏵▶▸▹►]?\s*([^\s]+)\s+\d+(?:\.
 SPINNER_STATUS_RE = re.compile(r"^[.:·⠁-⣿]+\s+(.+)$")
 ACTIVITY_FRAMES = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]
 ACTIVITY_FRAME_INTERVAL = 0.04
+ModalLine = Union[str, Tuple[str, int]]
 
 
 @dataclass
@@ -390,6 +391,7 @@ class InstallTUI:
         text: str,
         *,
         prompt_hint: str = "Enter advances; Esc cancels",
+        preface_lines: Optional[Sequence[Tuple[str, int]]] = None,
     ) -> bool:
         height, width = self.stdscr.getmaxyx()
         modal_width = max(28, min(width - 6, 96))
@@ -402,15 +404,37 @@ class InstallTUI:
             modal_height,
         )
         self.last_modal_size = modal_size
-        page_chunk = max(1, modal_height - 4)
-        pages = [
-            wrapped_all[index : index + page_chunk]
-            for index in range(0, len(wrapped_all), page_chunk)
-        ] or [[""]]
+        body_limit = max(1, modal_height - 4)
+        wrapped_preface: List[Tuple[str, int]] = []
+        if preface_lines:
+            for line, attr in preface_lines:
+                for part in textwrap.wrap(line, width=content_width) or [""]:
+                    wrapped_preface.append((part, attr))
+        pages: List[List[ModalLine]] = []
+        if wrapped_preface:
+            first_chunk = max(1, body_limit - len(wrapped_preface) - 1)
+            first_page: List[ModalLine] = list(wrapped_preface)
+            first_page.append(("", curses.A_NORMAL))
+            first_page.extend((line, curses.A_NORMAL) for line in wrapped_all[:first_chunk])
+            pages.append(first_page)
+            start = first_chunk
+            while start < len(wrapped_all):
+                chunk = wrapped_all[start : start + body_limit]
+                pages.append([(line, curses.A_NORMAL) for line in chunk])
+                start += body_limit
+        else:
+            pages = [
+                [(line, curses.A_NORMAL) for line in wrapped_all[index : index + body_limit]]
+                for index in range(0, len(wrapped_all), body_limit)
+            ] or [[("", curses.A_NORMAL)]]
         page_index = 0
         while True:
             header = "{} ({}/{})".format(title, page_index + 1, len(pages))
-            self.render_modal([header, ""] + pages[page_index], prompt_hint=prompt_hint, modal_size=modal_size)
+            self.render_modal(
+                [(header, curses.A_NORMAL), ("", curses.A_NORMAL)] + pages[page_index],
+                prompt_hint=prompt_hint,
+                modal_size=modal_size,
+            )
             key = self._read_key()
             if key == curses.KEY_RESIZE:
                 continue
@@ -495,7 +519,7 @@ class InstallTUI:
 
     def render_modal(
         self,
-        lines: Sequence[str],
+        lines: Sequence[ModalLine],
         *,
         prompt_hint: Optional[str] = None,
         modal_size: Optional[Tuple[int, int]] = None,
@@ -509,17 +533,21 @@ class InstallTUI:
 
     def _modal_layout(
         self,
-        lines: Sequence[str],
+        lines: Sequence[ModalLine],
         *,
         modal_size: Optional[Tuple[int, int]] = None,
-    ) -> Tuple[int, int, int, int, List[str]]:
+    ) -> Tuple[int, int, int, int, List[Tuple[str, int]]]:
         height, width = self.stdscr.getmaxyx()
         wrap_width = max(12, (modal_size[0] - 4) if modal_size is not None else min(width - 12, 68))
-        body: List[str] = []
+        body: List[Tuple[str, int]] = []
         for line in lines:
-            body.extend(textwrap.wrap(line, width=wrap_width) or [""])
+            if isinstance(line, tuple):
+                raw_text, attr = line
+            else:
+                raw_text, attr = line, curses.A_NORMAL
+            body.extend((part, attr) for part in (textwrap.wrap(raw_text, width=wrap_width) or [""]))
         if modal_size is None:
-            box_width = min(width - 6, max(len(line) for line in body) + 4 if body else 24)
+            box_width = min(width - 6, max(len(line) for line, _ in body) + 4 if body else 24)
             box_height = min(height - 6, len(body) + 4)
         else:
             box_width, box_height = modal_size
@@ -529,7 +557,7 @@ class InstallTUI:
 
     def _draw_modal(
         self,
-        layout: Tuple[int, int, int, int, List[str]],
+        layout: Tuple[int, int, int, int, List[Tuple[str, int]]],
         *,
         prompt_hint: Optional[str] = None,
         refresh: bool = True,
@@ -550,8 +578,8 @@ class InstallTUI:
             hint_x = max(start_x + 2, start_x + box_width - len(hint) - 2)
             self._safe_addstr(start_y + 1, hint_x, hint, curses.A_DIM)
         text_y = start_y + 2
-        for line in body[: max(0, box_height - 4)]:
-            self._safe_addstr(text_y, start_x + 2, line, curses.A_NORMAL)
+        for line, attr in body[: max(0, box_height - 4)]:
+            self._safe_addstr(text_y, start_x + 2, line, attr)
             text_y += 1
         if refresh:
             self.stdscr.refresh()

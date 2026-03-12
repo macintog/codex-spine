@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import curses
 import os
 import select
 import shlex
@@ -130,19 +131,21 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             return False
         lines = component_acknowledgement_lines(component)
         if bundle is not None:
-            intro = "\n".join(
-                [
-                    "Optional component: jCodeMunch MCP",
-                    "",
-                    "The next pages show the current upstream terms for this optional indexed code navigation integration.",
-                    "Press Esc to skip it for now, or keep pressing Enter to review the terms and continue.",
-                    "",
-                ]
-            )
             if not ui.page_text(
                 "Optional jCodeMunch MCP terms",
-                intro + bundle["text"],
+                bundle["text"],
                 prompt_hint="Enter advances; Esc cancels",
+                preface_lines=[
+                    ("Optional component: jCodeMunch MCP", ui.color("info") | curses.A_BOLD),
+                    (
+                        "The next pages show the current upstream terms for this optional indexed code navigation integration.",
+                        ui.color("info"),
+                    ),
+                    (
+                        "Press Esc to skip it for now, or keep pressing Enter to review the terms and continue.",
+                        ui.color("info"),
+                    ),
+                ],
             ):
                 ui.status("info", "Continuing install without optional jCodeMunch MCP.")
                 return False
@@ -425,6 +428,15 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     verify_command = [str(REPO_ROOT / "scripts" / "verify")]
     if ui is not None:
+        ui.finish_step(4, status="ok", note="Installation complete.")
+        ui.wait_for_acknowledgement(
+            [
+                "Installation complete.",
+                "",
+                "One brief verification will finish after you press Enter.",
+            ],
+            prompt_hint="Press Enter to finish",
+        )
         verify_lines: list[str] = []
         verify_process = subprocess.Popen(
             verify_command,
@@ -432,23 +444,6 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-        )
-
-        def pump_verify() -> bool:
-            _drain_command_output(verify_process, verify_lines.append)
-            if verify_process.poll() is None:
-                return ui.pulse_activity(
-                    "Final verification is already running; this will finish shortly...",
-                    render=False,
-                )
-            return ui.clear_activity(render=False)
-
-        ui.finish_step(4, status="ok", note="Installation complete.")
-        ui.wait_for_acknowledgement(
-            [],
-            prompt_hint="Installation complete. Press Enter to finish.",
-            on_tick=pump_verify,
-            modal=False,
         )
         ui.detached_to_terminal = True
         ui.close()
