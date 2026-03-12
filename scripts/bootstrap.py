@@ -141,6 +141,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
                         "The next pages show the current upstream terms for this optional indexed code navigation integration.",
                         ui.color("info"),
                     ),
+                    ("", curses.A_NORMAL),
                     (
                         "Press Esc to skip it for now, or keep pressing Enter to review the terms and continue.",
                         ui.color("info"),
@@ -471,7 +472,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             ui.status("info", "Optional next step: enable jCodeMunch MCP with `./scripts/component-enable jcodemunch-mcp`.")
         else:
             print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
-    print("Your Codex is ready to use with improved capabilities.")
+    print("Your Codex setup is ready.")
     print("install: ok")
 
 
