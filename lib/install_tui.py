@@ -688,13 +688,7 @@ class InstallTUI:
         if self.bottom_panel_title or self.bottom_panel_lines:
             bottom_panel_height = min(5, max(4, len(self.bottom_panel_lines) + 2))
         content_bottom = max(4, height - 4 - bottom_panel_height)
-        start_index = 0
-        for index, step in enumerate(self.steps):
-            if step.status != "ok":
-                start_index = index
-                break
-        else:
-            start_index = max(0, len(self.steps) - 1)
+        plan_available_lines = max(1, content_bottom - plan_start_y + 1)
 
         self._safe_addstr(0, 2, self.title, self.color("in_progress"))
         if self.subtitle:
@@ -702,7 +696,9 @@ class InstallTUI:
 
         self._safe_addstr(plan_header_y, 2, "Plan", curses.A_BOLD)
         y = plan_start_y
-        visible_steps = self.steps[start_index:]
+        visible_steps = self.steps[:]
+        while visible_steps and self._steps_render_height(visible_steps, left_width=left_width) > plan_available_lines:
+            visible_steps = visible_steps[1:]
         for offset, step in enumerate(visible_steps):
             if y > content_bottom:
                 break
@@ -763,6 +759,20 @@ class InstallTUI:
             return
         with contextlib.suppress(curses.error):
             self.stdscr.addstr(y, x, text[: max(0, width - x - 1)], attr)
+
+    def _steps_render_height(self, steps: Sequence[Step], *, left_width: int) -> int:
+        total = 0
+        for index, step in enumerate(steps):
+            total += self._step_render_height(step, left_width=left_width, is_last=index == len(steps) - 1)
+        return total
+
+    def _step_render_height(self, step: Step, *, left_width: int, is_last: bool) -> int:
+        detail_lines = textwrap.wrap(step.detail, width=max(10, left_width - 6)) or [""]
+        note_lines = textwrap.wrap(step.note, width=max(10, left_width - 6)) or []
+        height = 1 + len(detail_lines) + len(note_lines)
+        if not is_last:
+            height += 1
+        return height
 
 
 @contextlib.contextmanager
