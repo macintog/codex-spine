@@ -27,7 +27,7 @@ from codex_spine import (
 )
 
 
-SUPPORTED_BACKENDS = {"pnpm_global", "uv_tool"}
+SUPPORTED_BACKENDS = {"pnpm_global", "uv_tool", "uvx_tool"}
 HOME = Path.home()
 PREFERRED_NODE_PATHS = [
     str(HOME / ".local/bin"),
@@ -218,6 +218,28 @@ def _command_probe(
     }
 
 
+def _command_probe_args(
+    args: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> dict[str, str | bool]:
+    result = _run(args, check=False, env=env)
+    output = (result.stdout or "").strip()
+    error = (result.stderr or "").strip()
+    detail = _first_nonempty_line(output, error) or f"exit {result.returncode}"
+    return {
+        "ok": result.returncode == 0,
+        "output": output or error,
+        "detail": detail,
+    }
+
+
+def _command_available(command: str) -> bool:
+    if "/" in command or command.startswith("~"):
+        return _expand_path(command).exists()
+    return shutil.which(command) is not None
+
+
 def _combine_detail(*parts: str) -> str:
     return "; ".join(part for part in parts if part)
 
@@ -266,6 +288,10 @@ class ResolvedComponent:
     @property
     def executable_path(self) -> Path:
         return _expand_path(str(self.backend["executable"]))
+
+    @property
+    def executable_command(self) -> str:
+        return str(self.backend["executable"])
 
 
 def load_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> dict:
@@ -345,6 +371,11 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                         "backend optional field must be a list of strings: "
                         f"components.{component_name}.backends.{backend_name}.{optional_field}"
                     )
+            tool_name = backend.get("tool_name")
+            if tool_name is not None and (not isinstance(tool_name, str) or not tool_name.strip()):
+                errors.append(
+                    f"backend optional field must be a non-empty string: components.{component_name}.backends.{backend_name}.tool_name"
+                )
             if backend.get("license_source_url") and not backend.get("license_start_marker"):
                 errors.append(
                     "licensed backend must define license_start_marker: "
@@ -449,12 +480,57 @@ def _status_uv_tool(component: ResolvedComponent) -> dict:
     }
 
 
+def _uvx_base_command(component: ResolvedComponent) -> list[str]:
+    package_name = component.backend["package_name"]
+    desired = component.backend["pinned_version"]
+    tool_name = str(component.backend.get("tool_name", package_name))
+    return [component.executable_command, "--from", f"{package_name}=={desired}", tool_name]
+
+
+def _status_uvx_tool(component: ResolvedComponent) -> dict:
+    command = component.executable_command
+    package_name = component.backend["package_name"]
+    desired = component.backend["pinned_version"]
+    installed = _command_available(command)
+    healthy = installed
+    version_text = ""
+    probe_detail = ""
+    version_args = component.backend.get("version_args", ["--version"])
+    if installed and version_args:
+        probe = _command_probe_args(_uvx_base_command(component) + version_args)
+        version_text = str(probe["output"])
+        if not bool(probe["ok"]):
+            healthy = False
+            probe_detail = str(probe["detail"])
+        elif desired not in version_text:
+            healthy = False
+            probe_detail = f"expected {package_name}=={desired}, got {version_text or 'unknown version'}"
+    health_args = component.backend.get("health_args")
+    if healthy and installed and health_args:
+        probe = _command_probe_args(_uvx_base_command(component) + health_args)
+        if not bool(probe["ok"]):
+            healthy = False
+            probe_detail = str(probe["detail"])
+    expected = f"expected {package_name}=={desired} via {command}"
+    detail = _combine_detail(version_text, probe_detail) or (
+        expected if installed else f"missing command: {command}; {expected}"
+    )
+    return {
+        "installed": installed,
+        "healthy": healthy,
+        "detail": detail,
+        "action": _uvx_base_command(component) + version_args,
+    }
+
+
 def component_status(component: ResolvedComponent) -> dict:
     kind = component.backend["kind"]
     if kind == "pnpm_global":
         return _status_pnpm(component)
     if kind == "uv_tool":
         return _status_uv_tool(component)
+    if kind == "uvx_tool":
+        return _status_uvx_tool(component)
     raise ValueError(f"unsupported backend kind: {kind}")
 
 
@@ -474,6 +550,12 @@ def update_component(
     run_live_fn(action, check=True, env=_pnpm_env())
     progress_fn(f"{component.name}: verifying health...")
     status = component_status(component)
+    if component.backend["kind"] != "pnpm_global":
+        if not status["healthy"]:
+            raise RuntimeError(f"{component.name} remains unhealthy after update: {status['detail']}")
+        if component.backend["kind"] == "uvx_tool":
+            return [f"{component.name}: validated pinned uvx invocation"]
+        return [f"{component.name}: installed/updated"]
     if not status["healthy"]:
         progress_fn(f"{component.name}: rebuilding native addons and rechecking health...")
         if _rebuild_better_sqlite3(

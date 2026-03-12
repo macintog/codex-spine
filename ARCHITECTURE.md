@@ -85,7 +85,7 @@ user requests optional indexed code navigation
     -> retrieve exact upstream terms for the pinned version
     -> save local terms copy + hash under repo-local .state/
     -> require explicit acknowledgement
-    -> install/update pinned upstream artifact
+    -> validate the pinned upstream uvx invocation
     -> render local overlay that wires the MCP server
 ```
 

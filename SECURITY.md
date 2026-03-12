@@ -8,7 +8,7 @@
 - managing symlinks under `~/.codex/skills/` and `~/.local/bin/`
 - editing user shell startup files to source managed fragments
 - installing a user LaunchAgent at `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
-- installing or updating pinned third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd) and the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp)
+- installing or updating pinned third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd), and wiring the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a pinned `uvx` invocation
 
 `codex-spine` does not require root, install privileged daemons, expose a network service, or act as a sandbox for untrusted code.
 

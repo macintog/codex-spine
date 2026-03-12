@@ -765,9 +765,34 @@ def write_component_state(data: dict) -> None:
     write_text(COMPONENT_STATE_PATH, serialize_toml(data), mode=0o600)
 
 
+def load_maintenance_manifest() -> dict:
+    content = MAINTAINED_COMPONENTS_PATH.read_text(encoding="utf-8")
+    return tomllib.loads(content)
+
+
 def jcodemunch_mcp_overlay_body() -> str:
-    return """[mcp_servers.jcodemunch]
-command = "__HOME__/.local/bin/jcodemunch-mcp"
+    backend = (
+        load_maintenance_manifest()
+        .get("components", {})
+        .get("jcodemunch-mcp", {})
+        .get("backends", {})
+        .get("codex_spine", {})
+    )
+    kind = str(backend.get("kind", ""))
+    command = str(backend.get("executable", ""))
+    package_name = str(backend.get("package_name", "jcodemunch-mcp"))
+    desired = str(backend.get("pinned_version", ""))
+    tool_name = str(backend.get("tool_name", package_name))
+    if kind == "uvx_tool":
+        args = ["--from", f"{package_name}=={desired}", tool_name]
+        return f"""[mcp_servers.jcodemunch]
+command = "{command}"
+args = {json.dumps(args)}
+enabled = true"""
+
+    rendered_command = command.replace("~/", "__HOME__/") if command.startswith("~/") else command
+    return f"""[mcp_servers.jcodemunch]
+command = "{rendered_command}"
 args = []
 enabled = true"""
 

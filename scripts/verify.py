@@ -20,6 +20,7 @@ from codex_spine import (  # noqa: E402
     BLOCK_END,
     BLOCK_START,
     HOME,
+    jcodemunch_mcp_overlay_body,
     LIVE_CONFIG_PATH,
     LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
     LOCAL_CONFIG_OVERLAY,
@@ -775,6 +776,34 @@ def run_public_agents_policy_fixture() -> list[str]:
     return errors
 
 
+def validate_jcodemunch_overlay_contract() -> list[str]:
+    components = {component.name: component for component in resolve_components()}
+    component = components.get("jcodemunch-mcp")
+    if component is None:
+        return ["missing optional component definition: jcodemunch-mcp"]
+
+    if component.backend.get("kind") != "uvx_tool":
+        return []
+
+    overlay = jcodemunch_mcp_overlay_body()
+    errors: list[str] = []
+    expected_command = f'command = "{component.backend["executable"]}"'
+    if expected_command not in overlay:
+        errors.append("jcodemunch overlay command drifted from the maintenance manifest")
+
+    expected_args = json.dumps(
+        [
+            "--from",
+            f'{component.backend["package_name"]}=={component.backend["pinned_version"]}',
+            component.backend.get("tool_name", component.backend["package_name"]),
+        ]
+    )
+    if f"args = {expected_args}" not in overlay:
+        errors.append("jcodemunch overlay args drifted from the maintenance manifest")
+
+    return errors
+
+
 def validate_memory_public_surface() -> list[str]:
     errors: list[str] = []
 
@@ -810,6 +839,7 @@ def main() -> int:
     errors.extend(tag_verifier_messages("boundary-and-leak-check", validate_memory_public_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_scope_isolation()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_bootstrap_contract()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_jcodemunch_overlay_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", run_public_agents_policy_fixture()))
 
     for path in text_file_paths(REPO_ROOT):

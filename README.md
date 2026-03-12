@@ -79,7 +79,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) stays out of the default core path, but interactive install can include it when you opt in.
 
-If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
+If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later in the install pauses before showing the pinned upstream terms, walks you through them page by page, and still requires explicit acknowledgement before enabling it. The managed overlay then wires Codex to the pinned upstream MCP through `uvx` instead of relying on a separate installed launcher path. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 

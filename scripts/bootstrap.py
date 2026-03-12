@@ -177,6 +177,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             return False
 
     package_name = component.backend.get("package_name", component.name)
+    action_label = "validating pinned invocation for" if component.backend.get("kind") == "uvx_tool" else "installing/updating"
     if ui is not None:
         def ui_run_live(args, *, cwd=None, check=True, env=None):
             ui.run_command(args, cwd=cwd, env=env)
@@ -203,9 +204,9 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         def ui_progress(message):
             print(message, flush=True)
 
-        ui.status("info", f"Installing optional {component.name}.")
+        ui.status("info", f"Preparing optional {component.name}.")
         with ui.capture_output():
-            print(f"{component.name}: installing/updating {package_name}...", flush=True)
+            print(f"{component.name}: {action_label} {package_name}...", flush=True)
             print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
             for line in update_component(
                 component,
@@ -215,7 +216,7 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
             ):
                 print(line)
     else:
-        print(f"{component.name}: installing/updating {package_name}...", flush=True)
+        print(f"{component.name}: {action_label} {package_name}...", flush=True)
         print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
         for line in update_component(component):
             print(line)
