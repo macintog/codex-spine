@@ -2,7 +2,9 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
-## Unreleased
+## 0.5
+
+First public release line for `codex-spine`. Additional pre-public edits should continue to accumulate here until the first public publication is cut.
 
 - Initial release-candidate line for `codex-spine`
 - Managed install, verify, update, and component-status commands
