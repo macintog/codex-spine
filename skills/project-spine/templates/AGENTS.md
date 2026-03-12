@@ -22,6 +22,15 @@ Open deeper docs only when the task needs them.
 - Update validation and closeout reload or relaunch guidance when those surfaces change.
 - If those changes materially alter startup or tool-routing semantics, say whether the current thread should reload docs or whether a fresh session is recommended.
 
+## Git Safety
+
+- Define the authoritative base branch and protected refs before branch cleanup.
+- Require a `unique-commit audit` against that base before deleting or pruning a branch.
+- State ancestry results in words; do not report raw exit codes as branch-safety conclusions.
+- Treat Git warnings during deletion as blockers.
+- When signals disagree, preserve state and escalate instead of cleaning up for tidiness.
+- If adjacent repos, managed clones, or companion source checkouts require different Git interpretation than the root repo, record those comparison rules here explicitly.
+
 ## Document Roles
 
 - `README.md`: human repo entrypoint
