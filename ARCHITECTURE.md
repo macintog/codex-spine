@@ -98,7 +98,7 @@ The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch
 - [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) is optional but first-class.
 - `zsh` is the only tested shell integration path. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation.
 - launchd, shell, and config surfaces must remain free of private paths and personal-service assumptions.
-- `MAINTAINED_COMPONENTS.toml` owns shipped acquisition/update shape; private export tooling owns boundary classification and export provenance.
+- `MAINTAINED_COMPONENTS.toml` owns shipped acquisition and update shape; public runtime behavior should not depend on export-control metadata.
 - Managed update paths must fail closed when post-update health is red instead of accepting version-only success.
 
 ## Security and Trust Boundaries

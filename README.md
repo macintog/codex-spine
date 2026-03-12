@@ -131,9 +131,9 @@ After a successful first run:
 - `./scripts/component-status`: inspect managed component health
 - `./scripts/component-enable jcodemunch-mcp`: enable the optional upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration
 
-## Branch QA
+## Testing Branches
 
-When testing a branch or release candidate, do the QA pass from a fresh or freshly-updated `codex-spine` clone of the exact remote branch you intend to bless or publish, print the exact commit with `git rev-parse --short HEAD`, then run `make install` and `make verify`. Avoid validating shipped behavior from the paired private source repo instead of the public checkout you intend to ship.
+When testing a branch or release candidate, start from a fresh or freshly updated clone of the exact remote branch, print the exact commit with `git rev-parse --short HEAD`, then run `make install` and `make verify`.
 
 ## Troubleshooting
 
@@ -152,8 +152,8 @@ When testing a branch or release candidate, do the QA pass from a fresh or fresh
 - `SECURITY.md`: security posture and reporting expectations
 - `codex/AGENTS.md`: repo-specific agent/operator rules for public-safe maintenance work
 
-Maintainer-only export and QA docs are intentionally kept outside the shipped public tree. This repo should remain safe to publish as-is.
-The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`; private export provenance and boundary classification stay in the paired private source repo.
+This repo ships the public docs needed to install, operate, and maintain `codex-spine`.
+The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
 
 ## Third-Party Components And Licensing
 
