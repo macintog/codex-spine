@@ -227,7 +227,8 @@ class InstallTUI:
 
     def prompt_yes_no(self, prompt: Union[str, Sequence[str]], *, default: bool) -> bool:
         lines = prompt.splitlines() if isinstance(prompt, str) else [str(line) for line in prompt]
-        self.render_modal(lines)
+        prompt_hint = "Enter=yes, n=no, Esc=no" if default else "y=yes, Enter=no, Esc=no"
+        self.render_modal(lines, prompt_hint=prompt_hint)
         while True:
             key = self.stdscr.get_wch()
             if isinstance(key, int):
@@ -245,7 +246,7 @@ class InstallTUI:
                     curses.KEY_PPAGE,
                 ):
                     if key == curses.KEY_RESIZE:
-                        self.render_modal(lines)
+                        self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
                 curses.beep()
                 continue
@@ -253,9 +254,13 @@ class InstallTUI:
                 lowered = key.lower()
                 if lowered in ("\n", "\r"):
                     return default
+                if lowered == " ":
+                    return default
                 if lowered == "y":
                     return True
                 if lowered == "n":
+                    return False
+                if lowered == "q":
                     return False
                 if lowered == "\x1b":
                     return False
@@ -264,30 +269,16 @@ class InstallTUI:
     def show_message(self, lines: Sequence[str], *, prompt_hint: str = "Press Enter to continue") -> None:
         footer = self.footer
         self.render_modal(lines, prompt_hint=prompt_hint)
-        if hasattr(self.stdscr, "nodelay"):
-            self.stdscr.nodelay(True)
         try:
             while True:
-                key = None
-                try:
-                    key = self.stdscr.get_wch()
-                except curses.error:
-                    key = None
+                key = self.stdscr.get_wch()
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
-                if _is_enter_key(key):
+                if _is_ack_key(key):
                     break
-                if key in ("\n", "\r", " ", "\x1b"):
-                    break
-                if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
-                    break
-                if key is not None:
-                    curses.beep()
-                time.sleep(0.05)
         finally:
-            if hasattr(self.stdscr, "nodelay"):
-                self.stdscr.nodelay(False)
+            pass
         self.footer = footer
         self.render()
 
@@ -315,11 +306,7 @@ class InstallTUI:
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
-                if _is_enter_key(key):
-                    break
-                if key in ("\n", "\r", " ", "\x1b"):
-                    break
-                if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
+                if _is_ack_key(key):
                     break
                 if key is not None:
                     curses.beep()
@@ -868,3 +855,13 @@ def _replacement_key(text: str) -> Optional[str]:
 
 def _is_enter_key(key: object) -> bool:
     return key == curses.KEY_ENTER or key in (10, 13)
+
+
+def _is_ack_key(key: object) -> bool:
+    if _is_enter_key(key):
+        return True
+    if key in (" ", "\x1b"):
+        return True
+    if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b", "q"):
+        return True
+    return False

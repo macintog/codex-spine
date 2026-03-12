@@ -154,6 +154,8 @@ Startup docs should tell future sessions where deeper operational guidance lives
 
 - If the repo has a verifier, use it to enforce file roles, shipped interfaces, stable routing anchors, scope or boundary checks, and concrete behavior contracts.
 - Do not let a verifier fail hard on exact sentence-level copies of docs or skills. Phrase drift belongs in review or advisory output unless it breaks a real interface, boundary, or routing anchor.
+- If the intended operator contract is "latest compatible", encode that as compatibility ranges or ceilings rather than exact third-party version pins. Exact pins need explicit user direction or concrete breakage evidence.
+- If QA or fixture automation needs a consent, acknowledgement, or destructive-confirmation shortcut, keep that shortcut out of shipped production CLIs, docs, config, and exported surfaces. Treat any leaked bypass flag or hidden escape hatch as a verify failure.
 - When a repo mutates its own startup docs, tooling guides, skill bodies or templates, generated config, launchers, or managed links, treat that as a self-hosting change.
 - For self-hosting changes, update the coordinated surfaces together and close out with explicit reload expectations: whether the current thread should reload docs, whether a fresh Codex session or relaunch is recommended, and whether new shells, app restarts, or reboots are affected.
 - If a self-hosting change materially alters startup or tool-routing semantics, re-read the changed understanding surfaces before continuing in the same thread.
@@ -250,6 +252,8 @@ If a repo self-hosts its own understanding surfaces, refresh `AGENTS.md` or the 
 - stuffing startup docs with detailed tool-routing playbooks that should live in an on-demand tooling guide instead
 - loading specialized skill bodies or tooling guides by default instead of only when the task needs them
 - letting a verifier become a hidden co-author of docs by freezing exact prose instead of enforcing real contracts
+- letting hidden QA-only consent or confirmation bypasses leak into shipped user-facing surfaces
+- pinning exact third-party versions when the real product contract is "latest compatible"
 - preserving a confused continuity file out of habit
 - copying a reference project's exact filenames or machinery when only the role split matters
 - letting hygiene work outrank preservation of unmerged work

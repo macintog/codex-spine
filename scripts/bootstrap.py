@@ -50,6 +50,7 @@ from component_manager import (  # noqa: E402
     component_acknowledgement_lines,
     component_status,
     ensure_component_acknowledged,
+    fetch_component_terms,
     record_component_enabled,
     resolve_components,
     update_component,
@@ -124,16 +125,48 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         raise RuntimeError("missing optional component definition: jcodemunch-mcp")
 
     if ui is not None:
+        try:
+            bundle = fetch_component_terms(component)
+        except RuntimeError as exc:
+            warn(str(exc), ui=ui)
+            return False
         lines = component_acknowledgement_lines(component)
-        accepted = ui.prompt_yes_no(lines + ["", "Enable it now?"], default=True)
-        if not accepted:
+        if bundle is not None and not ui.page_text(
+            "Optional jCodeMunch MCP terms",
+            bundle["text"],
+            prompt_hint="Enter advances; q or Esc cancels",
+        ):
             ui.status("info", "Continuing install without optional jCodeMunch MCP.")
             return False
+        if bundle is None:
+            accepted = ui.prompt_yes_no(lines + ["", "Enable it now?"], default=True)
+            if not accepted:
+                ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                return False
+        else:
+            while True:
+                reply = ui.prompt_text_input(
+                    "Optional jCodeMunch MCP",
+                    "Type 'accept' to continue, or press Esc to skip:",
+                    prompt_hint="Type accept and press Enter",
+                    modal_size=ui.last_modal_size,
+                )
+                normalized = (reply or "").strip().lower()
+                if normalized == "accept":
+                    break
+                if normalized in {"", "skip", "s", "no", "n", "q", "quit"} or reply is None:
+                    if ui.prompt_yes_no(["Skip optional jCodeMunch MCP for now?"], default=False):
+                        ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                        return False
+                    continue
+                ui.show_message(
+                    ["Type 'accept' to continue, or press Esc to skip."],
+                    prompt_hint="Press Enter, Space, or Esc to return",
+                )
     else:
         try:
             ensure_component_acknowledged(
                 component,
-                accept_license=False,
                 non_interactive=non_interactive or not sys.stdin.isatty(),
             )
         except RuntimeError as exc:
@@ -466,7 +499,7 @@ def main() -> int:
                     "",
                     str(exc),
                 ],
-                prompt_hint="Press Enter to exit",
+                prompt_hint="Press Enter, Space, or Esc to exit",
             )
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -482,7 +515,7 @@ def main() -> int:
                     "",
                     "See the terminal output above for the failing command details.",
                 ],
-                prompt_hint="Press Enter to exit",
+                prompt_hint="Press Enter, Space, or Esc to exit",
             )
         print(f"ERROR: command failed with exit status {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
         print("See output above for details.", file=sys.stderr)

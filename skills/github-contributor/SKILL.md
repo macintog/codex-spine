@@ -49,6 +49,7 @@ Before implementation, answer the component-intake questions explicitly.
 - Who is the audience?
 - Is it default or optional?
 - Is it installed from upstream packages, a managed checkout, or a first-party implementation?
+- Is the intended update contract "latest compatible", compatibility-ceilinged, or explicitly pinned for a concrete reason?
 - What is the maintenance or update model?
 - Does it imply any licensing, attribution, or affiliation posture?
 - Is an upstream patch path expected?
@@ -98,7 +99,9 @@ Shape the implementation so another user can inherit it without inheriting your 
 - Remove personal hosts, accounts, absolute paths, and service assumptions from public candidates.
 - Separate generic reusable logic from private operational glue.
 - Prefer install and update flows that are coherent, repeatable, and explainable.
+- When the product intent is "latest compatible", prefer compatibility ranges or ceilings over exact upstream patch pins unless a concrete breakage or explicit user requirement justifies the pin.
 - For optional third-party integrations, make optionality, license posture, and affiliation boundaries explicit.
+- Keep QA-only consent or confirmation shortcuts out of shipped user-facing CLIs, docs, config, and exported surfaces.
 - Distinguish "fit for public design" from "finished enough to ship now."
 
 README cleanup is not a substitute for a structurally public design.
@@ -262,6 +265,8 @@ Watch for these anti-patterns:
 - treating changelog maintenance as optional after a release already shipped
 - treating "some answer" as better than an empty answer when preserving scope would require returning no data
 - letting a verify gate encode stale presentation choices or source-only assumptions that block a cleaner public surface
+- pinning exact upstream patch versions when the real product contract is "latest compatible"
+- letting QA-only consent or confirmation bypasses leak into shipped user-facing surfaces
 
 ## Skill Feedback Loop
 

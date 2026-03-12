@@ -82,8 +82,9 @@ This subsystem is the default public core. It is built around [@tobi/qmd](https:
 ```text
 user requests optional indexed code navigation
     -> scripts/component-enable jcodemunch-mcp
-    -> require one acknowledgement at enable time
-    -> validate the latest compatible upstream uvx invocation under <2.0
+    -> retrieve the current upstream terms text
+    -> require explicit accept at enable time
+    -> validate the latest compatible upstream uv runner invocation under <2.0
     -> render local overlay that wires the MCP server
 ```
 
@@ -104,7 +105,7 @@ The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch
 - `codex-spine` is a user-space workstation tool. It does not require root, install privileged daemons, or expose a network listener.
 - Tracked repo content and generated public config are intended to remain secret-free.
 - Transcript sync and project-memory material are stored locally under the [@tobi/qmd](https://github.com/tobi/qmd)-backed cache at `~/.cache/qmd/codex_chat`; users should treat that store as sensitive when transcripts contain sensitive material.
-- Optional third-party artifacts are external inputs. The repo reduces risk through compatibility constraints and explicit opt-in gating, not through sandboxing.
+- Optional third-party artifacts and retrieved upstream terms text are external inputs. The repo reduces risk through compatibility constraints and explicit opt-in gating, not through sandboxing.
 
 ## Storage and Update Model
 

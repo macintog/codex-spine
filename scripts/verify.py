@@ -790,8 +790,10 @@ def validate_jcodemunch_overlay_contract() -> list[str]:
     if expected_command not in overlay:
         errors.append("jcodemunch overlay command drifted from the maintenance manifest")
 
+    expected_prefix = ["tool", "run"] if component.backend["executable"] == "uv" else []
     expected_args = json.dumps(
         [
+            *expected_prefix,
             "--from",
             component_requirement(component),
             component.backend.get("tool_name", component.backend["package_name"]),
@@ -800,6 +802,33 @@ def validate_jcodemunch_overlay_contract() -> list[str]:
     if f"args = {expected_args}" not in overlay:
         errors.append("jcodemunch overlay args drifted from the maintenance manifest")
 
+    return errors
+
+
+def validate_component_cli_surface() -> list[str]:
+    errors: list[str] = []
+    for script_name in ("component-enable.py", "update.py"):
+        script_path = REPO_ROOT / "scripts" / script_name
+        result = subprocess.run(
+            ["python3", str(script_path), "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+            errors.append(f"component CLI help check failed for {script_path}: {detail}")
+            continue
+        help_text = result.stdout
+        if "--accept-license" in help_text:
+            errors.append(f"hidden QA acceptance bypass leaked into the shipped CLI surface: {script_path}")
+    for path in text_file_paths(REPO_ROOT):
+        if path == Path(__file__).resolve():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "--accept-license" in text:
+            errors.append(f"hidden QA acceptance bypass leaked into the shipped repo surface: {path}")
     return errors
 
 
@@ -839,6 +868,7 @@ def main() -> int:
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_scope_isolation()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_bootstrap_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_jcodemunch_overlay_contract()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_component_cli_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", run_public_agents_policy_fixture()))
 
     for path in text_file_paths(REPO_ROOT):

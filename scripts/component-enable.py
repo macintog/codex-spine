@@ -35,7 +35,6 @@ def main() -> int:
     try:
         parser = argparse.ArgumentParser()
         parser.add_argument("component")
-        parser.add_argument("--accept-license", action="store_true")
         parser.add_argument("--non-interactive", action="store_true")
         args = parser.parse_args()
 
@@ -52,7 +51,6 @@ def main() -> int:
         ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
         ensure_component_acknowledged(
             component,
-            accept_license=args.accept_license,
             non_interactive=args.non_interactive or not sys.stdin.isatty(),
         )
         update_component(component)

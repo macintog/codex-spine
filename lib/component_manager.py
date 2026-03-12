@@ -12,6 +12,7 @@ from pathlib import Path
 import subprocess
 from toml_compat import tomllib
 import tty
+import urllib.request
 
 from codex_spine import (
     MAINTAINED_COMPONENTS_PATH,
@@ -233,10 +234,20 @@ def _command_probe_args(
     }
 
 
-def _command_available(command: str) -> bool:
+def _resolve_command(command: str, *, env: dict[str, str] | None = None) -> str | None:
     if "/" in command or command.startswith("~"):
-        return _expand_path(command).exists()
-    return shutil.which(command) is not None
+        candidate = _expand_path(command)
+        return str(candidate) if candidate.exists() else None
+    search_path = None
+    if env is not None:
+        search_path = env.get("PATH")
+    elif os.environ.get("PATH"):
+        search_path = os.environ.get("PATH")
+    return shutil.which(command, path=search_path)
+
+
+def _command_available(command: str, *, env: dict[str, str] | None = None) -> bool:
+    return _resolve_command(command, env=env) is not None
 
 
 def _combine_detail(*parts: str) -> str:
@@ -359,27 +370,20 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                 errors.append(
                     f"backend must define package_name: components.{component_name}.backends.{backend_name}.package_name"
                 )
-            pinned_version = backend.get("pinned_version")
             version_spec = backend.get("version_spec")
-            has_pinned_version = isinstance(pinned_version, str) and bool(pinned_version.strip())
-            has_version_spec = isinstance(version_spec, str) and bool(version_spec.strip())
-            if has_pinned_version and has_version_spec:
-                errors.append(
-                    "backend must define either pinned_version or version_spec, not both: "
-                    f"components.{component_name}.backends.{backend_name}"
-                )
-            elif not has_pinned_version and not has_version_spec:
-                errors.append(
-                    "backend must define pinned_version or version_spec: "
-                    f"components.{component_name}.backends.{backend_name}"
-                )
-            elif pinned_version is not None and not has_pinned_version:
-                errors.append(
-                    f"backend optional field must be a non-empty string: components.{component_name}.backends.{backend_name}.pinned_version"
-                )
-            elif version_spec is not None and not has_version_spec:
+            if not isinstance(version_spec, str) or not version_spec.strip():
                 errors.append(
                     f"backend optional field must be a non-empty string: components.{component_name}.backends.{backend_name}.version_spec"
+                )
+            elif re.search(r"(^|,)\s*==", version_spec):
+                errors.append(
+                    "backend version_spec must use a compatibility range or ceiling, not an exact pin: "
+                    f"components.{component_name}.backends.{backend_name}.version_spec"
+                )
+            if "pinned_version" in backend:
+                errors.append(
+                    "backend must not define pinned_version; use version_spec with a compatibility range or ceiling: "
+                    f"components.{component_name}.backends.{backend_name}.pinned_version"
                 )
             for optional_field in ("version_args", "health_args"):
                 optional_value = backend.get(optional_field)
@@ -402,10 +406,16 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                     "backend optional field must be boolean: "
                     f"components.{component_name}.backends.{backend_name}.requires_acknowledgement"
                 )
-            if backend.get("license_source_url") and not backend.get("license_start_marker"):
+            for legacy_field in ("license_source_url", "license_start_marker", "license_end_marker"):
+                if legacy_field in backend:
+                    errors.append(
+                        "backend must not use legacy licence-bundle fields; use terms_* fields instead: "
+                        f"components.{component_name}.backends.{backend_name}.{legacy_field}"
+                    )
+            if backend.get("terms_source_url") and not backend.get("terms_start_marker"):
                 errors.append(
-                    "licensed backend must define license_start_marker: "
-                    f"components.{component_name}.backends.{backend_name}.license_start_marker"
+                    "terms-bearing backend must define terms_start_marker: "
+                    f"components.{component_name}.backends.{backend_name}.terms_start_marker"
                 )
 
     return errors
@@ -438,9 +448,7 @@ def backend_version_spec(backend: dict) -> str:
 def backend_requirement(backend: dict) -> str:
     package_name = backend["package_name"]
     version_spec = backend_version_spec(backend)
-    if version_spec:
-        return f"{package_name}{version_spec}"
-    return f'{package_name}=={backend["pinned_version"]}'
+    return f"{package_name}{version_spec}"
 
 
 def component_requirement(component: ResolvedComponent) -> str:
@@ -496,23 +504,15 @@ def _matches_version_contract(component: ResolvedComponent, version_text: str) -
         return False, f"could not parse version from {version_text or 'empty output'}"
 
     version_spec = backend_version_spec(component.backend)
-    if version_spec:
-        if _version_satisfies_spec(version, version_spec):
-            return True, ""
-        return False, f"expected {component.backend['package_name']}{version_spec}, got {version_text or version}"
-
-    desired = component.backend["pinned_version"]
-    if version == desired:
+    if _version_satisfies_spec(version, version_spec):
         return True, ""
-    return False, f"expected {component.backend['package_name']}=={desired}, got {version_text or version}"
+    return False, f"expected {component.backend['package_name']}{version_spec}, got {version_text or version}"
 
 
 def _pnpm_requirement(component: ResolvedComponent) -> str:
     package_name = component.backend["package_name"]
     version_spec = backend_version_spec(component.backend)
-    if version_spec:
-        return f"{package_name}@{version_spec}"
-    return f'{package_name}@{component.backend["pinned_version"]}'
+    return f"{package_name}@{version_spec}"
 
 
 def _command_version(executable: Path, args: list[str] | None = None) -> str:
@@ -591,19 +591,22 @@ def _status_uv_tool(component: ResolvedComponent) -> dict:
 
 
 def _uvx_base_command(component: ResolvedComponent) -> list[str]:
+    resolved = _resolve_command(component.executable_command, env=_pnpm_env()) or component.executable_command
     tool_name = str(component.backend.get("tool_name", component.backend["package_name"]))
-    return [component.executable_command, "--from", component_requirement(component), tool_name]
+    if Path(resolved).name == "uv":
+        return [resolved, "tool", "run", "--from", component_requirement(component), tool_name]
+    return [resolved, "--from", component_requirement(component), tool_name]
 
 
 def _status_uvx_tool(component: ResolvedComponent) -> dict:
     command = component.executable_command
-    installed = _command_available(command)
+    installed = _command_available(command, env=_pnpm_env())
     healthy = installed
     version_text = ""
     probe_detail = ""
     version_args = component.backend.get("version_args", ["--version"])
     if installed and version_args:
-        probe = _command_probe_args(_uvx_base_command(component) + version_args)
+        probe = _command_probe_args(_uvx_base_command(component) + version_args, env=_pnpm_env())
         version_text = str(probe["output"])
         if not bool(probe["ok"]):
             healthy = False
@@ -612,7 +615,7 @@ def _status_uvx_tool(component: ResolvedComponent) -> dict:
             healthy, probe_detail = _matches_version_contract(component, version_text)
     health_args = component.backend.get("health_args")
     if healthy and installed and health_args:
-        probe = _command_probe_args(_uvx_base_command(component) + health_args)
+        probe = _command_probe_args(_uvx_base_command(component) + health_args, env=_pnpm_env())
         if not bool(probe["ok"]):
             healthy = False
             probe_detail = str(probe["detail"])
@@ -659,7 +662,7 @@ def update_component(
         if not status["healthy"]:
             raise RuntimeError(f"{component.name} remains unhealthy after update: {status['detail']}")
         if component.backend["kind"] == "uvx_tool":
-            return [f"{component.name}: validated uvx invocation"]
+            return [f"{component.name}: validated compatible runner invocation"]
         return [f"{component.name}: installed/updated"]
     if not status["healthy"]:
         progress_fn(f"{component.name}: rebuilding native addons and rechecking health...")
@@ -691,50 +694,95 @@ def record_component_enabled(component: ResolvedComponent) -> None:
     enabled = state.setdefault("enabled", {})
     existing = enabled.get(component.name)
     enabled_at = existing.get("enabled_at") if isinstance(existing, dict) and existing.get("enabled_at") else now_iso()
-    record = {"enabled_at": enabled_at}
-    version_spec = backend_version_spec(component.backend)
-    if version_spec:
-        record["version_spec"] = version_spec
-    else:
-        record["version"] = component.backend["pinned_version"]
-    enabled[component.name] = record
+    enabled[component.name] = {"enabled_at": enabled_at}
     write_component_state(state)
+
+
+def fetch_component_terms(component: ResolvedComponent) -> dict | None:
+    source_url = component.backend.get("terms_source_url")
+    if not source_url:
+        return None
+    try:
+        with urllib.request.urlopen(source_url, timeout=20) as response:
+            source_text = response.read().decode("utf-8")
+    except Exception as exc:  # pragma: no cover - network failure details vary by environment
+        raise RuntimeError(f"could not retrieve current upstream terms for {component.name}: {exc}") from exc
+
+    extracted = source_text
+    start_marker = component.backend.get("terms_start_marker")
+    if start_marker:
+        start_index = extracted.find(start_marker)
+        if start_index < 0:
+            raise RuntimeError(f"terms start marker not found for {component.name}: {start_marker!r}")
+        extracted = extracted[start_index:]
+
+    end_marker = component.backend.get("terms_end_marker")
+    if end_marker:
+        end_index = extracted.find(end_marker)
+        if end_index >= 0:
+            extracted = extracted[:end_index]
+
+    extracted = extracted.strip() + "\n"
+    return {
+        "source_url": source_url,
+        "text": extracted,
+    }
+
+
+def _page_terms_text(text: str) -> None:
+    lines = text.splitlines()
+    page_size = max(shutil.get_terminal_size(fallback=(80, 24)).lines - 4, 8)
+    total = len(lines) or 1
+    start = 0
+    while start < len(lines):
+        end = min(start + page_size, len(lines))
+        print(f"\n--- Terms {start + 1}-{end} of {total} ---")
+        print("\n".join(lines[start:end]))
+        start = end
+        if start >= len(lines):
+            break
+        reply = input("\nPress Return for more, or type 'q' to stop reviewing and skip installation: ").strip().lower()
+        if reply in {"q", "quit", "stop"}:
+            raise RuntimeError("Stopped reviewing the upstream terms before the end. jCodeMunch MCP was not enabled.")
 
 
 def ensure_component_acknowledged(
     component: ResolvedComponent,
     *,
-    accept_license: bool,
     non_interactive: bool,
 ) -> None:
     if not component.backend.get("requires_acknowledgement"):
         return
     if component.name in enabled_component_names():
+        record_component_enabled(component)
         return
 
-    if non_interactive and not accept_license:
+    if non_interactive:
         raise RuntimeError(
-            f"{component.name} requires explicit acknowledgement. Re-run with --accept-license."
+            f"{component.name} requires interactive terms acknowledgement from a TTY."
         )
 
-    if not accept_license:
-        print()
-        for line in component_acknowledgement_lines(component):
-            print(line)
-        print()
-        while True:
-            try:
-                reply = _read_accept_or_escape(
-                    "Type 'accept' to continue, or press Esc to skip for now: "
-                ).strip().lower()
-            except EOFError as exc:
-                raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
-            if reply == "accept":
-                break
-            if reply in {"skip", "s", "no", "n", "q", "quit", "\x1b"}:
+    bundle = fetch_component_terms(component)
+    print()
+    for line in component_acknowledgement_lines(component):
+        print(line)
+    print()
+    if bundle is not None:
+        print(f"Retrieved current upstream terms for {component.name} from {bundle['source_url']}\n")
+        _page_terms_text(bundle["text"])
+    while True:
+        try:
+            reply = _read_accept_or_escape(
+                "Type 'accept' to continue, or press Esc to skip for now: "
+            ).strip().lower()
+        except EOFError as exc:
+            raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
+        if reply == "accept":
+            break
+        if reply in {"skip", "s", "no", "n", "q", "quit", "\x1b"}:
+            raise RuntimeError(f"Skipped enabling {component.name} for now.")
+        if not reply:
+            if _prompt_yes_no(f"Skip enabling {component.name} for now?", default=False):
                 raise RuntimeError(f"Skipped enabling {component.name} for now.")
-            if not reply:
-                if _prompt_yes_no(f"Skip enabling {component.name} for now?", default=False):
-                    raise RuntimeError(f"Skipped enabling {component.name} for now.")
-                continue
-            print("Please type 'accept' or press Esc.")
+            continue
+        print("Please type 'accept' or press Esc.")

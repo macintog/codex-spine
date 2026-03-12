@@ -9,20 +9,22 @@ default_enabled = true
 [components.qmd.backends.codex_spine]
 kind = "pnpm_global"
 package_name = "@tobilu/qmd"
-pinned_version = "1.1.5"
+version_spec = "<3.0"
 executable = "~/Library/pnpm/qmd"
 version_args = ["--version"]
 health_args = ["status"]
 
 [components."jcodemunch-mcp"]
-summary = "jCodeMunch MCP command used for indexed code navigation through a managed uvx invocation."
+summary = "jCodeMunch MCP command used for indexed code navigation through a managed uv runner invocation."
 default_enabled = false
 
 [components."jcodemunch-mcp".backends.codex_spine]
 kind = "uvx_tool"
 package_name = "jcodemunch-mcp"
 version_spec = "<2.0"
-executable = "uvx"
+executable = "uv"
 tool_name = "jcodemunch-mcp"
 version_args = ["--version"]
 requires_acknowledgement = true
+terms_source_url = "https://raw.githubusercontent.com/jgravelle/jcodemunch-mcp/main/README.md"
+terms_start_marker = "## License (Dual Use)"

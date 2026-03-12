@@ -145,7 +145,7 @@ def preflight_optional_jcodemunch(*, non_interactive: bool, ui) -> None:
         "Optional component: jCodeMunch MCP",
         "",
         "If you want indexed code navigation, codex-spine can include the optional jCodeMunch MCP integration later in this install.",
-        "Later in the install, codex-spine will still ask for one acknowledgement before enabling it.",
+        "Later in the install, codex-spine will still show the current upstream terms and require an explicit accept before enabling it.",
     ]
     if already_enabled:
         prompt_lines = [
@@ -281,7 +281,7 @@ def main() -> int:
                     "",
                     str(exc),
                 ],
-                prompt_hint="Press Enter to exit",
+                prompt_hint="Press Enter, Space, or Esc to exit",
             )
         print("ERROR: {}".format(exc), file=sys.stderr)
         return 1
@@ -297,7 +297,7 @@ def main() -> int:
                     "",
                     "See the terminal output above for the failing command details.",
                 ],
-                prompt_hint="Press Enter to exit",
+                prompt_hint="Press Enter, Space, or Esc to exit",
             )
         print("ERROR: command failed with exit status {}: {}".format(exc.returncode, " ".join(exc.cmd)), file=sys.stderr)
         print("See output above for details.", file=sys.stderr)

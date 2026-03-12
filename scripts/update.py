@@ -23,7 +23,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("components", nargs="*")
     parser.add_argument("--defaults-only", action="store_true")
-    parser.add_argument("--accept-license", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
     args = parser.parse_args()
 
@@ -50,7 +49,6 @@ def main() -> int:
             continue
         ensure_component_acknowledged(
             component,
-            accept_license=args.accept_license,
             non_interactive=args.non_interactive or not sys.stdin.isatty(),
         )
         package_name = component.backend.get("package_name", component.name)
