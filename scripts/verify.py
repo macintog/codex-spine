@@ -647,12 +647,24 @@ def validate_memory_bootstrap_contract() -> list[str]:
 
 def validate_public_agents_policy() -> list[str]:
     agents_path = REPO_ROOT / "codex/AGENTS.md"
+    tooling_path = REPO_ROOT / "codex/TOOLING.md"
     try:
-        text = agents_path.read_text(encoding="utf-8")
+        agents_text = agents_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return [f"missing Codex policy file: {agents_path}"]
+    try:
+        tooling_text = tooling_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [f"missing Codex tooling guide: {tooling_path}"]
 
-    required_phrases = [
+    agents_required_phrases = [
+        "skills/github-contributor",
+        "skills/project-spine",
+        "upstream-contributor",
+        "project-continuity",
+        "codex/TOOLING.md",
+    ]
+    tooling_required_phrases = [
         "memory.bootstrap_context",
         "materially new user request",
         "compaction-drift",
@@ -671,13 +683,21 @@ def validate_public_agents_policy() -> list[str]:
         "get_symbol",
     ]
     errors: list[str] = []
-    for phrase in required_phrases:
-        if phrase not in text:
-            errors.append(f"public Codex policy is missing required MCP guidance: {agents_path}: {phrase}")
+    for phrase in agents_required_phrases:
+        if phrase not in agents_text:
+            errors.append(f"public Codex policy is missing required routing guidance: {agents_path}: {phrase}")
+    for phrase in tooling_required_phrases:
+        if phrase not in tooling_text:
+            errors.append(f"public Codex tooling guide is missing required MCP guidance: {tooling_path}: {phrase}")
+    bullet_lines = [line for line in agents_text.splitlines() if line.lstrip().startswith("- ")]
+    if len(bullet_lines) > 13:
+        errors.append(
+            f"public Codex policy should stay compact and routing-focused: {agents_path}: found {len(bullet_lines)} bullets"
+        )
     for forbidden_phrase in ("qmd_codex", "vsearch", "multi-get"):
-        if forbidden_phrase in text:
+        if forbidden_phrase in tooling_text:
             errors.append(
-                f"public Codex policy still references deprecated direct qmd_codex guidance: {agents_path}: {forbidden_phrase}"
+                f"public Codex tooling guide still references deprecated direct qmd_codex guidance: {tooling_path}: {forbidden_phrase}"
             )
     return errors
 

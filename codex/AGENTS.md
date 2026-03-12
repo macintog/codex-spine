@@ -1,20 +1,15 @@
 # codex-spine Codex Policy
 
 - Always describe current work and give regular progress updates with enough reasoning to follow.
-- Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed for the task.
-- Use `skills/github-contributor` for GitHub-hosted work such as release discipline, documentation quality, component boundaries, repo shaping, and upstreamability decisions.
-- Use `skills/project-spine` for project-focused continuity work that needs to stay coherent across threads, branches, and longer runs of work.
+- Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed.
+- Use `skills/github-contributor` for GitHub-hosted work. If the installed `upstream-contributor` skill applies, use it for upstream-candidate or maintainer-facing contribution work.
+- Use `skills/project-spine` for project-focused continuity work. If the installed `project-continuity` skill is available, use it for deeper continuity-file or multi-repo continuity restructuring.
+- Open `codex/TOOLING.md` only when the task needs on-demand routing for continuity, memory retrieval, indexed code navigation, or GitHub/upstream contribution lanes.
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits or one-off environment mutations.
 - Prefer durable fixes at the source that actually owns a behavior instead of duplicating the same change across multiple layers.
-- Keep guidance runnable with the commands and files actually available in the working tree.
-- Before non-trivial repo-touching work, give a short task-start brief that names the repo or branch posture, adjacent surfaces, validation plan, and any destructive-move guard.
+- Before non-trivial repo-touching work, give a short task-start brief naming repo or branch posture, adjacent surfaces, validation plan, and any destructive-move guard.
 - Build a required-surface checklist before non-trivial edits. If a change affects a managed or advertised surface, update implementation, verification, and shipped guidance together.
 - Treat Git as an explicit operating discipline: reason about repo role, base, current branch or worktree, unique local state, and intended integration path before mutating history or files.
 - Do not pile new work onto unrelated dirt. If the checkout already carries unrelated changes, work around untouched files or move the task to a fresh topic branch or worktree.
 - If the same symptom survives one or two attempted fixes, stop thrashing, restate the evidence and uncertainty, then switch strategies or ask before retrying again.
-- When using the shipped memory surface, call `memory.bootstrap_context` on the first assistant turn in a new thread with `max_recent_sessions=3`, then call it again on a materially new user request, on repo or `cwd` changes, on resume, and on compaction-drift symptoms.
-- Treat automatic bootstrap as durable context restoration only. It should restore project frame and durable constraints, but it must not auto-recap prior task work or choose the next task from memory alone.
-- If the user needs exact prior wording or broader historical evidence, use direct memory retrieval instead of another bootstrap pass. Default flow: `search`, then `deep_search`, then `vector_search`, then `get` or `multi_get` against the returned `qmd://codex-chat/projects/` context.
-- If `memory.bootstrap_context` fails, fall back to `qmd-memory-latest.sh`, summarize the result, and continue. `qmd-codex` is the managed adapter behind this memory path, not a second public MCP to document separately.
-- When indexed code navigation is useful, use the optional `jcodemunch` surface rather than broad file scans. Default flow: `search_symbols`, then `get_symbol` or related symbol lookups for precise definitions and call sites.
 - After shell, install, bootstrap, config, launcher, or environment changes, state whether anything changes for current terminals, new shells, app restarts, or reboots.

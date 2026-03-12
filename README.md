@@ -150,7 +150,8 @@ When testing a branch or release candidate, start from a fresh or freshly update
 - `ARCHITECTURE.md`: subsystem map, flows, and invariants
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
-- `codex/AGENTS.md`: shipped Codex policy and workflow guidance
+- `codex/AGENTS.md`: compact Codex startup and routing guidance
+- `codex/TOOLING.md`: on-demand routing for continuity, memory retrieval, code navigation, and GitHub or upstream lanes
 
 This repo ships the docs needed to install, operate, and maintain `codex-spine`.
 The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
