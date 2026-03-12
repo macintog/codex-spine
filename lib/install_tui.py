@@ -368,37 +368,60 @@ class InstallTUI:
     ) -> Optional[str]:
         typed: List[str] = []
         needs_full_redraw = True
-        while True:
-            visible = ("[hidden]" if typed else "") if mask_input else "".join(typed)
-            field = "> {}".format(visible if visible else "_")
-            lines = [title, "", prompt, "", field]
-            if needs_full_redraw:
-                self.render_modal(lines, prompt_hint=prompt_hint, modal_size=modal_size)
-                needs_full_redraw = False
-            else:
-                layout = self._modal_layout(lines, modal_size=modal_size)
-                self._draw_modal(layout, prompt_hint=prompt_hint)
-            key = self._read_key()
-            if key is None:
-                continue
-            if key == curses.KEY_RESIZE:
-                needs_full_redraw = True
-                continue
-            if _is_enter_key(key):
-                return "".join(typed)
-            if isinstance(key, str):
-                if key == "\x1b":
-                    return None
-                if key in ("\n", "\r"):
+        blink_visible = True
+        blink_deadline = time.monotonic() + 0.45
+        if hasattr(self.stdscr, "nodelay"):
+            self.stdscr.nodelay(True)
+            self._nodelay = True
+        try:
+            while True:
+                now = time.monotonic()
+                if mask_input and now >= blink_deadline:
+                    blink_visible = not blink_visible
+                    blink_deadline = now + 0.45
+                    needs_full_redraw = False
+                if mask_input:
+                    field = "> {}".format("_" if blink_visible else " ")
+                else:
+                    field = "> {}".format("".join(typed) if typed else "_")
+                lines = [title, "", prompt, "", field]
+                if needs_full_redraw:
+                    self.render_modal(lines, prompt_hint=prompt_hint, modal_size=modal_size)
+                    needs_full_redraw = False
+                else:
+                    layout = self._modal_layout(lines, modal_size=modal_size)
+                    self._draw_modal(layout, prompt_hint=prompt_hint)
+                try:
+                    key = self._read_key()
+                except curses.error:
+                    key = None
+                if key is None:
+                    time.sleep(0.05)
+                    continue
+                blink_visible = True
+                blink_deadline = time.monotonic() + 0.45
+                if key == curses.KEY_RESIZE:
+                    needs_full_redraw = True
+                    continue
+                if _is_enter_key(key):
                     return "".join(typed)
-                if key in ("\x08", "\x7f"):
-                    if typed:
-                        typed.pop()
-                    continue
-                if key.isprintable():
-                    typed.append(key)
-                    continue
-            curses.beep()
+                if isinstance(key, str):
+                    if key == "\x1b":
+                        return None
+                    if key in ("\n", "\r"):
+                        return "".join(typed)
+                    if key in ("\x08", "\x7f"):
+                        if typed:
+                            typed.pop()
+                        continue
+                    if key.isprintable():
+                        typed.append(key)
+                        continue
+                curses.beep()
+        finally:
+            if hasattr(self.stdscr, "nodelay"):
+                self.stdscr.nodelay(False)
+                self._nodelay = False
 
     def page_text(
         self,
