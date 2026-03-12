@@ -29,7 +29,7 @@ def install_steps() -> List[Step]:
         Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
         Step("Step 2 of 4", "Optional code search", "Choose whether to add optional indexed code navigation."),
         Step("Step 3 of 4", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
-        Step("Step 4 of 4", "Continue setup", "Move straight into the rest of the install from this same window."),
+        Step("Step 4 of 4", "Install Codex tools", "Install qmd and the rest of the codex-spine tools in this same window."),
     ]
 
 def find_brew() -> Optional[str]:

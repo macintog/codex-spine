@@ -272,7 +272,7 @@ def install_steps() -> list[Step]:
         Step("Step 3 of 6", "Core tools", "Install or update codex-spine tools like qmd, plus any optional add-ons you chose."),
         Step("Step 4 of 6", "Finish setup", "Write your Codex setup and turn on background sync."),
         Step("Step 5 of 6", "Memory and search", "Prepare transcript sync and local search for first use."),
-        Step("Step 6 of 6", "Final check", "Run one last verification and show any next steps."),
+        Step("Step 6 of 6", "Verify install", "Run one last verification."),
     ]
 
 
