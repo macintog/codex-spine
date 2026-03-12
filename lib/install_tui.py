@@ -221,6 +221,8 @@ class InstallTUI:
         while True:
             key = self.stdscr.get_wch()
             if isinstance(key, int):
+                if _is_enter_key(key):
+                    return default
                 if key in (
                     curses.KEY_UP,
                     curses.KEY_DOWN,
@@ -264,6 +266,8 @@ class InstallTUI:
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
+                if _is_enter_key(key):
+                    break
                 if key in ("\n", "\r", " ", "\x1b"):
                     break
                 if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
@@ -301,6 +305,8 @@ class InstallTUI:
                 if key == curses.KEY_RESIZE:
                     self.render_modal(lines, prompt_hint=prompt_hint)
                     continue
+                if _is_enter_key(key):
+                    break
                 if key in ("\n", "\r", " ", "\x1b"):
                     break
                 if isinstance(key, str) and key.lower() in ("\n", "\r", " ", "\x1b"):
@@ -337,6 +343,8 @@ class InstallTUI:
             if key == curses.KEY_RESIZE:
                 needs_full_redraw = True
                 continue
+            if _is_enter_key(key):
+                return "".join(typed)
             if isinstance(key, str):
                 if key == "\x1b":
                     return None
@@ -380,6 +388,11 @@ class InstallTUI:
             self.render_modal([header, ""] + pages[page_index], prompt_hint=prompt_hint, modal_size=modal_size)
             key = self.stdscr.get_wch()
             if key == curses.KEY_RESIZE:
+                continue
+            if _is_enter_key(key):
+                if page_index >= len(pages) - 1:
+                    return True
+                page_index = min(len(pages) - 1, page_index + 1)
                 continue
             if key in (curses.KEY_UP, curses.KEY_PPAGE):
                 page_index = max(0, page_index - 1)
@@ -650,6 +663,8 @@ class InstallTUI:
                         os.write(master_fd, b"\x03")
                     elif key.isprintable():
                         os.write(master_fd, key.encode("utf-8"))
+                elif _is_enter_key(key):
+                    os.write(master_fd, b"\n")
                 if process.poll() is not None:
                     break
             returncode = process.wait()
@@ -829,3 +844,7 @@ def _replacement_key(text: str) -> Optional[str]:
     if spinner_match:
         return f"spinner:{spinner_match.group(1)}"
     return None
+
+
+def _is_enter_key(key: object) -> bool:
+    return key == curses.KEY_ENTER or key in (10, 13)

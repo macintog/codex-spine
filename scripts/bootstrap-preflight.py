@@ -26,10 +26,12 @@ REQUIRED_FORMULAS = ["python", "ripgrep", "node", "pnpm", "uv", "jq"]
 
 def install_steps() -> List[Step]:
     return [
-        Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
-        Step("Step 2 of 4", "Optional code search", "Choose whether to add optional indexed code navigation."),
-        Step("Step 3 of 4", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
-        Step("Step 4 of 4", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
+        Step("Step 1 of 6", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
+        Step("Step 2 of 6", "Optional code search", "Choose whether to add optional indexed code navigation."),
+        Step("Step 3 of 6", "Required tools", "Install Homebrew if needed, then install Python, ripgrep, Node, pnpm, uv, and jq."),
+        Step("Step 4 of 6", "Install Codex tools", "Install qmd and the rest of the codex-spine tools."),
+        Step("Step 5 of 6", "Finish setup", "Write your Codex setup and turn on background sync."),
+        Step("Step 6 of 6", "Verify install", "Run one last verification."),
     ]
 
 def find_brew() -> Optional[str]:
