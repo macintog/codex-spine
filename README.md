@@ -2,6 +2,21 @@
 
 `codex-spine` is a macOS-first public Codex environment spine for shareable retrieval, indexing, workflow, and maintenance tooling. It installs and maintains the core pieces for you instead of turning the setup into a README scavenger hunt. When everything is working, your token counts should go down while accuracy goes up.
 
+`codex-spine` v0.5 improves Codex in a few focused ways:
+
+- it adapts [@tobi/qmd](https://github.com/tobi/qmd) to the Codex workflow by:
+  - converting Codex thread JSON into Markdown for ingestion
+  - extracting only user and assistant conversation content for indexing
+  - narrowing the practical `qmd` surface down to the retrieval calls that matter for recalling that material
+- it can optionally install [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), which can substantially improve token efficiency when working through code
+- it ships two Codex skills:
+  - `github-contributor`: public-maintenance guidance for release discipline, documentation quality, component boundaries, and upstreamability
+  - `project-spine`: multi-session continuity guidance for keeping a long-lived project aligned while technical work moves through narrower local problems
+
+## Audience
+
+This project is aimed at new macOS Codex users who want a turnkey way around some of Codex's basic limitations. It is still a work in progress, but it captures my own environment as I learn the system, and it already embodies a couple hundred hours of lessons. There is still a lot of room to improve it, but if you are starting from zero, this should help you level up with one simple install. It will also keep evolving as I learn more, so it should be worth updating regularly.
+
 ## Requirements
 
 - macOS with a user-space Codex installation under `~/.codex`
