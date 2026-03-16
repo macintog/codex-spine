@@ -13,7 +13,7 @@
 
 ## Audience
 
-This project is aimed at new macOS Codex users who want a turnkey way around some of Codex's basic limitations. It is still a work in progress, but it captures my own environment as I learn the system, and it already embodies a couple hundred hours of lessons. There is still a lot of room to improve it, but if you are starting from zero, this should help you level up with one simple install. It will also keep evolving as I learn more, so it should be worth updating regularly.
+This project is aimed at new macOS Codex users who want a turnkey way around some of Codex's basic limitations. It packages a tested daily-driver environment into a public-safe install path, so people starting from zero can get useful retrieval, indexing, and maintenance tooling without first rebuilding the whole setup themselves. The project is still evolving, but the v0.5 release line is intended to be installable today, practical to update, and straightforward to adopt.
 
 ## Requirements
 
