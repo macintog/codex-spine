@@ -25,7 +25,7 @@ Interactive install stays in one fullscreen session from the first prompt throug
 
 ## Homebrew Packages
 
-When `make install` installs missing baseline formulas, it installs these Homebrew packages:
+When `make install` installs missing baseline formulae, it installs these Homebrew packages:
 
 - `ripgrep`
 - `python`
