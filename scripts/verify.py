@@ -696,7 +696,10 @@ def validate_public_agents_policy_texts(
         "memory.bootstrap_context",
         "qmd-memory-latest.sh",
         "## Code Navigation",
+        "## jCode Local Route",
         "jcodemunch",
+        "list_repos",
+        "index_folder",
         "search_symbols",
         "get_symbol",
     ]
@@ -817,6 +820,11 @@ def run_public_agents_policy_fixture() -> list[str]:
 
 - Use jcodemunch for indexed code navigation.
 - Start with search_symbols and then get_symbol for precise symbol reads.
+
+## jCode Local Route
+
+- Start with list_repos and prefer a source_root match for the current repo.
+- If no exact binding exists, use index_folder with incremental refresh before broader scanning.
 
 """
     fixture_agents_path = Path("/tmp/fixture-codex-AGENTS.md")
