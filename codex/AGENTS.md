@@ -8,7 +8,10 @@
 - When non-trivial codebase work would otherwise require broad file scanning, use the `jcodemunch` lane in `codex/TOOLING.md`.
 - Treat those MCP lanes as part of the stock installed Codex environment, not as optional skill behavior.
 - This public repo intentionally does not ship Codex skills while those guidance surfaces are still evolving.
-- Open `codex/TOOLING.md` only when the task needs on-demand routing for continuity, memory retrieval, or indexed code navigation.
+- Open `codex/TOOLING.md` only when the task needs the shared continuity packet, closeout flow, direct memory retrieval, or indexed code navigation.
+- Interpret `begin` as: load the default startup packet and resume from the plan-of-record.
+- Interpret `end` as the managed closeout command, not as immediate archive or termination.
+- On `end`, ask `Confirm end now? (yes/no)` before any closeout mutations, then use `codex/TOOLING.md` for the detailed continuity and closeout flow.
 - Keep this file compact. Put detailed playbooks in `codex/TOOLING.md` or the deeper public docs instead of turning `codex/AGENTS.md` into a second playbook.
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) over ad hoc local edits or one-off environment mutations.
 - Prefer durable fixes at the source that actually owns a behavior instead of duplicating the same change across multiple layers.

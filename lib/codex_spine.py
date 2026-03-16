@@ -123,11 +123,10 @@ FORBIDDEN_PUBLIC_ROOT_PATHS = [
 ]
 
 FORBIDDEN_PUBLIC_DOC_PATTERNS = {
-    "PROJECT_CONTINUITY.md": re.compile(r"\bPROJECT_CONTINUITY\.md\b"),
     "PROJECT_SPINE.md": re.compile(r"\bPROJECT_SPINE\.md\b"),
-    "CHECKPOINT.md": re.compile(r"\bCHECKPOINT\.md\b"),
     "QA_RUNBOOK.md": re.compile(r"\bQA_RUNBOOK\.md\b"),
     "QA_MATRIX.md": re.compile(r"\bQA_MATRIX\.md\b"),
+    "make backup": re.compile(r"\bmake backup\b", re.IGNORECASE),
     "private Gitea": re.compile(r"\bprivate Gitea\b", re.IGNORECASE),
 }
 

@@ -2,6 +2,23 @@
 
 Load this only when the task actually enters one of these stock installed lanes. Routine startup should stay with `README.md` and `codex/AGENTS.md`.
 
+## Continuity and Closeout
+
+- For non-trivial multi-session repos, keep a compact continuity packet in the repo itself:
+  - project `AGENTS.md` for local execution rules
+  - `PROJECT_CONTINUITY.md` for durable purpose, topology, and strategy
+  - `CHECKPOINT.md` for the volatile plan-of-record and current handoff
+  - optional archive references when the active handoff needs to stay compact
+- Treat this continuity packet as project-local working state. Create and update these files in the repo you are actively working in.
+- Interpret `begin` as: load the default startup packet and resume from the plan-of-record.
+- Interpret `end` as the managed closeout command, not as immediate archive or termination.
+- On `end`, ask `Confirm end now? (yes/no)` before any closeout mutations.
+- After explicit confirmation, run the repo's closeout flow in order: refresh `CHECKPOINT.md` when execution state changed, update archive references only when detailed notes need to move out of the active handoff, rerun required verification, rerun bootstrap or other live refresh only when managed live surfaces changed, preserve validated work through the repo's own snapshot or backup path when one exists and preservation is intended, and always report reload, new-shell, restart, or reboot impact.
+- Create the continuity packet for repos that are non-trivial, likely to span multiple sessions, or likely to need handoff continuity.
+- Refresh `PROJECT_CONTINUITY.md` only when durable strategy, topology, or success criteria change.
+- Refresh `CHECKPOINT.md` when execution state changes and again on explicit closeout.
+- Keep deep tooling docs on-demand rather than part of routine startup.
+
 ## Continuity and Memory
 
 - Use the direct `memory.bootstrap_context` tool call on the first assistant turn in a new thread, at the start of any materially new user request, on repo or `cwd` changes, on resume or prior-thread references, and on compaction-drift symptoms. Pass `max_recent_sessions=3`.

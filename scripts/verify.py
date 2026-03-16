@@ -689,8 +689,29 @@ def validate_public_agents_policy_texts(
         ("tooling guide routing", "codex/TOOLING.md"),
         ("memory bootstrap trigger", "memory.bootstrap_context"),
         ("indexed code navigation trigger", "jcodemunch"),
+        ("session shortcut", "`begin`"),
+        ("session shortcut", "`end`"),
+        ("closeout confirmation", "Confirm end now? (yes/no)"),
     ]
     tooling_required_anchors = [
+        "## Continuity and Closeout",
+        "`AGENTS.md`",
+        "`PROJECT_CONTINUITY.md`",
+        "`CHECKPOINT.md`",
+        "archive references",
+        "`begin`",
+        "`end`",
+        "Confirm end now? (yes/no)",
+        "plan-of-record",
+        "Create the continuity packet",
+        "Refresh `PROJECT_CONTINUITY.md`",
+        "Refresh `CHECKPOINT.md`",
+        "rerun required verification",
+        "snapshot or backup path",
+        "reload",
+        "new-shell",
+        "restart",
+        "reboot",
         "## Continuity and Memory",
         "direct memory retrieval",
         "memory.bootstrap_context",
@@ -711,6 +732,11 @@ def validate_public_agents_policy_texts(
             errors.append(f"public Codex tooling guide is missing required routing anchor: {tooling_path}: {anchor}")
     if not any(anchor in tooling_text for anchor in ("`search`", "`deep_search`", "`vector_search`", "`get`", "`multi_get`")):
         errors.append(f"public Codex tooling guide is missing direct memory retrieval tool routing: {tooling_path}")
+    for forbidden in ("`begin <profile>`", "make backup"):
+        if forbidden in agents_text:
+            errors.append(f"public Codex policy references a non-universal session or preservation shortcut: {agents_path}: {forbidden}")
+        if forbidden in tooling_text:
+            errors.append(f"public Codex tooling guide references a non-universal session or preservation shortcut: {tooling_path}: {forbidden}")
     lowered_agents = agents_text.lower()
     lowered_tooling = tooling_text.lower()
     for phrase in CONTRIBUTION_HEDGE_PHRASES:
@@ -807,8 +833,22 @@ def run_public_agents_policy_fixture() -> list[str]:
 - On first turn, materially new requests, repo changes, prior-thread references, or context drift, call memory.bootstrap_context before broader doc reloads.
 - When prior wording matters, use the memory lane in codex/TOOLING.md instead of guessing from recap.
 - When code understanding would otherwise require broad file scanning, use the jcodemunch lane in codex/TOOLING.md.
+- Interpret `begin` as reloading the default startup packet and resuming from the plan-of-record.
+- Interpret `end` as a managed closeout command.
+- Ask `Confirm end now? (yes/no)` before any closeout mutations.
 """
     paraphrased_tooling = """# Fixture Tooling Guide
+
+## Continuity and Closeout
+
+- Use project `AGENTS.md`, `PROJECT_CONTINUITY.md`, and `CHECKPOINT.md` as the continuity packet, plus archive references when the active handoff needs to stay compact.
+- Interpret `begin` as loading the default startup packet and resuming from the plan-of-record.
+- Interpret `end` as a managed closeout command, not immediate archive or termination.
+- Ask `Confirm end now? (yes/no)` before any closeout mutations.
+- Create the continuity packet for non-trivial repos that need multi-session continuity.
+- Refresh `PROJECT_CONTINUITY.md` only when durable strategy changes.
+- Refresh `CHECKPOINT.md` whenever execution state changes or during explicit closeout.
+- After confirmation, rerun required verification, use the repo's own snapshot or backup path only when preservation is intended, and report reload, new-shell, restart, or reboot impact.
 
 ## Continuity and Memory
 
@@ -852,6 +892,15 @@ def run_public_agents_policy_fixture() -> list[str]:
     )
     if not any("search_symbols" in message for message in missing_tool_errors):
         errors.append("public policy routing fixture did not reject a missing code-navigation anchor")
+
+    forbidden_profile_errors = validate_public_agents_policy_texts(
+        paraphrased_agents.replace("`begin`", "`begin <profile>`"),
+        paraphrased_tooling,
+        agents_path=fixture_agents_path,
+        tooling_path=fixture_tooling_path,
+    )
+    if not any("begin <profile>" in message for message in forbidden_profile_errors):
+        errors.append("public policy routing fixture did not reject deprecated begin profile syntax")
 
     return errors
 

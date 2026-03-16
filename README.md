@@ -132,6 +132,12 @@ After a successful first run:
 
 When testing a branch or release candidate, start from a fresh or freshly updated clone of the exact remote branch, print the exact commit with `git rev-parse --short HEAD`, then run `make install` and `make verify`.
 
+## Project Continuity
+
+`codex-spine` teaches a continuity packet for adopting repos: project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, `CHECKPOINT.md` for volatile handoff, and optional archive references when the active handoff needs to stay compact.
+
+Those files are project-local working state. The environment ships the guidance in `codex/AGENTS.md` and `codex/TOOLING.md`; create or update the actual continuity files in the repo you are actively working in.
+
 ## Troubleshooting
 
 - If `make verify` says the live config is stale, run `make install`.
@@ -147,8 +153,8 @@ When testing a branch or release candidate, start from a fresh or freshly update
 - `ARCHITECTURE.md`: subsystem map, flows, and invariants
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
-- `codex/AGENTS.md`: compact Codex startup and routing guidance
-- `codex/TOOLING.md`: on-demand routing for continuity, memory retrieval, and code navigation lanes
+- `codex/AGENTS.md`: compact Codex startup guidance plus the `begin` and `end` session shortcut contract
+- `codex/TOOLING.md`: on-demand guidance for the continuity packet, closeout flow, memory retrieval, and code navigation lanes
 
 This repo ships the docs needed to install, operate, and maintain `codex-spine`.
 The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
