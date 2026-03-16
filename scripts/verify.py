@@ -687,6 +687,8 @@ def validate_public_agents_policy_texts(
     agents_required_anchors = [
         ("repo entrypoint routing", "README.md"),
         ("tooling guide routing", "codex/TOOLING.md"),
+        ("memory bootstrap trigger", "memory.bootstrap_context"),
+        ("indexed code navigation trigger", "jcodemunch"),
     ]
     tooling_required_anchors = [
         "## Continuity and Memory",
@@ -801,6 +803,9 @@ def run_public_agents_policy_fixture() -> list[str]:
     paraphrased_agents = """# Fixture Codex Policy
 
 - Start with README.md for human-facing orientation and reach for codex/TOOLING.md only when the task enters a deeper operational lane.
+- On first turn, materially new requests, repo changes, prior-thread references, or context drift, call memory.bootstrap_context before broader doc reloads.
+- When prior wording matters, use the memory lane in codex/TOOLING.md instead of guessing from recap.
+- When code understanding would otherwise require broad file scanning, use the jcodemunch lane in codex/TOOLING.md.
 """
     paraphrased_tooling = """# Fixture Tooling Guide
 

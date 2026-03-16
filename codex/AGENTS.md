@@ -2,7 +2,11 @@
 
 - Always describe current work and give regular progress updates with enough reasoning to follow.
 - Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed.
-- Use `codex/TOOLING.md` for continuity, memory retrieval, indexed code navigation, GitHub maintenance, release review, and public-doc work.
+- On the first assistant turn in a new thread, at the start of any materially new request, on repo or `cwd` changes, on prior-thread references, or on compaction-drift symptoms, call `memory.bootstrap_context` before broader doc reloads.
+- Use `codex/TOOLING.md` for direct memory retrieval, indexed code navigation, GitHub maintenance, release review, and public-doc work.
+- When exact prior wording or broader historical evidence matters, use the memory lane in `codex/TOOLING.md` instead of guessing from docs or chat recap.
+- When non-trivial codebase work would otherwise require broad file scanning, use the `jcodemunch` lane in `codex/TOOLING.md`.
+- Treat those MCP lanes as part of the stock installed Codex environment, not as optional skill behavior.
 - This public repo intentionally does not ship Codex skills while those guidance surfaces are still evolving.
 - Open `codex/TOOLING.md` only when the task needs on-demand routing for continuity, memory retrieval, indexed code navigation, or GitHub contribution work.
 - Keep this file compact. Put detailed playbooks in `codex/TOOLING.md` or the deeper public docs instead of turning `codex/AGENTS.md` into a second playbook.
