@@ -24,6 +24,7 @@ codex-spine/
 │   └── component-enable        # Enables optional third-party code-navigation integrations
 ├── codex/
 │   ├── AGENTS.md               # Shipped Codex runtime policy for installations using codex-spine
+│   ├── TOOLING.md              # On-demand continuity, memory, and code-navigation guidance
 │   └── config/                 # Managed config fragments rendered into ~/.codex/config.toml
 ├── bin/                        # Durable wrappers and managed launcher entrypoints
 ├── shell/                      # Managed shell fragments sourced into user shells
@@ -38,15 +39,18 @@ codex-spine/
 tracked repo policy + config fragments + wrappers
     -> scripts/bootstrap
     -> stock Python preflight under macOS-shipped python3
-    -> existing-config review + optional code-navigation choice
-    -> Homebrew install if needed + baseline package checks
+    -> existing-config review + Homebrew/package preflight
     -> continue in the same fullscreen installer session
     -> scripts/bootstrap.py under the current Python runtime
-    -> default managed component install/update
-    -> managed symlinks under ~/.codex and ~/.local/bin
+    -> example local overlays + managed symlinks
     -> zsh-only managed shell source blocks
+    -> default managed component install/update
+    -> optional jcodemunch acknowledgement + enablement when chosen
     -> rendered ~/.codex/config.toml
-    -> LaunchAgent render + reload
+    -> LaunchAgent render
+    -> first transcript sync + qmd index refresh
+    -> launchctl bootstrap for background sync
+    -> final verify
 ```
 
 `install` is the mechanism that turns tracked repo state into live user-level machine state. A change to config fragments, wrappers, shell hooks, or LaunchAgent behavior is not really installed until `make install` runs successfully.

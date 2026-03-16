@@ -64,7 +64,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 - keeps one fullscreen session through the whole interactive install
 - checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
-- for interactive installs, asks early whether you want to include the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration later in the same install; that prompt defaults to yes
+- for interactive installs, asks early whether you want to include the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration later in the same install when it is not already enabled; that prompt defaults to yes
 - installs Homebrew if needed and then installs any missing baseline runtime packages
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/` and `~/.local/bin/`
@@ -76,7 +76,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) stays out of the default core path, but interactive install can include it when you opt in.
 
-If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later shows the current upstream terms, requires you to type `accept`, and only then enables it. The managed overlay then wires Codex to the latest compatible upstream MCP under `<2.0` through the built-in `uv` runner instead of relying on a separate installed launcher path. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
+If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later shows the current upstream terms, requires you to type `accept`, and only then enables it. If it is already enabled, install reports that state and continues without re-prompting. The managed overlay then wires Codex to the latest compatible upstream MCP under `<2.0` through the built-in `uv` runner instead of relying on a separate installed launcher path. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 
