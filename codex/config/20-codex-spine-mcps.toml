@@ -1,0 +1,3 @@
+[mcp_servers.memory]
+command = "__HOME__/.local/bin/codex-memory-mcp-launcher"
+enabled = true

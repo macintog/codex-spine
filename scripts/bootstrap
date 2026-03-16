@@ -1,0 +1,37 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PREFLIGHT_PY="$SCRIPT_DIR/bootstrap-preflight.py"
+
+python_supports_preflight() {
+    candidate=${1:-}
+    [ -n "$candidate" ] || return 1
+    [ -x "$candidate" ] || return 1
+    "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1
+}
+
+resolve_preflight_python() {
+    for candidate in \
+        "${CODEX_SPINE_PREFLIGHT_PYTHON:-}" \
+        "$(command -v python3 2>/dev/null || true)" \
+        /usr/bin/python3 \
+        /opt/homebrew/bin/python3 \
+        /usr/local/bin/python3
+    do
+        if python_supports_preflight "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+preflight_python=$(resolve_preflight_python || true)
+if [ -z "$preflight_python" ]; then
+    printf '%s\n' "codex-spine requires Python 3.9+ for the preflight installer UI. On stock macOS 15.7.4+ this should be available as /usr/bin/python3." >&2
+    exit 1
+fi
+
+exec "$preflight_python" "$PREFLIGHT_PY" "$@"

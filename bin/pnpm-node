@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+# macOS-first: prefer the Homebrew Node runtime so pnpm global shims keep one
+# native-addon ABI across brew upgrades.
+for candidate in /opt/homebrew/bin/node /usr/local/bin/node; do
+  if [ -x "$candidate" ]; then
+    exec "$candidate" "$@"
+  fi
+done
+
+echo "pnpm-node error: node runtime not found (checked /opt/homebrew/bin/node and /usr/local/bin/node)." >&2
+exit 1

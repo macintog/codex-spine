@@ -1,0 +1,912 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const crypto = require("crypto");
+const { spawn, spawnSync } = require("child_process");
+
+const HOME = process.env.HOME || os.homedir();
+const STATE_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat", ".state");
+const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
+const LATEST_PROJECT_KEY_FILE = path.join(STATE_ROOT, "latest_project_key.txt");
+const SYNC_SCRIPT = path.join(HOME, ".local", "bin", "sync-codex-chat-qmd.sh");
+const SYNC_LOCK_DIR = "/tmp/codex-chat-qmd-sync.lock";
+const QMD_CLI = process.env.QMD_CLI || path.join(HOME, ".local", "bin", "qmd-codex");
+const SQLITE3_BIN = process.env.SQLITE3_BIN || "sqlite3";
+const DEFAULT_INDEX = process.env.QMD_DEFAULT_INDEX || "codex_chat";
+const PROJECT_CACHE_ROOT = path.join(HOME, ".cache", "qmd", DEFAULT_INDEX);
+const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
+let transportStyle = "framed";
+
+function writeMessage(message) {
+  if (transportStyle === "json") {
+    process.stdout.write(`${JSON.stringify(message)}\n`);
+    return;
+  }
+  const payload = Buffer.from(JSON.stringify(message), "utf8");
+  const header = Buffer.from(`Content-Length: ${payload.length}\r\n\r\n`, "utf8");
+  process.stdout.write(Buffer.concat([header, payload]));
+}
+
+function sendResponse(id, result) {
+  writeMessage({ jsonrpc: "2.0", id, result });
+}
+
+function sendError(id, code, message, data) {
+  const error = { code, message };
+  if (data !== undefined) {
+    error.data = data;
+  }
+  writeMessage({ jsonrpc: "2.0", id, error });
+}
+
+function runCommand(command, args, options = {}) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    env: process.env,
+    ...options,
+  });
+}
+
+function readJsonIfExists(file) {
+  try {
+    if (!fs.existsSync(file)) {
+      return null;
+    }
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readTextIfExists(file) {
+  try {
+    if (!fs.existsSync(file)) {
+      return "";
+    }
+    return fs.readFileSync(file, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+function normalizePath(inputPath) {
+  try {
+    if (!inputPath) {
+      return process.cwd();
+    }
+    return fs.realpathSync(inputPath);
+  } catch {
+    return path.resolve(inputPath || process.cwd());
+  }
+}
+
+function canonicalProjectPath(cwd) {
+  const resolved = normalizePath(cwd);
+  const git = runCommand("git", ["-C", resolved, "rev-parse", "--show-toplevel"]);
+  if (git.status === 0 && git.stdout && git.stdout.trim().length > 0) {
+    return git.stdout.trim();
+  }
+  return resolved;
+}
+
+function projectKeyForPath(projectPath) {
+  const base = path.basename(projectPath || "project")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "") || "project";
+  const hash = crypto.createHash("sha1").update(projectPath).digest("hex").slice(0, 12);
+  return `${base}-${hash}`;
+}
+
+function readBootstrapForKey(projectKey) {
+  if (!projectKey) {
+    return null;
+  }
+  const bootstrapFile = path.join(PROJECTS_DIR, projectKey, "bootstrap.json");
+  return readJsonIfExists(bootstrapFile);
+}
+
+function unixSecondsFromIso(value) {
+  const t = Date.parse(value || "");
+  if (!Number.isFinite(t)) {
+    return 0;
+  }
+  return Math.floor(t / 1000);
+}
+
+function refreshSync(projectPath) {
+  if (!fs.existsSync(SYNC_SCRIPT)) {
+    return { ok: false, reason: `missing sync script: ${SYNC_SCRIPT}` };
+  }
+  const args = ["--state-only"];
+  if (projectPath) {
+    args.push("--project-path", projectPath);
+  }
+  const result = runCommand(SYNC_SCRIPT, args);
+  if (result.status === 0) {
+    return { ok: true };
+  }
+  const stderr = (result.stderr || "").trim();
+  const stdout = (result.stdout || "").trim();
+  const detail = stderr || stdout || `exit ${result.status}`;
+  return { ok: false, reason: detail };
+}
+
+function backgroundRefreshRunning() {
+  return fs.existsSync(SYNC_LOCK_DIR);
+}
+
+function startBackgroundRefresh(projectPath) {
+  if (!fs.existsSync(SYNC_SCRIPT) || backgroundRefreshRunning()) {
+    return;
+  }
+
+  const args = ["--state-only"];
+  if (projectPath) {
+    args.push("--project-path", projectPath);
+  }
+
+  try {
+    const child = spawn(SYNC_SCRIPT, args, {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+  } catch {
+    // Keep stale bootstrap reads fast even if the background refresh launch fails.
+  }
+}
+
+function runQmd(args, { expectJson = false } = {}) {
+  const result = runCommand(QMD_CLI, args);
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || `exit ${result.status}`).trim();
+    throw new Error(detail || "qmd command failed");
+  }
+  const stdout = (result.stdout || "").trim();
+  if (!expectJson) {
+    return stdout;
+  }
+  if (!stdout) {
+    return [];
+  }
+  return JSON.parse(stdout);
+}
+
+function readStatusText() {
+  return runQmd(["status"]);
+}
+
+function statusDbPath(statusText) {
+  const match = statusText.match(/^Index:\s+(.+)$/m);
+  return match ? match[1].trim() : `${PROJECT_CACHE_ROOT}.sqlite`;
+}
+
+function statusCollectionName(statusText) {
+  const match = statusText.match(/^\s{2}(.+?) \(qmd:\/\/.+\)$/m);
+  return match ? match[1].trim() : "codex-chat";
+}
+
+function statusDocumentCount(statusText) {
+  const match = statusText.match(/^\s*Total:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function statusVectorCount(statusText) {
+  const match = statusText.match(/^\s*Vectors:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function statusContextCount(statusText) {
+  const match = statusText.match(/^\s*Contexts:\s+(\d+)/m);
+  return match ? Number(match[1]) : 0;
+}
+
+function normalizeCollectionFilter(collection) {
+  const requested = String(collection || "").trim();
+  if (!requested) {
+    return "";
+  }
+  if (requested === DEFAULT_INDEX) {
+    return statusCollectionName(readStatusText());
+  }
+  return requested;
+}
+
+function fileMtimeIso(file) {
+  try {
+    return fs.statSync(file).mtime.toISOString();
+  } catch {
+    return "";
+  }
+}
+
+function sqliteScalar(dbPath, sql) {
+  const result = runCommand(SQLITE3_BIN, [dbPath, sql]);
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || "sqlite query failed").trim());
+  }
+  return (result.stdout || "").trim();
+}
+
+function buildStatus() {
+  const statusText = readStatusText();
+  const dbPath = statusDbPath(statusText);
+  const totalDocuments = statusDocumentCount(statusText);
+  const vectorCount = statusVectorCount(statusText);
+  const contextCount = statusContextCount(statusText);
+  const collectionName = statusCollectionName(statusText);
+  const needsEmbeddingText = sqliteScalar(
+    dbPath,
+    "select count(distinct d.hash) from documents d where d.active = 1 and d.hash not in (select hash from content_vectors);",
+  );
+  const needsEmbedding = Number(needsEmbeddingText || "0");
+  return {
+    totalDocuments,
+    needsEmbedding,
+    hasVectorIndex: vectorCount > 0,
+    collections: [
+      {
+        name: collectionName,
+        path: PROJECT_CACHE_ROOT,
+        pattern: "**/*.md",
+        documents: totalDocuments,
+        lastUpdated: fileMtimeIso(dbPath),
+        contexts: contextCount,
+      },
+    ],
+  };
+}
+
+function buildSearchArgs(commandName, args) {
+  const query = String(args.query || "").trim();
+  if (!query) {
+    throw new Error("query is required");
+  }
+
+  const cliArgs = [commandName, query];
+  if (Number.isInteger(args.limit)) {
+    cliArgs.push("-n", String(args.limit));
+  }
+  if (typeof args.minScore === "number") {
+    cliArgs.push("--min-score", String(args.minScore));
+  }
+  if (typeof args.intent === "string" && args.intent.trim().length > 0) {
+    cliArgs.push("--intent", args.intent.trim());
+  }
+  if (typeof args.collection === "string" && args.collection.length > 0) {
+    const collection = normalizeCollectionFilter(args.collection);
+    if (collection) {
+      cliArgs.push("-c", collection);
+    }
+  }
+  cliArgs.push("--json");
+  return cliArgs;
+}
+
+function callSearch(commandName, args) {
+  return { results: runQmd(buildSearchArgs(commandName, args), { expectJson: true }) };
+}
+
+function requirePublicQmdUri(file) {
+  if (!file.startsWith("qmd://codex-chat/")) {
+    throw new Error("file must be a qmd://codex-chat/... document from the public memory surface");
+  }
+  return file;
+}
+
+function requirePublicQmdPattern(pattern) {
+  if (!pattern.startsWith("qmd://codex-chat/")) {
+    throw new Error("pattern must target qmd://codex-chat/... documents from the public memory surface");
+  }
+  return pattern;
+}
+
+function callGet(args) {
+  const file = requirePublicQmdUri(String(args.file || "").trim());
+  if (!file) {
+    throw new Error("file is required");
+  }
+
+  const cliArgs = ["get", file];
+  if (Number.isInteger(args.fromLine)) {
+    cliArgs.push("--from", String(args.fromLine));
+  }
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return { file, text: runQmd(cliArgs) };
+}
+
+function callMultiGet(args) {
+  const pattern = requirePublicQmdPattern(String(args.pattern || "").trim());
+  if (!pattern) {
+    throw new Error("pattern is required");
+  }
+
+  const cliArgs = ["multi-get", pattern];
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (Number.isInteger(args.maxBytes)) {
+    cliArgs.push("--max-bytes", String(args.maxBytes));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return { pattern, text: runQmd(cliArgs) };
+}
+
+function buildColdStart(projectPath, projectKey) {
+  const lastSync = new Date(0).toISOString();
+  const projectFrame = "Use the current working directory and its durable local docs as the continuity anchor.";
+  const summary = [
+    `Project: ${projectPath}`,
+    `Project frame: ${projectFrame}`,
+    "",
+    "Durable constraints:",
+    "- (none)",
+    "",
+    "Historical open loops:",
+    "- (none)",
+    "",
+    "Recent sessions:",
+    "- (none)",
+  ].join("\n");
+  return {
+    project_key: projectKey,
+    project_path: projectPath,
+    last_sync_utc: lastSync,
+    project_frame: projectFrame,
+    summary,
+    intent_pins: [],
+    open_loops: [],
+    recent_sessions: [],
+    evidence_paths: [],
+  };
+}
+
+function coerceRecentSessions(list, maxCount) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list
+    .filter((item) => item && typeof item.path === "string")
+    .slice(0, maxCount)
+    .map((item) => ({
+      path: item.path,
+      started_utc: typeof item.started_utc === "string" ? item.started_utc : "",
+    }));
+}
+
+function buildSummaryFromBootstrap(bootstrap, maxRecent) {
+  const result = {
+    project_key: String(bootstrap.project_key || ""),
+    project_path: String(bootstrap.project_path || ""),
+    last_sync_utc: String(bootstrap.last_sync_utc || ""),
+    project_frame: String(bootstrap.project_frame || ""),
+    summary: String(bootstrap.summary || ""),
+    intent_pins: Array.isArray(bootstrap.intent_pins) ? bootstrap.intent_pins.slice(0, 20) : [],
+    open_loops: Array.isArray(bootstrap.open_loops) ? bootstrap.open_loops.slice(0, 20) : [],
+    recent_sessions: coerceRecentSessions(bootstrap.recent_sessions, maxRecent),
+    evidence_paths: Array.isArray(bootstrap.evidence_paths) ? bootstrap.evidence_paths.slice(0, 20) : [],
+  };
+
+  if (!result.summary) {
+    const lines = [];
+    lines.push(`Project: ${result.project_path || "(unknown)"}`);
+    lines.push(
+      `Project frame: ${result.project_frame || "Use the current working directory and its durable local docs as the continuity anchor."}`,
+    );
+    lines.push("");
+    lines.push("Durable constraints:");
+    if (result.intent_pins.length === 0) {
+      lines.push("- (none)");
+    } else {
+      for (const pin of result.intent_pins.slice(0, 8)) {
+        lines.push(`- ${pin}`);
+      }
+    }
+    lines.push("");
+    lines.push("Historical open loops:");
+    if (result.open_loops.length === 0) {
+      lines.push("- (none)");
+    } else {
+      for (const loop of result.open_loops.slice(0, 8)) {
+        lines.push(`- ${loop}`);
+      }
+    }
+    lines.push("");
+    lines.push("Recent sessions:");
+    if (result.recent_sessions.length === 0) {
+      lines.push("- (none)");
+    } else {
+      for (const session of result.recent_sessions) {
+        lines.push(`- ${session.started_utc || "unknown"} ${session.path}`);
+      }
+    }
+    result.summary = lines.join("\n");
+  }
+
+  return result;
+}
+
+function latestBootstrapResource() {
+  const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+  const bootstrap = readBootstrapForKey(latestProjectKey);
+  if (bootstrap) {
+    return buildSummaryFromBootstrap(bootstrap, 3);
+  }
+  const projectPath = process.cwd();
+  return buildColdStart(projectPath, projectKeyForPath(projectPath));
+}
+
+function resourceListResult() {
+  const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+  const resources = [
+    {
+      uri: "bootstrap_context",
+      name: "bootstrap_context",
+      mimeType: "text/markdown",
+      description: "Latest project startup brief derived from codex_chat bootstrap state.",
+    },
+    {
+      uri: "memory://bootstrap/latest",
+      name: "latest bootstrap summary",
+      mimeType: "text/markdown",
+      description: "Alias for the latest project startup brief.",
+    },
+  ];
+  if (latestProjectKey) {
+    resources.push({
+      uri: `memory://projects/${latestProjectKey}/bootstrap`,
+      name: `${latestProjectKey} bootstrap`,
+      mimeType: "text/markdown",
+      description: "Bootstrap summary for the latest project key.",
+    });
+    resources.push({
+      uri: `qmd://codex-chat/projects/${latestProjectKey}`,
+      name: `${latestProjectKey} project memory`,
+      mimeType: "text/markdown",
+      description: "Projected project-memory document from codex_chat.",
+    });
+  }
+  return { resources };
+}
+
+function readResource(params) {
+  const uri = String(params?.uri || "").trim();
+  if (!uri) {
+    throw new Error("uri is required");
+  }
+
+  if (uri === "bootstrap_context" || uri === "memory://bootstrap/latest") {
+    const latest = latestBootstrapResource();
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: latest.summary,
+        },
+      ],
+    };
+  }
+
+  if (uri.startsWith("memory://projects/") && uri.endsWith("/bootstrap")) {
+    const projectKey = uri.slice("memory://projects/".length, -"/bootstrap".length);
+    const bootstrap = readBootstrapForKey(projectKey);
+    if (!bootstrap) {
+      throw new Error(`unknown project key: ${projectKey}`);
+    }
+    const result = buildSummaryFromBootstrap(bootstrap, 3);
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: result.summary,
+        },
+      ],
+    };
+  }
+
+  if (uri.startsWith("qmd://")) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: runQmd(["get", uri]),
+        },
+      ],
+    };
+  }
+
+  throw new Error(`unknown resource: ${uri}`);
+}
+
+function bootstrapContext(args) {
+  const cwd = typeof args.cwd === "string" && args.cwd.length > 0 ? args.cwd : process.cwd();
+  const refreshIfStale = args.refresh_if_stale !== false;
+  const maxRecent = Number.isInteger(args.max_recent_sessions)
+    ? Math.max(1, Math.min(20, args.max_recent_sessions))
+    : 3;
+
+  const projectPath = canonicalProjectPath(cwd);
+  const inferredProjectKey = projectKeyForPath(projectPath);
+
+  let bootstrap = readBootstrapForKey(inferredProjectKey);
+  const exactBootstrap = bootstrap;
+  let activeProjectKey = inferredProjectKey;
+
+  if (!bootstrap) {
+    const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+    if (latestProjectKey) {
+      const latestBootstrap = readBootstrapForKey(latestProjectKey);
+      if (latestBootstrap) {
+        bootstrap = latestBootstrap;
+        activeProjectKey = latestProjectKey;
+      }
+    }
+  }
+
+  const lastSyncSeconds = unixSecondsFromIso(exactBootstrap?.last_sync_utc || "");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const isStale = exactBootstrap ? nowSeconds - lastSyncSeconds > STALE_SECONDS : true;
+
+  if (refreshIfStale && !exactBootstrap) {
+    const refresh = refreshSync(projectPath);
+    if (refresh.ok) {
+      const freshBootstrap = readBootstrapForKey(inferredProjectKey);
+      if (freshBootstrap) {
+        bootstrap = freshBootstrap;
+        activeProjectKey = inferredProjectKey;
+      } else {
+        const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
+        if (latestProjectKey) {
+          const latestBootstrap = readBootstrapForKey(latestProjectKey);
+          if (latestBootstrap) {
+            bootstrap = latestBootstrap;
+            activeProjectKey = latestProjectKey;
+          }
+        }
+      }
+    }
+  } else if (refreshIfStale && isStale) {
+    startBackgroundRefresh(projectPath);
+  }
+
+  let result;
+  const finalBootstrap = readBootstrapForKey(inferredProjectKey);
+  if (!finalBootstrap) {
+    result = buildColdStart(projectPath, inferredProjectKey);
+  } else {
+    result = buildSummaryFromBootstrap(finalBootstrap, maxRecent);
+    result.project_key = inferredProjectKey;
+  }
+
+  return result;
+}
+
+function toolListResult() {
+  return {
+    tools: [
+      {
+        name: "bootstrap_context",
+        description:
+          "Return a compact, project-scoped memory brief for Codex startup context with optional stale refresh.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            cwd: {
+              type: "string",
+              description: "Project working directory; defaults to current process cwd.",
+            },
+            refresh_if_stale: {
+              type: "boolean",
+              description: "When true, run sync if project state is older than the stale threshold.",
+              default: true,
+            },
+            max_recent_sessions: {
+              type: "integer",
+              minimum: 1,
+              maximum: 20,
+              description: "Maximum recent session references to include in the output.",
+              default: 3,
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "status",
+        description: "Show transcript-index status for the codex_chat retrieval backend.",
+        inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      },
+      {
+        name: "deep_search",
+        description: "Deep search using QMD query expansion and reranking.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "search",
+        description: "Keyword search across the codex_chat retrieval index.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "vector_search",
+        description: "Vector similarity search across the codex_chat retrieval index.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            collection: { type: "string" },
+            intent: {
+              type: "string",
+              description: "Background context to disambiguate the query. Does not search on its own.",
+            },
+            limit: { type: "integer" },
+            minScore: { type: "number" },
+          },
+          required: ["query"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "get",
+        description: "Retrieve a single projected transcript or project-memory document.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            file: { type: "string" },
+            fromLine: { type: "integer" },
+            lineNumbers: { type: "boolean" },
+            maxLines: { type: "integer" },
+          },
+          required: ["file"],
+          additionalProperties: false,
+        },
+      },
+      {
+        name: "multi_get",
+        description: "Retrieve multiple projected transcripts or project-memory documents.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            pattern: { type: "string" },
+            lineNumbers: { type: "boolean" },
+            maxBytes: { type: "integer" },
+            maxLines: { type: "integer" },
+          },
+          required: ["pattern"],
+          additionalProperties: false,
+        },
+      },
+    ],
+  };
+}
+
+function toolSuccess(id, payload) {
+  return sendResponse(id, {
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload,
+  });
+}
+
+function toolFailure(id, name, err) {
+  const detail = err && err.message ? err.message : String(err);
+  return sendResponse(id, {
+    content: [{ type: "text", text: `${name} failed: ${detail}` }],
+    isError: true,
+  });
+}
+
+function handleRequest(message) {
+  const { id, method, params } = message;
+  if (method === "initialize") {
+    return sendResponse(id, {
+      protocolVersion: "2024-11-05",
+      capabilities: {
+        tools: {
+          listChanged: false,
+        },
+        resources: {
+          subscribe: false,
+          listChanged: false,
+        },
+      },
+      serverInfo: {
+        name: "codex-memory-mcp",
+        version: "0.2.0",
+      },
+    });
+  }
+
+  if (method === "tools/list") {
+    return sendResponse(id, toolListResult());
+  }
+
+  if (method === "resources/list") {
+    return sendResponse(id, resourceListResult());
+  }
+
+  if (method === "resources/read") {
+    try {
+      return sendResponse(id, readResource(params));
+    } catch (err) {
+      const detail = err && err.message ? err.message : String(err);
+      return sendResponse(id, {
+        contents: [{ uri: String(params?.uri || ""), mimeType: "text/plain", text: `resources/read failed: ${detail}` }],
+        isError: true,
+      });
+    }
+  }
+
+  if (method === "tools/call") {
+    const name = params?.name;
+    const args = params?.arguments || {};
+    try {
+      switch (name) {
+        case "bootstrap_context": {
+          const result = bootstrapContext(args);
+          return sendResponse(id, {
+            content: [{ type: "text", text: result.summary }],
+            structuredContent: result,
+          });
+        }
+        case "status":
+          return toolSuccess(id, buildStatus());
+        case "deep_search":
+          return toolSuccess(id, callSearch("query", args));
+        case "search":
+          return toolSuccess(id, callSearch("search", args));
+        case "vector_search":
+          return toolSuccess(id, callSearch("vsearch", args));
+        case "get":
+          return toolSuccess(id, callGet(args));
+        case "multi_get":
+          return toolSuccess(id, callMultiGet(args));
+        default:
+          return sendResponse(id, {
+            content: [{ type: "text", text: `Unknown tool: ${name}` }],
+            isError: true,
+          });
+      }
+    } catch (err) {
+      return toolFailure(id, name || "tool", err);
+    }
+  }
+
+  if (method === "ping") {
+    return sendResponse(id, {});
+  }
+
+  if (id !== undefined && id !== null) {
+    return sendError(id, -32601, `Method not found: ${method}`);
+  }
+  return null;
+}
+
+let buffer = Buffer.alloc(0);
+process.stdin.on("data", (chunk) => {
+  buffer = Buffer.concat([buffer, chunk]);
+
+  while (true) {
+    // 1) Try LSP/MCP content-length framing.
+    let sep = buffer.indexOf("\r\n\r\n");
+    let headerLen = 4;
+    if (sep === -1) {
+      sep = buffer.indexOf("\n\n");
+      headerLen = 2;
+    }
+    if (sep !== -1) {
+      const headerRaw = buffer.slice(0, sep).toString("utf8");
+      const match = headerRaw.match(/Content-Length:\s*(\d+)/i);
+      if (!match) {
+        buffer = buffer.slice(sep + headerLen);
+        continue;
+      }
+
+      const contentLength = Number(match[1]);
+      const messageStart = sep + headerLen;
+      const messageEnd = messageStart + contentLength;
+      if (buffer.length < messageEnd) {
+        return;
+      }
+
+      const body = buffer.slice(messageStart, messageEnd).toString("utf8");
+      buffer = buffer.slice(messageEnd);
+
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch (err) {
+        continue;
+      }
+
+      if (parsed && parsed.method) {
+        transportStyle = "framed";
+        handleRequest(parsed);
+      }
+      continue;
+    }
+
+    // 2) Fallback: NDJSON/plain JSON message framing (some MCP clients use this).
+    const text = buffer.toString("utf8");
+    const firstChar = text.trimStart().charAt(0);
+    if (firstChar !== "{") {
+      return;
+    }
+
+    const newlineIndex = text.indexOf("\n");
+    if (newlineIndex !== -1) {
+      const line = text.slice(0, newlineIndex).trim();
+      if (line.length === 0) {
+        buffer = buffer.slice(newlineIndex + 1);
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(line);
+        buffer = buffer.slice(newlineIndex + 1);
+        if (parsed && parsed.method) {
+          transportStyle = "json";
+          handleRequest(parsed);
+        }
+        continue;
+      } catch {
+        // If line parse fails, try full-buffer parse below.
+      }
+    }
+
+    try {
+      const parsed = JSON.parse(text.trim());
+      buffer = Buffer.alloc(0);
+      if (parsed && parsed.method) {
+        transportStyle = "json";
+        handleRequest(parsed);
+      }
+      continue;
+    } catch {
+      // Incomplete JSON; wait for more bytes.
+      return;
+    }
+  }
+});
+
+process.stdin.resume();
