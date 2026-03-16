@@ -18,9 +18,6 @@ Load this only when the task actually enters one of these stock installed lanes.
 - When indexed code navigation would materially reduce broad file scanning, use the optional `jcodemunch` surface rather than filesystem-first exploration.
 - Default flow: `search_symbols`, then `get_symbol` or related symbol lookups for precise definitions and call sites.
 - Fall back to broad file scans only when the indexed surface is unavailable or clearly misses the target.
-
-## jCode Local Route
-
 - `jcode` means the dedicated `jcodemunch` MCP tools for indexed code navigation and symbol retrieval in the installed Codex environment.
 - The managed Codex MCP config invokes the upstream `jcodemunch-mcp<2.0` server through the managed `uv` runner.
 - No repo-managed `jcodemunch` clone or local launcher is part of the supported path.
