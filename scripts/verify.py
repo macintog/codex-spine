@@ -53,7 +53,7 @@ VERIFIER_HARD_FAILURE_CATEGORIES = {
     "behavior-contract": "Concrete runtime, bootstrap, memory, install, or QA behavior.",
     "boundary-and-leak-check": "Secrets, private references, scope leaks, or forbidden internal/public boundary crossings.",
     "shipped-surface-check": "Required shipped docs, files, manifests, and aliases.",
-    "stable-routing-anchor": "Stable startup, skill-routing, or tooling-routing anchors.",
+    "stable-routing-anchor": "Stable startup or tooling-routing anchors.",
 }
 VERIFIER_ADVISORY_CATEGORIES = {
     "advisory-style-or-wording": "Non-blocking wording or style observations.",
@@ -63,6 +63,26 @@ VERIFIER_ADVISORY_CATEGORIES = {
 
 def tag_verifier_messages(category: str, messages: list[str]) -> list[str]:
     return [f"[{category}] {message}" for message in messages]
+
+
+CONTRIBUTION_HEDGE_PHRASES = (
+    "if installed",
+    "if available",
+    "if the skill applies",
+)
+CONTRIBUTION_TOOLING_ANCHORS = (
+    "codex-gitea-pr.sh",
+    "codex-gitea-push.sh",
+    "search_symbols",
+    "get_symbol",
+)
+PUBLIC_ALWAYS_LOADED_DOC_WORD_LIMITS = {
+    REPO_ROOT / "codex/AGENTS.md": 360,
+}
+
+
+def word_count(text: str) -> int:
+    return len(text.split())
 
 
 def project_key_for_path(project_path: Path) -> str:
@@ -667,8 +687,6 @@ def validate_public_agents_policy_texts(
     agents_required_anchors = [
         ("repo entrypoint routing", "README.md"),
         ("tooling guide routing", "codex/TOOLING.md"),
-        ("GitHub skill routing", "skills/github-contributor"),
-        ("project continuity skill routing", "skills/project-spine"),
     ]
     tooling_required_anchors = [
         "## Continuity and Memory",
@@ -679,7 +697,7 @@ def validate_public_agents_policy_texts(
         "jcodemunch",
         "search_symbols",
         "get_symbol",
-        "## GitHub and Upstream",
+        "## GitHub Work",
     ]
     errors: list[str] = []
     for label, anchor in agents_required_anchors:
@@ -690,11 +708,70 @@ def validate_public_agents_policy_texts(
             errors.append(f"public Codex tooling guide is missing required routing anchor: {tooling_path}: {anchor}")
     if not any(anchor in tooling_text for anchor in ("`search`", "`deep_search`", "`vector_search`", "`get`", "`multi_get`")):
         errors.append(f"public Codex tooling guide is missing direct memory retrieval tool routing: {tooling_path}")
+    lowered_agents = agents_text.lower()
+    lowered_tooling = tooling_text.lower()
+    for phrase in CONTRIBUTION_HEDGE_PHRASES:
+        if phrase in lowered_agents:
+            errors.append(f"public Codex policy still contains hedge language: {agents_path}: {phrase}")
+        if phrase in lowered_tooling:
+            errors.append(f"public Codex tooling guide still contains hedge language: {tooling_path}: {phrase}")
+    for forbidden in ("upstream-contributor", "project-continuity", "github-contributor", "project-spine", "skills/"):
+        if forbidden in agents_text:
+            errors.append(f"public Codex policy references a non-shipped skill surface: {agents_path}: {forbidden}")
+        if forbidden in tooling_text:
+            errors.append(f"public Codex tooling guide references a non-shipped skill surface: {tooling_path}: {forbidden}")
     for forbidden_phrase in ("qmd_codex", "vsearch", "multi-get"):
         if forbidden_phrase in tooling_text:
             errors.append(
                 f"public Codex tooling guide still references deprecated direct qmd_codex guidance: {tooling_path}: {forbidden_phrase}"
             )
+    return errors
+
+
+def validate_public_contribution_guidance_boundaries() -> list[str]:
+    errors: list[str] = []
+    agents_text = (REPO_ROOT / "codex/AGENTS.md").read_text(encoding="utf-8")
+
+    for anchor in CONTRIBUTION_TOOLING_ANCHORS:
+        if anchor in agents_text:
+            errors.append(f"public startup guidance still carries tooling-lane detail: {REPO_ROOT / 'codex/AGENTS.md'}: {anchor}")
+
+    return errors
+
+
+def validate_public_contribution_guidance_size_budgets() -> list[str]:
+    warnings: list[str] = []
+
+    for path, limit in PUBLIC_ALWAYS_LOADED_DOC_WORD_LIMITS.items():
+        words = word_count(path.read_text(encoding="utf-8"))
+        if words > limit:
+            warnings.append(f"always-loaded public guidance exceeds its advisory word budget: {path}: {words}>{limit}")
+
+    return warnings
+
+
+def validate_public_skill_surface_absence() -> list[str]:
+    errors: list[str] = []
+    skills_root = REPO_ROOT / "skills"
+    if skills_root.exists():
+        remaining_paths = sorted(
+            path for path in skills_root.rglob("*") if path.name != ".DS_Store"
+        )
+        if remaining_paths:
+            errors.append(f"public repo still ships skill content: {remaining_paths[0]}")
+
+    for path in (
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "ARCHITECTURE.md",
+        REPO_ROOT / "SECURITY.md",
+        REPO_ROOT / "codex/AGENTS.md",
+        REPO_ROOT / "codex/TOOLING.md",
+    ):
+        text = path.read_text(encoding="utf-8")
+        for forbidden in ("skills/github-contributor", "skills/project-spine", "~/.codex/skills", "github-contributor", "project-spine"):
+            if forbidden in text:
+                errors.append(f"public doc still references a removed skill surface: {path}: {forbidden}")
+
     return errors
 
 
@@ -724,7 +801,6 @@ def run_public_agents_policy_fixture() -> list[str]:
     paraphrased_agents = """# Fixture Codex Policy
 
 - Start with README.md for human-facing orientation and reach for codex/TOOLING.md only when the task enters a deeper operational lane.
-- Use skills/github-contributor for GitHub-hosted work and skills/project-spine for project-focused continuity work.
 """
     paraphrased_tooling = """# Fixture Tooling Guide
 
@@ -738,7 +814,7 @@ def run_public_agents_policy_fixture() -> list[str]:
 - Use jcodemunch for indexed code navigation.
 - Start with search_symbols and then get_symbol for precise symbol reads.
 
-## GitHub and Upstream
+## GitHub Work
 
 - Use the GitHub-facing contribution lane when the task enters hosted review or upstream prep.
 """
@@ -863,7 +939,10 @@ def main() -> int:
     warnings: list[str] = []
     errors.extend(tag_verifier_messages("shipped-surface-check", validate_maintenance_manifest(MAINTAINED_COMPONENTS_PATH)))
     errors.extend(tag_verifier_messages("shipped-surface-check", validate_public_doc_surface()))
+    errors.extend(tag_verifier_messages("shipped-surface-check", validate_public_skill_surface_absence()))
     errors.extend(tag_verifier_messages("stable-routing-anchor", validate_public_agents_policy()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_public_contribution_guidance_boundaries()))
+    warnings.extend(tag_verifier_messages("advisory-style-or-wording", validate_public_contribution_guidance_size_budgets()))
     errors.extend(tag_verifier_messages("boundary-and-leak-check", validate_memory_public_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_scope_isolation()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_bootstrap_contract()))

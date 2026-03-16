@@ -9,9 +9,7 @@
   - extracting only user and assistant conversation content for indexing
   - narrowing the practical `qmd` surface down to the retrieval calls that matter for recalling that material
 - it can optionally install [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), which can substantially improve token efficiency when working through code
-- it ships two Codex skills:
-  - `github-contributor`: GitHub-work guidance for release discipline, documentation quality, component boundaries, repo shaping, and upstreamability
-  - `project-spine`: project-focused continuity guidance for keeping a long-lived effort coherent across threads, branches, and days of work
+- it keeps the durable Codex guidance surface in shipped docs instead of exported skills while those skill bodies are still evolving
 
 ## Audience
 
@@ -44,7 +42,6 @@ When `make install` installs missing baseline formulas, it installs these Homebr
 - shell integration and launchd-backed transcript sync on macOS
 - [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
 - optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a managed enablement flow
-- shipped first-party skills for GitHub work and multi-session continuity
 
 ## Quick Start
 
@@ -70,7 +67,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 - for interactive installs, asks early whether you want to include the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration later in the same install; that prompt defaults to yes
 - installs Homebrew if needed and then installs any missing baseline runtime packages
 - creates example local overlay files when they do not exist yet
-- manages symlinks under `~/.codex/skills/` and `~/.local/bin/`
+- manages symlinks under `~/.codex/` and `~/.local/bin/`
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
 - renders `~/.codex/config.toml`
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
@@ -151,7 +148,7 @@ When testing a branch or release candidate, start from a fresh or freshly update
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
 - `codex/AGENTS.md`: compact Codex startup and routing guidance
-- `codex/TOOLING.md`: on-demand routing for continuity, memory retrieval, code navigation, and GitHub or upstream lanes
+- `codex/TOOLING.md`: on-demand routing for continuity, memory retrieval, code navigation, and GitHub maintenance lanes
 
 This repo ships the docs needed to install, operate, and maintain `codex-spine`.
 The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.

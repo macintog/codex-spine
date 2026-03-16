@@ -155,8 +155,6 @@ class ConfigWritePlan:
 def managed_links() -> list[ManagedLink]:
     return [
         ManagedLink(HOME / ".codex/AGENTS.md", REPO_ROOT / "codex/AGENTS.md"),
-        ManagedLink(HOME / ".codex/skills/github-contributor", REPO_ROOT / "skills/github-contributor"),
-        ManagedLink(HOME / ".codex/skills/project-spine", REPO_ROOT / "skills/project-spine"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),
         ManagedLink(HOME / "Library/pnpm/node", REPO_ROOT / "bin/pnpm-node"),

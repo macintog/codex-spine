@@ -5,7 +5,7 @@
 `codex-spine` is a user-level macOS workstation bootstrap and maintenance tool. Its security-relevant behavior is:
 
 - writing generated Codex config under `~/.codex/config.toml`
-- managing symlinks under `~/.codex/skills/` and `~/.local/bin/`
+- managing symlinks under `~/.codex/` and `~/.local/bin/`
 - editing user shell startup files to source managed fragments
 - installing a user LaunchAgent at `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installing or updating managed third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd), and wiring the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a constrained `uv` runner invocation

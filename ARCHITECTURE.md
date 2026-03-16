@@ -27,8 +27,7 @@ codex-spine/
 │   └── config/                 # Managed config fragments rendered into ~/.codex/config.toml
 ├── bin/                        # Durable wrappers and managed launcher entrypoints
 ├── shell/                      # Managed shell fragments sourced into user shells
-├── launchd/                    # Managed macOS LaunchAgent definitions
-└── skills/                     # Shipped skills installed under ~/.codex/skills
+└── launchd/                    # Managed macOS LaunchAgent definitions
 ```
 
 ## Core Control Flows
