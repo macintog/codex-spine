@@ -699,7 +699,6 @@ def validate_public_agents_policy_texts(
         "jcodemunch",
         "search_symbols",
         "get_symbol",
-        "## GitHub Work",
     ]
     errors: list[str] = []
     for label, anchor in agents_required_anchors:
@@ -819,9 +818,6 @@ def run_public_agents_policy_fixture() -> list[str]:
 - Use jcodemunch for indexed code navigation.
 - Start with search_symbols and then get_symbol for precise symbol reads.
 
-## GitHub Work
-
-- Use the GitHub-facing contribution lane when the task enters hosted review or upstream prep.
 """
     fixture_agents_path = Path("/tmp/fixture-codex-AGENTS.md")
     fixture_tooling_path = Path("/tmp/fixture-codex-TOOLING.md")
