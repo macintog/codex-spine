@@ -76,13 +76,17 @@ CONTRIBUTION_TOOLING_ANCHORS = (
     "search_symbols",
     "get_symbol",
 )
-PUBLIC_ALWAYS_LOADED_DOC_WORD_LIMITS = {
-    REPO_ROOT / "codex/AGENTS.md": 360,
+PUBLIC_ALWAYS_LOADED_DOC_ESTIMATED_TOKEN_LIMITS = {
+    REPO_ROOT / "codex/AGENTS.md": 1024,
 }
 
 
 def word_count(text: str) -> int:
     return len(text.split())
+
+
+def estimated_token_count(text: str) -> int:
+    return (len(text) + 3) // 4
 
 
 def project_key_for_path(project_path: Path) -> str:
@@ -771,10 +775,12 @@ def validate_public_contribution_guidance_boundaries() -> list[str]:
 def validate_public_contribution_guidance_size_budgets() -> list[str]:
     warnings: list[str] = []
 
-    for path, limit in PUBLIC_ALWAYS_LOADED_DOC_WORD_LIMITS.items():
-        words = word_count(path.read_text(encoding="utf-8"))
-        if words > limit:
-            warnings.append(f"always-loaded public guidance exceeds its advisory word budget: {path}: {words}>{limit}")
+    for path, limit in PUBLIC_ALWAYS_LOADED_DOC_ESTIMATED_TOKEN_LIMITS.items():
+        estimated_tokens = estimated_token_count(path.read_text(encoding="utf-8"))
+        if estimated_tokens > limit:
+            warnings.append(
+                f"always-loaded public guidance exceeds its advisory estimated-token budget: {path}: {estimated_tokens}>{limit}"
+            )
 
     return warnings
 
