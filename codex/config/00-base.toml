@@ -1,0 +1,5 @@
+[features]
+multi_agent = true
+
+[tui]
+status_line = ["git-branch", "used-tokens", "total-input-tokens", "total-output-tokens", "context-used"]

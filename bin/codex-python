@@ -1,0 +1,45 @@
+#!/bin/sh
+set -eu
+
+python_supports_codex() {
+    candidate=${1:-}
+    [ -n "$candidate" ] || return 1
+    [ -x "$candidate" ] || return 1
+    "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1
+}
+
+resolve_python() {
+    for candidate in \
+        "${CODEX_SPINE_PYTHON:-}" \
+        /opt/homebrew/bin/python3 \
+        /usr/local/bin/python3 \
+        "$(command -v python3 2>/dev/null || true)" \
+        "$(command -v python3.12 2>/dev/null || true)" \
+        "$(command -v python3.11 2>/dev/null || true)" \
+        /usr/bin/python3
+    do
+        if python_supports_codex "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [ "${1:-}" = "--resolve" ]; then
+    shift
+    resolve_python
+    exit $?
+fi
+
+if [ "$#" -lt 1 ]; then
+    printf '%s\n' "usage: codex-python <script> [args...]" >&2
+    exit 64
+fi
+
+python_bin=$(resolve_python) || {
+    printf '%s\n' "codex-spine requires Python 3.9+ at runtime. On stock macOS 15.7.4+ this should already exist as /usr/bin/python3." >&2
+    exit 1
+}
+
+exec "$python_bin" "$@"
