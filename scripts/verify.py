@@ -74,7 +74,7 @@ CONTRIBUTION_TOOLING_ANCHORS = (
     "codex-gitea-pr.sh",
     "codex-gitea-push.sh",
     "search_symbols",
-    "get_symbol",
+    "get_symbol_source",
 )
 PUBLIC_ALWAYS_LOADED_DOC_ESTIMATED_TOKEN_LIMITS = {
     REPO_ROOT / "codex/AGENTS.md": 1024,
@@ -725,7 +725,7 @@ def validate_public_agents_policy_texts(
         "list_repos",
         "index_folder",
         "search_symbols",
-        "get_symbol",
+        "get_symbol_source",
     ]
     errors: list[str] = []
     for label, anchor in agents_required_anchors:
@@ -864,7 +864,7 @@ def run_public_agents_policy_fixture() -> list[str]:
 ## Code Navigation
 
 - Use jcodemunch for indexed code navigation.
-- Start with search_symbols and then get_symbol for precise symbol reads.
+- Start with search_symbols and then get_symbol_source for precise symbol reads.
 - Start with list_repos and prefer a source_root match for the current repo.
 - If no exact binding exists, use index_folder with incremental refresh before broader scanning.
 

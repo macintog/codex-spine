@@ -1,6 +1,6 @@
 # codex-spine Tooling Guide
 
-Load this only when the task actually enters one of these stock installed lanes. Routine startup should stay with `README.md` and `codex/AGENTS.md`.
+Load this only when the task actually enters one of these stock installed lanes. Routine startup should stay with `README.md` and `codex/AGENTS.md`. Ordinary code-navigation work counts as entering the indexed code-navigation lane.
 
 ## Continuity and Closeout
 
@@ -13,7 +13,7 @@ Load this only when the task actually enters one of these stock installed lanes.
 - Interpret `begin` as: load the default startup packet and resume from the plan-of-record.
 - Interpret `end` as the managed closeout command, not as immediate archive or termination.
 - On `end`, ask `Confirm end now? (yes/no)` before any closeout mutations.
-- After explicit confirmation, run the repo's closeout flow in order: refresh `CHECKPOINT.md` when execution state changed, update archive references only when detailed notes need to move out of the active handoff, rerun required verification, rerun bootstrap or other live refresh only when managed live surfaces changed, preserve validated work through the repo's own snapshot or backup path when one exists and preservation is intended, and always report reload, new-shell, restart, or reboot impact.
+- After explicit confirmation, run the repo's closeout flow in order: refresh `CHECKPOINT.md` when execution state changed, update archive references only when detailed notes need to move out of the active handoff, rerun required verification, rerun bootstrap or other live refresh only when managed live surfaces changed, preserve validated work through the repo's own snapshot or backup path when one exists and preservation is intended, refresh the current repo's `jcode` coverage with `index_folder` using `path=<repo root>` and `incremental=true` so the next task sees the latest on-disk state, and always report reload, new-shell, restart, or reboot impact.
 - Create the continuity packet for repos that are non-trivial, likely to span multiple sessions, or likely to need handoff continuity.
 - Refresh `PROJECT_CONTINUITY.md` only when durable strategy, topology, or success criteria change.
 - Refresh `CHECKPOINT.md` when execution state changes and again on explicit closeout.
@@ -32,20 +32,20 @@ Load this only when the task actually enters one of these stock installed lanes.
 
 ## Code Navigation
 
-- When indexed code navigation would materially reduce broad file scanning, use the optional `jcodemunch` surface rather than filesystem-first exploration.
-- Default flow: `search_symbols`, then `get_symbol` or related symbol lookups for precise definitions and call sites.
-- Fall back to broad file scans only when the indexed surface is unavailable or clearly misses the target.
+- Start ordinary code-navigation work in the `jcodemunch` surface rather than filesystem-first exploration. Treat repo shape, definitions, call sites, symbol usage, and adjacent implementations as entering the code-navigation lane by default.
+- Use shell or filesystem-first search first only when the actual question is literal text, filename lookup, or other clearly non-symbol content.
 - `jcode` means the dedicated `jcodemunch` MCP tools for indexed code navigation and symbol retrieval in the installed Codex environment.
 - The managed Codex MCP config invokes the upstream `jcodemunch-mcp<2.0` server through the managed `uv` runner.
 - No repo-managed `jcodemunch` clone or local launcher is part of the supported path.
 - Call `list_repos` and prefer an entry whose `source_root` matches the current repo root.
 - If no exact local repo binding exists, call `index_folder` with `path=<repo root>` and `incremental=true`.
 - After binding, use the exact repo id returned by `list_repos` or `index_folder` for the rest of the task; do not keep using a bare display name when multiple local indexes may exist.
+- Default flow after binding: `get_repo_outline`, then `search_symbols`, then `get_symbol_source` or related symbol lookups for precise definitions and call sites.
 - Re-bind `jcode` on any repo or `cwd` change, branch or `HEAD` change that may invalidate index assumptions, large refactors, or when results suggest stale or missing coverage.
-- Use `get_repo_outline` first for fast orientation; prefer it to `get_file_tree` unless you need directory detail.
 - Use `search_symbols` for identifiers, APIs, and symbol discovery; use `get_file_outline` before loading source when you already know the file.
-- Use `get_symbols` to batch related implementations and `get_symbol` with `verify=true` when source drift matters.
+- Use `get_symbol_source` with `symbol_id` for a single symbol or `symbol_ids` for a batch, and set `verify=true` when source drift matters.
 - Use `get_file_content` for imports, constants, config, or line-range reads; use `search_text` for literals, comments, TODOs, or other non-symbol text.
+- When touching an older code path or trying to restore prior behavior, extend the understanding surface to include the earlier implementation before editing. Read the current symbols first, then inspect memory plus `git show`, `git log`, or equivalent history for the older path so the original rationale is in hand before you patch.
 - Treat `jcode` as API-first for every language: rely on the live tool outputs and observed behavior, not on fork-era assumptions about richer semantics.
 - If `jcode` binding fails, the index is missing, or symbol search misses after a reasonable retry, repair with `index_folder` or `invalidate_cache` before broad filesystem scanning.
 - Mention `jcode` only when it materially changed repo understanding, found the target faster, or avoided broad file reads.
