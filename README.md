@@ -2,7 +2,7 @@
 
 `codex-spine` is a macOS-first public Codex environment spine for shareable retrieval, indexing, workflow, and maintenance tooling. It installs and maintains the core pieces for you instead of turning the setup into a README scavenger hunt. When everything is working, your token counts should go down while accuracy goes up.
 
-`codex-spine` v0.5 improves Codex in a few focused ways:
+`codex-spine` v0.5.1 improves Codex in a few focused ways:
 
 - it adapts [@tobi/qmd](https://github.com/tobi/qmd) to the Codex workflow by:
   - converting Codex thread JSON into Markdown for ingestion
@@ -13,7 +13,7 @@
 
 ## Audience
 
-This project is aimed at new macOS Codex users who want a turnkey way around some of Codex's basic limitations. It packages a tested daily-driver environment into a public-safe install path, so people starting from zero can get useful retrieval, indexing, and maintenance tooling without first rebuilding the whole setup themselves. The project is still evolving, but the v0.5 release line is intended to be installable today, practical to update, and straightforward to adopt.
+This project is aimed at new macOS Codex users who want a turnkey way around some of Codex's basic limitations. It packages a tested daily-driver environment into a public-safe install path, so people starting from zero can get useful retrieval, indexing, and maintenance tooling without first rebuilding the whole setup themselves. The project is still evolving, but the v0.5.1 release line is intended to be installable today, practical to update, and straightforward to adopt.
 
 ## Requirements
 

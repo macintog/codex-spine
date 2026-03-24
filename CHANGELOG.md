@@ -2,6 +2,13 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.5.1
+
+Public release follow-up for `codex-spine`. This patch keeps the exported guidance and verifier aligned with the current jcode vocabulary.
+
+- Ordinary code navigation now routes through `jcodemunch` first in the public startup and tooling guidance
+- Release verification now expects `get_symbol_source` instead of the older symbol-read wording
+
 ## 0.5
 
 First public release line for `codex-spine`. Additional pre-public edits should continue to accumulate here until the first public publication is cut.
