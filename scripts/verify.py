@@ -20,6 +20,7 @@ from codex_spine import (  # noqa: E402
     BLOCK_END,
     BLOCK_START,
     HOME,
+    _looks_like_prior_codex_spine_target,
     jcodemunch_mcp_overlay_body,
     LIVE_CONFIG_PATH,
     LIVE_QMD_CHAT_LAUNCH_AGENT_PATH,
@@ -1069,6 +1070,23 @@ def validate_memory_public_surface() -> list[str]:
     return errors
 
 
+def validate_symlink_adoption_contract() -> list[str]:
+    errors: list[str] = []
+    repo_target = REPO_ROOT / "codex/AGENTS.md"
+    prior_checkout_target = Path("/tmp/codex-spine-v051-jcodemunch-fix/codex/AGENTS.md")
+    unrelated_checkout_target = Path("/tmp/not-spine-checkout/codex/AGENTS.md")
+    wrong_suffix_target = Path("/tmp/codex-spine-v051-jcodemunch-fix/docs/AGENTS.md")
+
+    if not _looks_like_prior_codex_spine_target(prior_checkout_target, repo_target):
+        errors.append("symlink adoption contract did not recognize a prior codex-spine checkout target")
+    if _looks_like_prior_codex_spine_target(unrelated_checkout_target, repo_target):
+        errors.append("symlink adoption contract trusted a non-codex-spine checkout target")
+    if _looks_like_prior_codex_spine_target(wrong_suffix_target, repo_target):
+        errors.append("symlink adoption contract trusted a target that does not match the managed file suffix")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-only", action="store_true")
@@ -1087,6 +1105,7 @@ def main() -> int:
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_bootstrap_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_jcodemunch_overlay_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_terms_extraction_contract()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_symlink_adoption_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_component_cli_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", run_public_agents_policy_fixture()))
 
