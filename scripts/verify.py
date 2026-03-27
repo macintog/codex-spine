@@ -40,7 +40,7 @@ from codex_spine import (  # noqa: E402
     text_file_paths,
     validate_public_doc_surface,
 )
-from component_manager import component_requirement, component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
+from component_manager import _extract_terms_text, component_requirement, component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
 
 
 def fail(errors: list[str]) -> int:
@@ -726,6 +726,11 @@ def validate_public_agents_policy_texts(
         "index_folder",
         "search_symbols",
         "get_symbol_source",
+        "## GitHub Workflows",
+        "`github`",
+        "`gh-address-comments`",
+        "`gh-fix-ci`",
+        "`yeet`",
     ]
     errors: list[str] = []
     for label, anchor in agents_required_anchors:
@@ -868,6 +873,11 @@ def run_public_agents_policy_fixture() -> list[str]:
 - Start with list_repos and prefer a source_root match for the current repo.
 - If no exact binding exists, use index_folder with incremental refresh before broader scanning.
 
+## GitHub Workflows
+
+- If the installed GitHub plugin is available, use `github`, `gh-address-comments`, `gh-fix-ci`, and `yeet` for concrete hosted GitHub workflows.
+- Keep that lane compatibility-only and do not treat plugin skills as shipped repo content.
+
 """
     fixture_agents_path = Path("/tmp/fixture-codex-AGENTS.md")
     fixture_tooling_path = Path("/tmp/fixture-codex-TOOLING.md")
@@ -941,6 +951,75 @@ def validate_jcodemunch_overlay_contract() -> list[str]:
     return errors
 
 
+def validate_terms_extraction_contract() -> list[str]:
+    errors: list[str] = []
+    backend = {
+        "terms_start_marker": "## License (Dual Use)",
+        "terms_start_markers": [
+            "## License (Dual Use)",
+            "> ## Commercial licenses",
+            "## Commercial licenses",
+            "## FREE FOR PERSONAL USE",
+        ],
+        "terms_end_markers": ["\n## Real-world results"],
+    }
+
+    legacy_text = """
+Intro
+
+## License (Dual Use)
+Commercial use requires a paid license.
+
+## Real-world results
+More copy
+""".strip()
+    current_text = """
+Quickstart
+
+## FREE FOR PERSONAL USE
+Use it to make money and buy a license.
+
+## Documentation
+Docs here
+
+# jCodeMunch MCP
+
+> ## Commercial licenses
+>
+> **Commercial use requires a paid license.**
+>
+> Builder
+
+## Real-world results
+Metrics
+""".strip()
+    fallback_text = """
+# Package
+
+## Terms of Use
+Read these before continuing.
+""".strip()
+
+    legacy_extracted = _extract_terms_text(legacy_text, backend)
+    if "Commercial use requires a paid license." not in legacy_extracted:
+        errors.append("terms extraction contract did not preserve the legacy jcodemunch licence section")
+
+    current_extracted = _extract_terms_text(current_text, backend)
+    if "> ## Commercial licenses" not in current_extracted:
+        errors.append("terms extraction contract did not find the current commercial-licenses section")
+    if "## Real-world results" in current_extracted:
+        errors.append("terms extraction contract did not stop before the configured end marker")
+
+    fallback_extracted = _extract_terms_text(
+        fallback_text,
+        {"terms_start_marker": "## License (Dual Use)"},
+    )
+    if not fallback_extracted.startswith("## Terms of Use"):
+        errors.append("terms extraction contract did not fall back to a generic terms heading when explicit markers drifted")
+
+    return errors
+
+
 def validate_component_cli_surface() -> list[str]:
     errors: list[str] = []
     for script_name in ("component-enable.py", "update.py"):
@@ -1007,6 +1086,7 @@ def main() -> int:
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_scope_isolation()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_memory_bootstrap_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_jcodemunch_overlay_contract()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_terms_extraction_contract()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_component_cli_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", run_public_agents_policy_fixture()))
 

@@ -41,6 +41,11 @@ PREFERRED_NODE_PATHS = [
 ]
 VERSION_TOKEN_RE = re.compile(r"\b(\d+(?:\.\d+)+)\b")
 VERSION_CLAUSE_RE = re.compile(r"^\s*(<=|>=|==|!=|<|>)\s*([0-9]+(?:\.[0-9]+)*)\s*$")
+TERMS_HEADING_RE = re.compile(r"^(?:>\s*)?#{1,6}\s+(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+TERMS_HEADING_HINT_RE = re.compile(
+    r"\b(license|licen[cs]e|terms|eula|agreement|commercial|free for personal use)\b",
+    re.IGNORECASE,
+)
 
 
 def _expand_path(raw_path: str) -> Path:
@@ -412,9 +417,30 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                         "backend must not use legacy licence-bundle fields; use terms_* fields instead: "
                         f"components.{component_name}.backends.{backend_name}.{legacy_field}"
                     )
-            if backend.get("terms_source_url") and not backend.get("terms_start_marker"):
+            start_marker = backend.get("terms_start_marker")
+            if start_marker is not None and (not isinstance(start_marker, str) or not start_marker.strip()):
                 errors.append(
-                    "terms-bearing backend must define terms_start_marker: "
+                    "backend optional field must be a non-empty string: "
+                    f"components.{component_name}.backends.{backend_name}.terms_start_marker"
+                )
+            for field_name in ("terms_start_markers", "terms_end_markers"):
+                markers = backend.get(field_name)
+                if markers is None:
+                    continue
+                if (
+                    not isinstance(markers, list)
+                    or not markers
+                    or any(not isinstance(marker, str) or not marker.strip() for marker in markers)
+                ):
+                    errors.append(
+                        "backend optional field must be a non-empty list of non-empty strings: "
+                        f"components.{component_name}.backends.{backend_name}.{field_name}"
+                    )
+            if backend.get("terms_source_url") and not (
+                backend.get("terms_start_marker") or backend.get("terms_start_markers")
+            ):
+                errors.append(
+                    "terms-bearing backend must define terms_start_marker or terms_start_markers: "
                     f"components.{component_name}.backends.{backend_name}.terms_start_marker"
                 )
 
@@ -698,6 +724,42 @@ def record_component_enabled(component: ResolvedComponent) -> None:
     write_component_state(state)
 
 
+def _extract_terms_text(source_text: str, backend: dict) -> str:
+    extracted = source_text
+    matched_start_marker = False
+    start_markers = []
+    if backend.get("terms_start_marker"):
+        start_markers.append(backend["terms_start_marker"])
+    start_markers.extend(backend.get("terms_start_markers", []))
+    if start_markers:
+        for start_marker in start_markers:
+            start_index = extracted.find(start_marker)
+            if start_index >= 0:
+                extracted = extracted[start_index:]
+                matched_start_marker = True
+                break
+
+    if not matched_start_marker:
+        for match in TERMS_HEADING_RE.finditer(source_text):
+            heading_text = match.group(1).strip()
+            if TERMS_HEADING_HINT_RE.search(heading_text):
+                extracted = source_text[match.start():]
+                matched_start_marker = True
+                break
+
+    end_markers = []
+    if backend.get("terms_end_marker"):
+        end_markers.append(backend["terms_end_marker"])
+    end_markers.extend(backend.get("terms_end_markers", []))
+    for end_marker in end_markers:
+        end_index = extracted.find(end_marker)
+        if end_index >= 0:
+            extracted = extracted[:end_index]
+            break
+
+    return extracted.strip() + "\n"
+
+
 def fetch_component_terms(component: ResolvedComponent) -> dict | None:
     source_url = component.backend.get("terms_source_url")
     if not source_url:
@@ -708,21 +770,7 @@ def fetch_component_terms(component: ResolvedComponent) -> dict | None:
     except Exception as exc:  # pragma: no cover - network failure details vary by environment
         raise RuntimeError(f"could not retrieve current upstream terms for {component.name}: {exc}") from exc
 
-    extracted = source_text
-    start_marker = component.backend.get("terms_start_marker")
-    if start_marker:
-        start_index = extracted.find(start_marker)
-        if start_index < 0:
-            raise RuntimeError(f"terms start marker not found for {component.name}: {start_marker!r}")
-        extracted = extracted[start_index:]
-
-    end_marker = component.backend.get("terms_end_marker")
-    if end_marker:
-        end_index = extracted.find(end_marker)
-        if end_index >= 0:
-            extracted = extracted[:end_index]
-
-    extracted = extracted.strip() + "\n"
+    extracted = _extract_terms_text(source_text, component.backend)
     return {
         "source_url": source_url,
         "text": extracted,
