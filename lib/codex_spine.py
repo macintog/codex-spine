@@ -526,8 +526,22 @@ def backup_existing(path: Path) -> Path:
     return backup_path
 
 
+def _path_endswith(path: Path, suffix: Path) -> bool:
+    suffix_parts = suffix.parts
+    if not suffix_parts or len(path.parts) < len(suffix_parts):
+        return False
+    return tuple(path.parts[-len(suffix_parts) :]) == suffix_parts
+
+
 def _looks_like_prior_codex_spine_target(target: Path, repo_path: Path) -> bool:
-    return target.name == repo_path.name and "codex-spine" in target.parts
+    try:
+        repo_suffix = repo_path.resolve().relative_to(REPO_ROOT.resolve())
+    except ValueError:
+        return False
+    if not _path_endswith(target, repo_suffix):
+        return False
+    checkout_root = target.parents[len(repo_suffix.parts) - 1]
+    return "codex-spine" in checkout_root.name
 
 
 def ensure_symlink(live_path: Path, repo_path: Path) -> tuple[bool, Path | None]:
