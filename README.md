@@ -42,6 +42,7 @@ When `make install` installs missing baseline formulae, it installs these Homebr
 - shell integration and launchd-backed transcript sync on macOS
 - [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
 - optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a managed enablement flow
+- public-safe Codex guidance that stays compatible with the stock GitHub plugin when that plugin is installed
 
 ## Quick Start
 
@@ -137,6 +138,8 @@ When testing a branch or release candidate, start from a fresh or freshly update
 `codex-spine` teaches a continuity packet for adopting repos: project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, `CHECKPOINT.md` for volatile handoff, and optional archive references when the active handoff needs to stay compact.
 
 Those files are project-local working state. The environment ships the guidance in `codex/AGENTS.md` and `codex/TOOLING.md`; create or update the actual continuity files in the repo you are actively working in.
+
+The public repo does not ship GitHub plugin skills or maintainer-only governance docs. Its job is compatibility with the stock Codex GitHub plugin when installed, not bundling a second hosted-GitHub workflow layer of its own.
 
 ## Troubleshooting
 

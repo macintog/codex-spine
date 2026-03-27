@@ -27,4 +27,10 @@ tool_name = "jcodemunch-mcp"
 version_args = ["--version"]
 requires_acknowledgement = true
 terms_source_url = "https://raw.githubusercontent.com/jgravelle/jcodemunch-mcp/main/README.md"
-terms_start_marker = "## License (Dual Use)"
+terms_start_markers = [
+  "## License (Dual Use)",
+  "> ## Commercial licenses",
+  "## Commercial licenses",
+  "## FREE FOR PERSONAL USE",
+]
+terms_end_markers = ["\n## Real-world results"]

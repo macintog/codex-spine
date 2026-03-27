@@ -6,6 +6,8 @@
 - Use `codex/TOOLING.md` when the task needs the shared continuity packet, closeout flow, direct memory retrieval, or indexed code navigation. Ordinary code navigation counts here whenever you need repo shape, definitions, call sites, symbol usage, or adjacent implementations.
 - When prior wording matters, use the memory lane in `codex/TOOLING.md` instead of guessing from recap.
 - For ordinary code navigation, use the `jcodemunch` lane in `codex/TOOLING.md` first. Use filesystem-first search only for literal text or filename lookup, or after the indexed lane misses and needs repair.
+- Use subagents aggressively for non-trivial read-heavy work, including logs, test failures, stack traces, grep/search, large-file review, broad codebase mapping, and read-only Git inspection. When the current thread depends on a spawned subagent's output, wait for it and integrate the result before yielding; leave it in the background only for explicitly requested or clearly non-blocking sidecar work.
+- Prefer `explorer` for that read-only work. For routine Git writes after proof checks pass, prefer a cheap mini/medium Git worker and reserve the parent for synthesis, conflicts, destructive Git operations, and final judgment.
 - Treat those MCP lanes as part of the stock installed Codex environment, not as optional skill behavior.
 - This public repo intentionally does not ship Codex skills while those guidance surfaces are still evolving.
 - Interpret `begin` as: load the default startup packet and resume from the plan-of-record.

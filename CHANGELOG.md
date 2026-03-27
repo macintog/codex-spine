@@ -2,6 +2,14 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.5.2
+
+Public release follow-up for `codex-spine`.
+
+- Updated the installer and optional enable flow to handle the current upstream jCodeMunch EULA page
+- The fullscreen installer terms viewer now preserves quoted heading, paragraph, and bullet formatting for the current upstream jCodeMunch terms text
+- The shipped public guidance now stays compatible with the stock Codex GitHub plugin without exporting repo-local GitHub skills
+
 ## 0.5.1
 
 Public release follow-up for `codex-spine`. This patch keeps the exported guidance and verifier aligned with the current jcode vocabulary.

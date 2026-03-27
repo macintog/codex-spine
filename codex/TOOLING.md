@@ -49,3 +49,11 @@ Load this only when the task actually enters one of these stock installed lanes.
 - Treat `jcode` as API-first for every language: rely on the live tool outputs and observed behavior, not on fork-era assumptions about richer semantics.
 - If `jcode` binding fails, the index is missing, or symbol search misses after a reasonable retry, repair with `index_folder` or `invalidate_cache` before broad filesystem scanning.
 - Mention `jcode` only when it materially changed repo understanding, found the target faster, or avoided broad file reads.
+
+## GitHub Workflows
+
+- If the installed GitHub plugin is available, use its stock workflows for concrete hosted GitHub tasks.
+- Start with `github` for repo, issue, or PR triage.
+- Route review-thread follow-up to `gh-address-comments`, GitHub Actions failures to `gh-fix-ci`, and explicit commit or push or draft-PR publishing to `yeet`.
+- Treat those as optional installed plugin workflows, not as shipped `codex-spine` content.
+- Keep the public `codex-spine` surface compatibility-only: do not assume the plugin is installed, and do not replace that plugin with repo-shipped GitHub skills or maintainer-only governance docs.
