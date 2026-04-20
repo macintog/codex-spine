@@ -153,6 +153,8 @@ class ConfigWritePlan:
 def managed_links() -> list[ManagedLink]:
     return [
         ManagedLink(HOME / ".codex/AGENTS.md", REPO_ROOT / "codex/AGENTS.md"),
+        ManagedLink(HOME / ".codex/skills/multi-step", REPO_ROOT / "skills" / "multi-step"),
+        ManagedLink(HOME / ".codex/skills/project-continuity", REPO_ROOT / "skills" / "project-continuity"),
         ManagedLink(LIVE_UV_CONFIG_PATH, REPO_ROOT / "uv" / "uv.toml"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),

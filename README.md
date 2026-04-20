@@ -69,7 +69,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 - for interactive installs, asks early whether you want to include the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration later in the same install when it is not already enabled; that prompt defaults to yes
 - installs Homebrew if needed and then installs any missing baseline runtime packages
 - creates example local overlay files when they do not exist yet
-- manages symlinks under `~/.codex/` and `~/.local/bin/`
+- manages symlinks under `~/.codex/` and `~/.local/bin/`, including the shipped `project-continuity` and `multi-step` skill trees under `~/.codex/skills/`
 - manages `~/.config/uv/uv.toml` from the tracked `uv/uv.toml` policy file
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
 - renders `~/.codex/config.toml`
