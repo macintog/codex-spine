@@ -21,7 +21,7 @@ default_enabled = false
 [components."jcodemunch-mcp".backends.codex_spine]
 kind = "uvx_tool"
 package_name = "jcodemunch-mcp"
-version_spec = "<2.0"
+version_spec = ">=1.44.0,<2.0"
 executable = "uv"
 tool_name = "jcodemunch-mcp"
 version_args = ["--version"]

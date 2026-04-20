@@ -2,25 +2,19 @@
 
 - Always describe current work and give regular progress updates with enough reasoning to follow.
 - Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed.
-- On the first assistant turn in a new thread, at the start of any materially new request, on repo or `cwd` changes, on prior-thread references, or on compaction-drift symptoms, call `memory.bootstrap_context` before broader doc reloads.
-- Use `codex/TOOLING.md` when the task needs the shared continuity packet, closeout flow, direct memory retrieval, or indexed code navigation. Ordinary code navigation counts here whenever you need repo shape, definitions, call sites, symbol usage, or adjacent implementations.
+- When a new thread or re-anchor needs durable repo continuity, call `memory.bootstrap_context` before broader doc reloads: repo or `cwd` changes, prior-thread references, compaction-drift symptoms, or any case where the startup packet and current turn are not enough.
+- Do not treat bootstrap as mandatory for lightweight local tasks that are already grounded by the startup packet and current user turn.
+- When the user changes the task within the same thread, keep that latest turn authoritative and add a short current-task restatement instead of treating bootstrap as permission to resume older work.
+- Use `codex/TOOLING.md` when the task needs the shared continuity packet, direct memory retrieval, or indexed code navigation. Ordinary code navigation counts here whenever you need repo shape, definitions, call sites, symbol usage, or adjacent implementations.
 - When prior wording matters, use the memory lane in `codex/TOOLING.md` instead of guessing from recap.
-- For ordinary code navigation, use the `jcodemunch` lane in `codex/TOOLING.md` first. Use filesystem-first search only for literal text or filename lookup, or after the indexed lane misses and needs repair.
-- Use subagents aggressively for non-trivial read-heavy work, including logs, test failures, stack traces, grep/search, large-file review, broad codebase mapping, and read-only Git inspection. When the current thread depends on a spawned subagent's output, wait for it and integrate the result before yielding; leave it in the background only for explicitly requested or clearly non-blocking sidecar work.
-- Prefer `explorer` for that read-only work. For routine Git writes after proof checks pass, prefer a cheap mini/medium Git worker and reserve the parent for synthesis, conflicts, destructive Git operations, and final judgment.
+- Treat built-in Codex memories and app-managed files under `~/.codex/memories/` as complementary client-managed context. Keep required rules in `AGENTS.md` or checked-in docs, use `/memories` or `codex/config/90-local.toml` when you need to control them, and use the `memory` lane in `codex/TOOLING.md` for operator-facing bootstrap and transcript retrieval unless the task is explicitly about those app-managed memory files.
+- For ordinary code navigation, use the `jcodemunch` lane in `codex/TOOLING.md` first. Prefer targeted symbol retrieval and file outlines over broad file reads. Use filesystem-first search only for literal text or filename lookup, other small local checks, or after the indexed lane misses and needs repair.
 - Treat those MCP lanes as part of the stock installed Codex environment, not as optional skill behavior.
-- This public repo intentionally does not ship Codex skills while those guidance surfaces are still evolving.
-- Interpret `begin` as: load the default startup packet and resume from the plan-of-record.
-- Interpret `end` as the managed closeout command, not as immediate archive or termination.
-- On `end`, ask `Confirm end now? (yes/no)` before any closeout mutations, then use `codex/TOOLING.md` for the detailed continuity and closeout flow.
+- This public repo ships the public-safe `project-continuity` and `multi-step` workflow skill trees while keeping the installed operating contract in `codex/AGENTS.md` and `codex/TOOLING.md`.
 - Keep this file compact. Put detailed playbooks in `codex/TOOLING.md` or the deeper public docs instead of turning `codex/AGENTS.md` into a second playbook.
 - Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) and fix behavior at the source that actually owns it instead of layering on ad hoc local edits.
 - Before non-trivial repo-touching work, give a short task-start brief and required-surface checklist covering repo or branch posture, adjacent surfaces, validation plan, and any destructive-move guard.
-- Before editing an older code path or restoring prior behavior, inspect the earlier implementation and rationale first. Use memory retrieval plus `git show`, `git log`, or equivalent history reads before patching from the current symptom alone.
+- Before editing an older code path or restoring prior behavior, inspect the earlier implementation and rationale first.
 - If a task changes startup docs, tooling guides, public docs, config fragments, launchers, or managed links, treat that as a coordinated understanding surface and say in closeout whether the current thread should reload docs or whether a fresh Codex session would help.
-- Treat native macOS app performance as an upfront design constraint. Utility-style apps should settle near `0%` instantaneous CPU in `top` when they are visible but idle, and persistent double-digit CPU while "just sitting there" should be treated as a bug.
-- For UI-performance diagnosis on macOS, use `top -l 1 -pid <pid>` for steady-state snapshots and `sample <pid> 2 1 -mayDie` for call stacks. If the main thread sits in `SwiftUI`, `AppKit`, `Charts`, geometry, text measurement, or display-cycle layout, prefer architectural simplification over cosmetic tuning.
-- Change the cost model first: freeze stale live motion, bound the visible live window, keep only viewport data on the display-rate path, split live and history render paths when needed, and prefer lighter `Canvas` or custom drawing when retained chart state is too expensive.
-- Treat Git as an explicit operating discipline: reason about repo role, base, current branch or worktree, unique local state, and intended integration path before mutating history or piling work onto unrelated dirt.
 - If the same symptom survives one or two attempted fixes, stop thrashing, restate the evidence and uncertainty, then switch strategies or ask before retrying again.
 - After shell, install, bootstrap, config, launcher, or environment changes, state whether anything changes for current terminals, new shells, app restarts, or reboots.

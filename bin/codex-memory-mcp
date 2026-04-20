@@ -267,6 +267,12 @@ function buildSearchArgs(commandName, args) {
   if (!query) {
     throw new Error("query is required");
   }
+  const unsupportedFilterMatch = query.match(/(?:^|\s)(project|repo|path|cwd):\S+/i);
+  if (unsupportedFilterMatch) {
+    throw new Error(
+      `query must be plain search text, not unsupported \`${unsupportedFilterMatch[1].toLowerCase()}:\` filter syntax; re-anchor with bootstrap_context when needed and search with plain terms`,
+    );
+  }
 
   const cliArgs = [commandName, query];
   if (Number.isInteger(args.limit)) {
@@ -292,27 +298,156 @@ function callSearch(commandName, args) {
   return { results: runQmd(buildSearchArgs(commandName, args), { expectJson: true }) };
 }
 
+function isPublicQmdUri(value) {
+  return String(value || "").startsWith("qmd://codex-chat/");
+}
+
+function isQmdDocId(value) {
+  return /^#[^\s,]+$/.test(String(value || "").trim());
+}
+
+function hasGlobMagic(value) {
+  return /[*?[]/.test(String(value || ""));
+}
+
+function publicQmdUriForRelativePath(value) {
+  const trimmed = String(value || "").trim().replace(/^\/+/, "");
+  if (!trimmed || isPublicQmdUri(trimmed)) {
+    return trimmed;
+  }
+  return `qmd://codex-chat/${trimmed}`;
+}
+
 function requirePublicQmdUri(file) {
-  if (!file.startsWith("qmd://codex-chat/")) {
+  if (!isPublicQmdUri(file)) {
     throw new Error("file must be a qmd://codex-chat/... document from the public memory surface");
   }
   return file;
 }
 
-function requirePublicQmdPattern(pattern) {
-  if (!pattern.startsWith("qmd://codex-chat/")) {
-    throw new Error("pattern must target qmd://codex-chat/... documents from the public memory surface");
+function requirePublicQmdGetTarget(file) {
+  const target = String(file || "").trim();
+  if (isPublicQmdUri(target) || isQmdDocId(target)) {
+    return target;
   }
-  return pattern;
+  throw new Error("file must be a qmd://codex-chat/... document, qmd://codex-chat/projects/<project_key> alias, or returned docid from the public memory surface");
+}
+
+function normalizePublicQmdBatchPattern(pattern) {
+  const trimmed = String(pattern || "").trim();
+  if (isPublicQmdUri(trimmed) || isQmdDocId(trimmed)) {
+    return trimmed;
+  }
+  const parts = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length > 1 && parts.every((part) => isPublicQmdUri(part) || isQmdDocId(part))) {
+    return parts.join(",");
+  }
+  return "";
+}
+
+function requirePublicQmdPattern(pattern) {
+  const normalized = normalizePublicQmdBatchPattern(pattern);
+  if (!normalized) {
+    throw new Error("pattern must target qmd://codex-chat/... documents or returned docids from the public memory surface");
+  }
+  return normalized;
+}
+
+function projectMemoryPathForKey(projectKey) {
+  return path.join(PROJECT_CACHE_ROOT, "projects", projectKey, "project-memory.md");
+}
+
+function projectMemoryKeyFromUri(file) {
+  const uri = String(file || "").trim();
+  if (!isPublicQmdUri(uri)) {
+    return "";
+  }
+  const projectMatch = uri.match(/^qmd:\/\/codex-chat\/projects\/([^/]+)(?:\/project-memory\.md)?$/);
+  if (projectMatch) {
+    return projectMatch[1];
+  }
+  return "";
+}
+
+function projectMemoryKeyFromPattern(pattern) {
+  const uriPattern = String(pattern || "").trim();
+  if (!isPublicQmdUri(uriPattern)) {
+    return "";
+  }
+  if (/^qmd:\/\/codex-chat\/projects\/\*/.test(uriPattern)) {
+    throw new Error("pattern must not enumerate all project-memory docs; use an explicit qmd://codex-chat/projects/<project_key> target");
+  }
+  const projectMatch = uriPattern.match(/^qmd:\/\/codex-chat\/projects\/([^/*]+)(?:\/project-memory\.md)?$/);
+  if (projectMatch) {
+    return projectMatch[1];
+  }
+  return "";
+}
+
+function exactMemoryTargetsFromPattern(pattern) {
+  const normalized = normalizePublicQmdBatchPattern(pattern);
+  if (!normalized) {
+    return [];
+  }
+  const parts = normalized.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0 || parts.some((part) => hasGlobMagic(part))) {
+    return [];
+  }
+  return parts;
+}
+
+function limitUtf8Text(text, maxBytes) {
+  if (!Number.isInteger(maxBytes) || maxBytes < 0) {
+    return text;
+  }
+  let output = "";
+  for (const char of String(text || "")) {
+    const next = output + char;
+    if (Buffer.byteLength(next, "utf8") > maxBytes) {
+      break;
+    }
+    output = next;
+  }
+  return output;
+}
+
+function renderProjectMemory(projectKey, options = {}) {
+  const filePath = projectMemoryPathForKey(projectKey);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`project memory missing: qmd://codex-chat/projects/${projectKey}`);
+  }
+
+  const fromLine = Number.isInteger(options.fromLine) ? Math.max(1, options.fromLine) : 1;
+  const maxLines = Number.isInteger(options.maxLines) ? Math.max(0, options.maxLines) : null;
+  const rawLines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  const startIndex = Math.max(0, fromLine - 1);
+  const selected = maxLines === null ? rawLines.slice(startIndex) : rawLines.slice(startIndex, startIndex + maxLines);
+  const renderedLines = options.lineNumbers === true
+    ? selected.map((line, index) => `${fromLine + index}: ${line}`)
+    : selected;
+  return limitUtf8Text(renderedLines.join("\n"), options.maxBytes);
 }
 
 function callGet(args) {
-  const file = requirePublicQmdUri(String(args.file || "").trim());
+  const file = String(args.file || "").trim();
   if (!file) {
     throw new Error("file is required");
   }
 
-  const cliArgs = ["get", file];
+  const projectKey = projectMemoryKeyFromUri(file);
+  if (projectKey) {
+    return {
+      file,
+      text: renderProjectMemory(projectKey, {
+        fromLine: args.fromLine,
+        maxLines: args.maxLines,
+        lineNumbers: args.lineNumbers === true,
+      }),
+    };
+  }
+
+  const qmdTarget = requirePublicQmdGetTarget(file);
+  const cliArgs = ["get", qmdTarget];
   if (Number.isInteger(args.fromLine)) {
     cliArgs.push("--from", String(args.fromLine));
   }
@@ -325,13 +460,56 @@ function callGet(args) {
   return { file, text: runQmd(cliArgs) };
 }
 
+function renderExplicitMemoryTarget(target, args) {
+  const projectKey = projectMemoryKeyFromUri(target);
+  if (projectKey) {
+    return renderProjectMemory(projectKey, {
+      maxLines: args.maxLines,
+      maxBytes: args.maxBytes,
+      lineNumbers: args.lineNumbers === true,
+    });
+  }
+
+  const qmdTarget = requirePublicQmdGetTarget(target);
+  const cliArgs = ["get", qmdTarget];
+  if (Number.isInteger(args.maxLines)) {
+    cliArgs.push("-l", String(args.maxLines));
+  }
+  if (args.lineNumbers === true) {
+    cliArgs.push("--line-numbers");
+  }
+  return runQmd(cliArgs);
+}
+
 function callMultiGet(args) {
-  const pattern = requirePublicQmdPattern(String(args.pattern || "").trim());
+  const pattern = String(args.pattern || "").trim();
   if (!pattern) {
     throw new Error("pattern is required");
   }
 
-  const cliArgs = ["multi-get", pattern];
+  const projectKey = projectMemoryKeyFromPattern(pattern);
+  if (projectKey) {
+    return {
+      pattern,
+      text: renderProjectMemory(projectKey, {
+        maxLines: args.maxLines,
+        maxBytes: args.maxBytes,
+        lineNumbers: args.lineNumbers === true,
+      }),
+    };
+  }
+
+  const exactTargets = exactMemoryTargetsFromPattern(pattern);
+  if (exactTargets.length > 0) {
+    const chunks = exactTargets.map((target) => renderExplicitMemoryTarget(target, args)).filter((text) => text.length > 0);
+    return {
+      pattern,
+      text: limitUtf8Text(chunks.join("\n\n---\n\n"), args.maxBytes),
+    };
+  }
+
+  const qmdPattern = requirePublicQmdPattern(pattern);
+  const cliArgs = ["multi-get", qmdPattern];
   if (Number.isInteger(args.maxLines)) {
     cliArgs.push("-l", String(args.maxLines));
   }
@@ -381,9 +559,20 @@ function coerceRecentSessions(list, maxCount) {
     .filter((item) => item && typeof item.path === "string")
     .slice(0, maxCount)
     .map((item) => ({
-      path: item.path,
+      path: publicQmdUriForRelativePath(item.path),
       started_utc: typeof item.started_utc === "string" ? item.started_utc : "",
-    }));
+    }))
+    .filter((item) => isPublicQmdUri(item.path));
+}
+
+function coerceEvidencePaths(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list
+    .map((item) => publicQmdUriForRelativePath(item))
+    .filter((item) => isPublicQmdUri(item))
+    .slice(0, 20);
 }
 
 function buildSummaryFromBootstrap(bootstrap, maxRecent) {
@@ -396,7 +585,7 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
     intent_pins: Array.isArray(bootstrap.intent_pins) ? bootstrap.intent_pins.slice(0, 20) : [],
     open_loops: Array.isArray(bootstrap.open_loops) ? bootstrap.open_loops.slice(0, 20) : [],
     recent_sessions: coerceRecentSessions(bootstrap.recent_sessions, maxRecent),
-    evidence_paths: Array.isArray(bootstrap.evidence_paths) ? bootstrap.evidence_paths.slice(0, 20) : [],
+    evidence_paths: coerceEvidencePaths(bootstrap.evidence_paths),
   };
 
   if (!result.summary) {
@@ -637,7 +826,10 @@ function toolListResult() {
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string" },
+            query: {
+              type: "string",
+              description: "Plain search text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
+            },
             collection: { type: "string" },
             intent: {
               type: "string",
@@ -656,7 +848,10 @@ function toolListResult() {
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string" },
+            query: {
+              type: "string",
+              description: "Plain search text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
+            },
             collection: { type: "string" },
             intent: {
               type: "string",
@@ -675,7 +870,10 @@ function toolListResult() {
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string" },
+            query: {
+              type: "string",
+              description: "Plain natural-language query text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
+            },
             collection: { type: "string" },
             intent: {
               type: "string",
@@ -690,11 +888,16 @@ function toolListResult() {
       },
       {
         name: "get",
-        description: "Retrieve a single projected transcript or project-memory document.",
+        description:
+          "Retrieve a single projected transcript or project-memory document by a returned qmd://codex-chat/... URI, qmd://codex-chat/projects/<project_key> alias, or returned docid. Do not invent new qmd:// URIs.",
         inputSchema: {
           type: "object",
           properties: {
-            file: { type: "string" },
+            file: {
+              type: "string",
+              description:
+                "Public memory identifier: a returned qmd://codex-chat/... URI, qmd://codex-chat/projects/<project_key>, or a returned docid like #abc123. Do not pass local filesystem paths or guessed qmd:// targets.",
+            },
             fromLine: { type: "integer" },
             lineNumbers: { type: "boolean" },
             maxLines: { type: "integer" },
@@ -705,11 +908,16 @@ function toolListResult() {
       },
       {
         name: "multi_get",
-        description: "Retrieve multiple projected transcripts or project-memory documents.",
+        description:
+          "Batch retrieve memory content by comma-separated returned qmd://codex-chat/... URIs or returned docids, one explicit qmd://codex-chat/projects/<project_key> alias, or a true rooted qmd://codex-chat/... wildcard pattern when pattern expansion is intentional. Project-memory wildcards stay forbidden.",
         inputSchema: {
           type: "object",
           properties: {
-            pattern: { type: "string" },
+            pattern: {
+              type: "string",
+              description:
+                "Explicit public-memory target: comma-separated returned qmd://... URIs or returned docids, one qmd://codex-chat/projects/<project_key> alias, or a true rooted qmd://codex-chat/... wildcard pattern. Do not pass local paths, guessed qmd:// targets, or qmd://codex-chat/projects/*.",
+            },
             lineNumbers: { type: "boolean" },
             maxBytes: { type: "integer" },
             maxLines: { type: "integer" },

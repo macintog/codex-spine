@@ -1,0 +1,59 @@
+program = "<program_slug>"
+status_version = 2
+last_updated = "<YYYY-MM-DD>"
+
+[lane]
+mode = "active"
+phase = "packet_created"
+queue_model = "derived_from_lane_rubric"
+rubric_source = "QUESTION_BANK.md"
+packet_owner = "fresh-thread serial passes"
+notes = "Replace this note with the current state of the lane."
+
+[queue]
+active_note = "passes/<first-pass-slug>.md"
+active_pass_slug = "<first-pass-slug>"
+active_pass_type = "audit"
+next_note = ""
+next_pass_type = ""
+last_completed_pass = ""
+next_thread_prompt_surface = "CHECKPOINT.md"
+scope_expansion_note = ""
+reopen_note = ""
+
+[verification]
+latest_outcome = "not_run"
+residual_risk = "unknown"
+
+[surface_status]
+# Replace these keys with the surface families that matter for this lane.
+contract = "not_started"
+implementation = "not_started"
+verification = "not_started"
+cross_surface = "not_started"
+
+[finish_proof]
+version = 1
+authority_file = "<packet-path>/STATUS.toml"
+proof_claim = "checkout_only"
+proof_surface = "<proof-artifact-or-runtime-surface>"
+artifact_identity = "<artifact-or-runtime-state-under-test>"
+proof_generated_after_pass = "<final-relevant-pass-slug-or-date>"
+freshness_rule = "Replace with the rule that says how late proof must run for this lane."
+artifact_matches_claim = false
+close_iteration_automatically = false
+close_iteration_when_all_true = [
+  "<proof_flag_one>",
+  "<proof_flag_two>",
+  "artifact_matches_claim",
+]
+"<proof_flag_one>" = false
+"<proof_flag_two>" = false
+proof_notes = "Replace with the frozen proof story that explains why the closeout booleans are trustworthy."
+
+[rubric_summary]
+red = 0
+ambiguous = 0
+green = 0
+split = 0
+notes = "Keep this aligned with QUESTION_BANK.md so future threads can see whether the queue is shrinking or merely sounding confident."

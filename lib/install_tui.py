@@ -1013,29 +1013,7 @@ def _reflow_modal_text(text: str, *, width: int) -> List[str]:
         blocks.extend(textwrap.wrap(" ".join(paragraph), width=width) or [""])
         paragraph = []
 
-    def emit_structured_line(line: str) -> None:
-        blocks.extend(
-            textwrap.wrap(
-                line,
-                width=width,
-                subsequent_indent="  " if re.match(r"(?:[-*•]|\d+\.)\s", line) else "",
-            )
-            or [""]
-        )
-
     for raw_line in text.splitlines():
-        quote_match = re.match(r"^(>\s?)+(.*)$", raw_line)
-        if quote_match:
-            stripped = quote_match.group(2).strip()
-            if not stripped:
-                flush_paragraph()
-                if blocks and blocks[-1] != "":
-                    blocks.append("")
-                continue
-            flush_paragraph()
-            emit_structured_line(stripped)
-            continue
-
         stripped = raw_line.strip()
         if not stripped:
             flush_paragraph()
@@ -1044,7 +1022,7 @@ def _reflow_modal_text(text: str, *, width: int) -> List[str]:
             continue
         if stripped.startswith(("- ", "* ", "• ", "#")) or re.match(r"\d+\.\s", stripped):
             flush_paragraph()
-            emit_structured_line(stripped)
+            blocks.extend(textwrap.wrap(stripped, width=width, subsequent_indent="  ") or [""])
             continue
         paragraph.append(stripped)
     flush_paragraph()

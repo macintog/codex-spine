@@ -6,10 +6,11 @@
 
 - writing generated Codex config under `~/.codex/config.toml`
 - managing symlinks under `~/.codex/` and `~/.local/bin/`
+- managing the account-wide `uv` policy at `~/.config/uv/uv.toml`
 - editing user shell startup files to source managed fragments
 - installing a user LaunchAgent at `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - bootstrapping Homebrew when it is missing, which can trigger a one-time macOS password prompt before the rest of the install continues in user space
-- installing or updating managed third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd), and wiring the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a constrained `uv` runner invocation
+- installing or updating managed third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd), and wiring the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a constrained `uv` runner invocation backed by `exclude-newer = "7 days"`
 
 Outside the optional first-run Homebrew bootstrap path, `codex-spine` does not require root, install privileged daemons, expose a network service, or act as a sandbox for untrusted code.
 

@@ -2,6 +2,15 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.5.3
+
+This release tightens the public Codex operating surface for `codex-spine`, bringing the memory model, architecture guide, and shipped workflow surface back into sync.
+
+- The public release line now adds the reusable `project-continuity` and `multi-step` skills as part of the installable workflow surface
+- Shipped public guidance now treats built-in Codex memories as complementary client-managed context while keeping the `memory` MCP lane as the operator-facing bootstrap and transcript-retrieval path
+- Public config examples and verifier coverage now call out the built-in memory controls that matter operationally, including `/memories`, `memories.use_memories`, `memories.generate_memories`, and `memories.no_memories_if_mcp_or_web_search`
+- `ARCHITECTURE.md` now reflects that split explicitly so the deep technical reference matches the shipped README and Codex operating docs
+
 ## 0.5.2
 
 Public release follow-up for `codex-spine`.
@@ -12,14 +21,16 @@ Public release follow-up for `codex-spine`.
 
 ## 0.5.1
 
-Public release follow-up for `codex-spine`. This patch keeps the exported guidance and verifier aligned with the current jcode vocabulary.
+Current installable public release line for `codex-spine`. This patch keeps the shipped public docs, verifier, and package policy aligned with the published product surface.
 
 - Ordinary code navigation now routes through `jcodemunch` first in the public startup and tooling guidance
-- Release verification now expects `get_symbol_source` instead of the older symbol-read wording
+- Public repo verification now expects `get_symbol_source` instead of the older symbol-read wording
+- Public closeout guidance and verification no longer require private local Git helpers
+- Install now manages `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` so `uv` picks up a seven-day quarantine window system-wide
 
 ## 0.5
 
-First public release line for `codex-spine`. Additional pre-public edits should continue to accumulate here until the first public publication is cut.
+Initial public release line for `codex-spine`.
 
 - Initial release-candidate line for `codex-spine`
 - Managed install, verify, update, and component-status commands

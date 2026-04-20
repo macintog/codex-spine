@@ -42,6 +42,7 @@ from codex_spine import (  # noqa: E402
     render_launch_agent_text,
     sanitize_zshenv,
     shell_source_targets,
+    sync_jcodemunch_global_config,
     upsert_source_block,
     write_generated_config,
     write_managed_launch_agent,
@@ -342,11 +343,16 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
 
     for path in [
         HOME / ".codex",
+        HOME / ".code-index",
         HOME / ".codex/skills",
         HOME / ".local/bin",
         HOME / "Library/LaunchAgents",
     ]:
         path.mkdir(parents=True, exist_ok=True)
+
+    retired_memory_helper = HOME / ".local/bin/qmd-memory-latest.sh"
+    if retired_memory_helper.is_symlink():
+        retired_memory_helper.unlink()
 
     for link in managed_links():
         ensure_symlink(link.live_path, link.repo_path)
@@ -366,6 +372,8 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             heartbeat_interval=0.5,
         )
         maybe_enable_jcodemunch(non_interactive=non_interactive, ui=ui)
+        if "jcodemunch-mcp" in enabled_component_names():
+            sync_jcodemunch_global_config()
         note = "qmd and the rest of the codex-spine tools are ready."
         if not shell_plan.supported:
             note += " Shell setup was skipped because this shell is not zsh."
@@ -374,6 +382,8 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
         run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
         maybe_enable_jcodemunch(non_interactive=non_interactive)
+        if "jcodemunch-mcp" in enabled_component_names():
+            sync_jcodemunch_global_config()
 
     if config_plan is None:
         config_plan = prepare_generated_config_target(LIVE_CONFIG_PATH, non_interactive=non_interactive)

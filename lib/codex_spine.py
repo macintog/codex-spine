@@ -29,11 +29,14 @@ CONFIG_FRAGMENT_PATHS = [
 LOCAL_CONFIG_EXAMPLE = REPO_ROOT / "codex/config/90-local.toml.example"
 LOCAL_CONFIG_OVERLAY = REPO_ROOT / "codex/config/90-local.toml"
 ADOPTED_CONFIG_OVERLAY = REPO_ROOT / "codex/config/80-adopted.toml"
+JCODEMUNCH_CONFIG_SOURCE_PATH = REPO_ROOT / "codex/config/jcodemunch.config.jsonc"
 LOCAL_ENV_EXAMPLE = REPO_ROOT / "shell/codex.local.env.example"
 LOCAL_ENV_FILE = REPO_ROOT / "shell/codex.local.env"
 MAINTAINED_COMPONENTS_PATH = REPO_ROOT / "MAINTAINED_COMPONENTS.toml"
 
 LIVE_CONFIG_PATH = HOME / ".codex/config.toml"
+LIVE_JCODEMUNCH_CONFIG_PATH = HOME / ".code-index/config.jsonc"
+LIVE_UV_CONFIG_PATH = HOME / ".config/uv/uv.toml"
 LAUNCH_AGENTS_DIR = HOME / "Library/LaunchAgents"
 QMD_CHAT_LAUNCH_AGENT_NAME = "codex-spine.qmd-codex-chat.plist"
 QMD_CHAT_LAUNCH_AGENT_LABEL = "codex-spine.qmd-codex-chat"
@@ -45,6 +48,10 @@ LEGACY_QMD_CHAT_LAUNCH_AGENT_LABELS = [
 ]
 LIVE_QMD_CHAT_LAUNCH_AGENT_PATH = LAUNCH_AGENTS_DIR / QMD_CHAT_LAUNCH_AGENT_NAME
 LAUNCH_AGENT_TEMPLATE_PATH = REPO_ROOT / "launchd" / QMD_CHAT_LAUNCH_AGENT_NAME
+
+OPERATOR_TUNABLE_CONFIG_KEYS = (
+    "model_reasoning_effort",
+)
 
 STATE_DIR = REPO_ROOT / ".state"
 COMPONENT_STATE_PATH = STATE_DIR / "components.toml"
@@ -122,14 +129,6 @@ FORBIDDEN_PUBLIC_ROOT_PATHS = [
     REPO_ROOT / "QA_MATRIX.md",
 ]
 
-FORBIDDEN_PUBLIC_DOC_PATTERNS = {
-    "PROJECT_SPINE.md": re.compile(r"\bPROJECT_SPINE\.md\b"),
-    "QA_RUNBOOK.md": re.compile(r"\bQA_RUNBOOK\.md\b"),
-    "QA_MATRIX.md": re.compile(r"\bQA_MATRIX\.md\b"),
-    "make backup": re.compile(r"\bmake backup\b", re.IGNORECASE),
-    "private Gitea": re.compile(r"\bprivate Gitea\b", re.IGNORECASE),
-}
-
 @dataclass(frozen=True)
 class ManagedLink:
     live_path: Path
@@ -154,12 +153,12 @@ class ConfigWritePlan:
 def managed_links() -> list[ManagedLink]:
     return [
         ManagedLink(HOME / ".codex/AGENTS.md", REPO_ROOT / "codex/AGENTS.md"),
+        ManagedLink(LIVE_UV_CONFIG_PATH, REPO_ROOT / "uv" / "uv.toml"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),
         ManagedLink(HOME / "Library/pnpm/node", REPO_ROOT / "bin/pnpm-node"),
         ManagedLink(HOME / ".local/bin/qmd-codex", REPO_ROOT / "bin/qmd-codex"),
         ManagedLink(HOME / ".local/bin/qmd-codex-health.sh", REPO_ROOT / "bin/qmd-codex-health.sh"),
-        ManagedLink(HOME / ".local/bin/qmd-memory-latest.sh", REPO_ROOT / "bin/qmd-memory-latest.sh"),
         ManagedLink(HOME / ".local/bin/sync-codex-chat-qmd.sh", REPO_ROOT / "bin/sync-codex-chat-qmd.sh"),
     ]
 
@@ -430,6 +429,22 @@ def render_config_data() -> dict:
     return merged
 
 
+def normalize_config_for_verification(data: Mapping[str, object]) -> dict[str, object]:
+    normalized = deepcopy(dict(data))
+    for key in OPERATOR_TUNABLE_CONFIG_KEYS:
+        normalized.pop(key, None)
+    return normalized
+
+
+def config_text_matches_rendered_contract(live_text: str, rendered_text: str) -> bool:
+    try:
+        live_config = tomllib.loads(live_text)
+        rendered_config = tomllib.loads(rendered_text)
+    except tomllib.TOMLDecodeError:
+        return False
+    return normalize_config_for_verification(live_config) == normalize_config_for_verification(rendered_config)
+
+
 def format_key(key: str) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]+", key):
         return key
@@ -513,6 +528,21 @@ def write_text(path: Path, content: str, *, mode: int = 0o644) -> None:
     path.chmod(mode)
 
 
+def sync_jcodemunch_global_config(
+    live_path: Path = LIVE_JCODEMUNCH_CONFIG_PATH,
+    source_path: Path = JCODEMUNCH_CONFIG_SOURCE_PATH,
+) -> bool:
+    rendered = source_path.read_text(encoding="utf-8")
+    if live_path.exists() and live_path.read_text(encoding="utf-8") == rendered:
+        return False
+    if live_path.exists() or live_path.is_symlink():
+        backup_existing(live_path)
+        if live_path.is_symlink():
+            live_path.unlink()
+    write_text(live_path, rendered, mode=0o644)
+    return True
+
+
 def ensure_example_copy(example_path: Path, live_path: Path) -> bool:
     if live_path.exists():
         return False
@@ -526,22 +556,8 @@ def backup_existing(path: Path) -> Path:
     return backup_path
 
 
-def _path_endswith(path: Path, suffix: Path) -> bool:
-    suffix_parts = suffix.parts
-    if not suffix_parts or len(path.parts) < len(suffix_parts):
-        return False
-    return tuple(path.parts[-len(suffix_parts) :]) == suffix_parts
-
-
 def _looks_like_prior_codex_spine_target(target: Path, repo_path: Path) -> bool:
-    try:
-        repo_suffix = repo_path.resolve().relative_to(REPO_ROOT.resolve())
-    except ValueError:
-        return False
-    if not _path_endswith(target, repo_suffix):
-        return False
-    checkout_root = target.parents[len(repo_suffix.parts) - 1]
-    return "codex-spine" in checkout_root.name
+    return target.name == repo_path.name and "codex-spine" in target.parts
 
 
 def ensure_symlink(live_path: Path, repo_path: Path) -> tuple[bool, Path | None]:
@@ -886,16 +902,6 @@ def validate_public_doc_surface() -> list[str]:
     for path in FORBIDDEN_PUBLIC_ROOT_PATHS:
         if path.exists():
             errors.append(f"internal control doc should not ship in the public repo: {relative_to_repo(path)}")
-
-    for path in public_doc_paths():
-        if not path.exists():
-            continue
-        text = path.read_text(encoding="utf-8")
-        for label, pattern in FORBIDDEN_PUBLIC_DOC_PATTERNS.items():
-            if pattern.search(text):
-                errors.append(
-                    f"public doc still references internal-only repo surface: {relative_to_repo(path)}: {label}"
-                )
 
     return errors
 

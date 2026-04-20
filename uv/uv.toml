@@ -1,0 +1,4 @@
+# Managed by codex-spine.
+# Keep freshly published packages out of account-wide uv resolution long enough
+# for obvious supply-chain problems to be spotted and yanked upstream.
+exclude-newer = "7 days"

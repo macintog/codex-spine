@@ -209,6 +209,12 @@ function buildSearchArgs(commandName, args) {
   if (!query) {
     throw new Error("query is required");
   }
+  const unsupportedFilterMatch = query.match(/(?:^|\s)(project|repo|path|cwd):\S+/i);
+  if (unsupportedFilterMatch) {
+    throw new Error(
+      `query must be plain search text, not unsupported \`${unsupportedFilterMatch[1].toLowerCase()}:\` filter syntax; re-anchor with bootstrap_context when needed and search with plain terms`,
+    );
+  }
 
   const cliArgs = [commandName, query];
   if (Number.isInteger(args.limit)) {
@@ -353,11 +359,16 @@ function toolListResult() {
       },
       {
         name: "get",
-        description: "Retrieve a single QMD document or a line-offset slice from it.",
+        description:
+          "Internal adapter surface for codex-memory-mcp. Retrieve a single QMD document or a line-offset slice from it; operators should prefer the memory MCP instead of calling this tool directly.",
         inputSchema: {
           type: "object",
           properties: {
-            file: { type: "string" },
+            file: {
+              type: "string",
+              description:
+                "Use an explicit qmd://codex-chat/... target, qmd://codex-chat/projects/<project_key> alias, or returned docid. Do not pass guessed qmd:// targets or local paths.",
+            },
             fromLine: { type: "integer" },
             lineNumbers: { type: "boolean" },
             maxLines: { type: "integer" },
@@ -368,11 +379,16 @@ function toolListResult() {
       },
       {
         name: "multi_get",
-        description: "Retrieve multiple QMD documents by glob or comma-separated list.",
+        description:
+          "Internal adapter surface for codex-memory-mcp. Retrieve multiple QMD documents by a rooted qmd://codex-chat/... wildcard or comma-separated explicit targets; operators should prefer the memory MCP instead of calling this tool directly.",
         inputSchema: {
           type: "object",
           properties: {
-            pattern: { type: "string" },
+            pattern: {
+              type: "string",
+              description:
+                "Use comma-separated explicit qmd://codex-chat/... targets or returned docids, one qmd://codex-chat/projects/<project_key> alias, or a true rooted qmd://codex-chat/... wildcard. Do not pass guessed qmd:// targets, local paths, or qmd://codex-chat/projects/*.",
+            },
             lineNumbers: { type: "boolean" },
             maxBytes: { type: "integer" },
             maxLines: { type: "integer" },

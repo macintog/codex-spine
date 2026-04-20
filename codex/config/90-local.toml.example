@@ -4,5 +4,16 @@
 #
 # Example:
 #
+# Avoid top-level sandbox_mode / approval_policy here for Codex desktop use.
+# Explicit values force the desktop app into "custom (config.toml)" mode.
+#
+# [features]
+# memories = true
+#
+# [memories]
+# use_memories = true
+# generate_memories = true
+# no_memories_if_mcp_or_web_search = true
+#
 # [projects."/absolute/path/to/a/project"]
 # trust_level = "trusted"

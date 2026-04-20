@@ -9,7 +9,7 @@
   - extracting only user and assistant conversation content for indexing
   - narrowing the practical `qmd` surface down to the retrieval calls that matter for recalling that material
 - it can optionally install [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), which can substantially improve token efficiency when working through code
-- it keeps the durable Codex guidance surface in shipped docs instead of exported skills while those skill bodies are still evolving
+- it ships the reusable public-safe `project-continuity` and `multi-step` workflow skills while keeping the installed Codex operating contract in shipped docs
 
 ## Audience
 
@@ -38,11 +38,12 @@ When `make install` installs missing baseline formulae, it installs these Homebr
 
 - managed install, verify, update, and component status commands
 - manifest-driven component maintenance in `MAINTAINED_COMPONENTS.toml`, using compatibility ceilings instead of exact version pins
+- reusable `project-continuity` and `multi-step` skill trees under `skills/`
 - generated Codex config for the managed core environment
 - shell integration and launchd-backed transcript sync on macOS
-- [@tobi/qmd](https://github.com/tobi/qmd)-backed memory and retrieval plumbing by default
+- a managed system-wide `uv` policy at `~/.config/uv/uv.toml` with `exclude-newer = "7 days"`
+- a `memory` MCP lane backed by [@tobi/qmd](https://github.com/tobi/qmd) for transcript bootstrap and retrieval
 - optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a managed enablement flow
-- public-safe Codex guidance that stays compatible with the stock GitHub plugin when that plugin is installed
 
 ## Quick Start
 
@@ -69,6 +70,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 - installs Homebrew if needed and then installs any missing baseline runtime packages
 - creates example local overlay files when they do not exist yet
 - manages symlinks under `~/.codex/` and `~/.local/bin/`
+- manages `~/.config/uv/uv.toml` from the tracked `uv/uv.toml` policy file
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
 - renders `~/.codex/config.toml`
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
@@ -77,7 +79,7 @@ Install now also runs an initial sync of local Codex transcripts from `~/.codex/
 
 Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) stays out of the default core path, but interactive install can include it when you opt in.
 
-If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later shows the current upstream terms, requires you to type `accept`, and only then enables it. If it is already enabled, install reports that state and continues without re-prompting. The managed overlay then wires Codex to the latest compatible upstream MCP under `<2.0` through the built-in `uv` runner instead of relying on a separate installed launcher path. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
+If you choose [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) during interactive install, `codex-spine` remembers that choice early, then later shows the current upstream terms, requires you to type `accept`, and only then enables it. If it is already enabled, install reports that state and continues without re-prompting. The managed overlay then wires Codex to the latest compatible upstream MCP under `>=1.44.0,<2.0` through the built-in `uv` runner, writes `~/.code-index/config.jsonc` from the tracked `codex/config/jcodemunch.config.jsonc` default, and that runner inherits the same managed `~/.config/uv/uv.toml` quarantine policy with `exclude-newer = "7 days"`. The shipped default keeps upstream `tool_profile: "core"`, `compact_schemas: true`, and `meta_fields: []`; a repo-local `.jcodemunch.jsonc` can widen that later when a project genuinely needs richer tools. If you skip it, install continues without the optional component and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 
@@ -93,6 +95,8 @@ The relevant inputs are:
 - `codex/config/20-codex-spine-mcps.toml` for the `codex-spine`-managed `memory` MCP entry
 - `codex/config/80-adopted.toml` for settings imported from a pre-existing unmanaged `~/.codex/config.toml`
 - `codex/config/90-local.toml` for your own local machine-specific overrides
+- temporary live `model_reasoning_effort` changes are treated as operator-tunable and do not count as config drift in `make verify`
+- avoid top-level `sandbox_mode` and `approval_policy` in `codex/config/90-local.toml` for Codex desktop use; explicit values make the desktop app treat the config as `custom (config.toml)` instead of persisting the UI mode cleanly
 
 If `~/.codex/config.toml` already exists and is not already `codex-spine`-managed, install asks about it before broader system changes.
 
@@ -137,13 +141,15 @@ When testing a branch or release candidate, start from a fresh or freshly update
 
 `codex-spine` teaches a continuity packet for adopting repos: project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, `CHECKPOINT.md` for volatile handoff, and optional archive references when the active handoff needs to stay compact.
 
-Those files are project-local working state. The environment ships the guidance in `codex/AGENTS.md` and `codex/TOOLING.md`; create or update the actual continuity files in the repo you are actively working in.
+The reusable workflow skill trees ship here at `skills/project-continuity/` and `skills/multi-step/`. Use those when you want scaffold files, packet templates, or the reusable lane contract itself.
 
-The public repo does not ship GitHub plugin skills or maintainer-only governance docs. Its job is compatibility with the stock Codex GitHub plugin when installed, not bundling a second hosted-GitHub workflow layer of its own.
+Those continuity files are still project-local working state. The environment ships the installed operating guidance in `codex/AGENTS.md` and `codex/TOOLING.md`; create or update the actual continuity files in the repo you are actively working in.
+
+Codex.app may also inject built-in memories or summaries from app-managed files under `~/.codex/memories/`. Treat those as complementary client-managed context, keep required rules in `AGENTS.md` or checked-in docs, use `/memories` for per-thread control, and prefer `codex/config/90-local.toml` for durable settings such as `memories.use_memories`, `memories.generate_memories`, and `memories.no_memories_if_mcp_or_web_search`. For operator-facing bootstrap and transcript retrieval, stay on the `memory` MCP lane documented in `codex/TOOLING.md` unless the task is explicitly about those app-managed memory files or the client memory behavior itself.
 
 ## Troubleshooting
 
-- If `make verify` says the live config is stale, run `make install`.
+- If `make verify` says the live config is stale for non-tunable settings, run `make install`.
 - If transcript sync is missing, check `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` and re-run `make install`.
 - If install warns that your login shell is not `zsh`, add `~/.local/bin` to that shell's startup and source the repo fragments manually if you want shell integration.
 - If `launchctl` warnings appear during install, rerun `make install` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load fails.
@@ -156,8 +162,10 @@ The public repo does not ship GitHub plugin skills or maintainer-only governance
 - `ARCHITECTURE.md`: subsystem map, flows, and invariants
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
-- `codex/AGENTS.md`: compact Codex startup guidance plus the `begin` and `end` session shortcut contract
-- `codex/TOOLING.md`: on-demand guidance for the continuity packet, closeout flow, memory retrieval, and code navigation lanes
+- `codex/AGENTS.md`: compact Codex startup and operating guidance for this installed environment
+- `codex/TOOLING.md`: on-demand guidance for the continuity packet, memory retrieval, and code navigation lanes
+- `skills/project-continuity/`: reusable continuity contract plus starter templates
+- `skills/multi-step/`: reusable serial-pass workflow skill plus packet templates
 
 This repo ships the docs needed to install, operate, and maintain `codex-spine`.
 The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.

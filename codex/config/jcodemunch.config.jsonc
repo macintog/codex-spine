@@ -1,0 +1,9 @@
+// Managed by codex-spine.
+// Default global jcodemunch profile for the optional codex-spine component.
+// Project-level .jcodemunch.jsonc files can widen this when a repo needs
+// richer tools or more discoverable schemas.
+{
+  "tool_profile": "core",
+  "compact_schemas": true,
+  "meta_fields": []
+}

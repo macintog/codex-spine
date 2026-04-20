@@ -22,6 +22,7 @@ from codex_spine import (  # noqa: E402
     prepare_generated_config_target,
     render_config_text,
     replace_managed_block,
+    sync_jcodemunch_global_config,
     write_generated_config,
 )
 from component_manager import (  # noqa: E402
@@ -63,6 +64,7 @@ def main() -> int:
                 JCODEMUNCH_MCP_BLOCK_END,
                 jcodemunch_mcp_overlay_body(),
             )
+            sync_jcodemunch_global_config()
 
         config_plan = prepare_generated_config_target(
             LIVE_CONFIG_PATH,
