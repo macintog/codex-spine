@@ -58,7 +58,7 @@ tracked repo policy + config fragments + wrappers
     -> continue in the same fullscreen installer session
     -> scripts/bootstrap.py under the current Python runtime
     -> managed config adoption + local example files + managed symlinks
-    -> managed ~/.config/uv/uv.toml with exclude-newer = "7 days"
+    -> managed ~/.config/uv/uv.toml with a seven-day default quarantine and a package-specific jcodemunch override
     -> managed zsh source blocks when supported, with repo-local manual shell fragments otherwise
     -> default managed component install/update
     -> optional jcodemunch acknowledgement + enablement when chosen

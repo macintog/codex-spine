@@ -26,7 +26,7 @@ Current installable public release line for `codex-spine`. This patch keeps the 
 - Ordinary code navigation now routes through `jcodemunch` first in the public startup and tooling guidance
 - Public repo verification now expects `get_symbol_source` instead of the older symbol-read wording
 - Public closeout guidance and verification no longer require private local Git helpers
-- Install now manages `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` so `uv` picks up a seven-day quarantine window system-wide
+- Install now manages `~/.config/uv/uv.toml` with a seven-day default quarantine and a package-specific `jcodemunch-mcp` override so the optional runner stays installable on clean systems
 
 ## 0.5
 
