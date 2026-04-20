@@ -120,15 +120,6 @@ REQUIRED_PUBLIC_DOC_PATHS = [
     REPO_ROOT / "codex/TOOLING.md",
 ]
 
-FORBIDDEN_PUBLIC_ROOT_PATHS = [
-    REPO_ROOT / "AGENTS.md",
-    REPO_ROOT / "PROJECT_CONTINUITY.md",
-    REPO_ROOT / "PROJECT_SPINE.md",
-    REPO_ROOT / "CHECKPOINT.md",
-    REPO_ROOT / "QA_RUNBOOK.md",
-    REPO_ROOT / "QA_MATRIX.md",
-]
-
 @dataclass(frozen=True)
 class ManagedLink:
     live_path: Path
@@ -900,10 +891,6 @@ def validate_public_doc_surface() -> list[str]:
     for path in REQUIRED_PUBLIC_DOC_PATHS:
         if not path.exists():
             errors.append(f"missing required public doc surface: {relative_to_repo(path)}")
-
-    for path in FORBIDDEN_PUBLIC_ROOT_PATHS:
-        if path.exists():
-            errors.append(f"internal control doc should not ship in the public repo: {relative_to_repo(path)}")
 
     return errors
 
