@@ -2,9 +2,9 @@
 
 On the first turn or when the repo or `cwd` changes, routine startup context for this repo is:
 
-1. `PROJECT_CONTINUITY.md`
-2. `CHECKPOINT.md`
-3. This file
+1. This file
+2. `PROJECT_CONTINUITY.md`
+3. `CHECKPOINT.md`
 
 Within one thread, re-anchor by using the environment's stock continuity/bootstrap lane first and reload these docs only on explicit request or repo or `cwd` change.
 
@@ -26,9 +26,9 @@ Open deeper docs only when the task needs them.
 ## Git Safety
 
 - Own Git posture for the user in plain language. Translate desired outcomes into the change-lifecycle plan instead of making the user infer Git mechanics.
-- If the repo or environment exposes a preview-first lifecycle helper, say when you are previewing versus mutating and use the helper's real mutation pass only when you intend to change history or cleanup state.
+- If the stock local Git control plane uses preview-first lifecycle verbs, say when you are previewing versus mutating and use `--apply` only for the real mutation pass.
 - Define the authoritative base branch and protected refs before branch cleanup.
-- In this environment, route routine start, finish, park, and repair through the repo's or environment's documented lifecycle helper instead of embedding ad hoc git sequences here.
+- In this environment, route routine local start, finish, park, and repair through the stock local Git control plane instead of embedding ad hoc git sequences here.
 - For parallel work or branch-switch-heavy work, prefer an isolated checkout or clone before editing. If the repo has a local isolation pattern, record it here.
 - State ancestry results in words; do not report raw exit codes as branch-safety conclusions.
 - If preservation intent or base choice is unclear and the answer would change history, ask a short clarifying question before mutating refs or switching a shared branch.

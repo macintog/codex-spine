@@ -34,7 +34,7 @@ from codex_spine import (  # noqa: E402
     enabled_component_names,
     first_nonempty_line,
     install_missing_brew_formulas,
-    jcodemunch_mcp_overlay_body,
+    munch_mcp_overlay_body,
     managed_links,
     prepare_generated_config_target,
     replace_managed_block,
@@ -49,6 +49,7 @@ from codex_spine import (  # noqa: E402
 )
 from component_manager import (  # noqa: E402
     _run_live_with_heartbeat,
+    acknowledgement_group_components,
     component_acknowledgement_lines,
     component_status,
     ensure_component_acknowledged,
@@ -113,16 +114,18 @@ def warn(message: str, *, ui=None) -> None:
     print(f"WARNING: {message}", file=sys.stderr)
 
 
-def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
-    if "jcodemunch-mcp" in enabled_component_names():
+def maybe_enable_munch_suite(*, non_interactive: bool, ui=None) -> bool:
+    suite_names = {"jcodemunch-mcp", "jdocmunch-mcp", "jdatamunch-mcp"}
+    if suite_names.issubset(enabled_component_names()):
         if ui is not None:
-            ui.status("ok", "Optional jCodeMunch MCP is already enabled.")
+            ui.status("ok", "Optional jGravelle Munch MCP suite is already enabled.")
         return False
 
     components = {component.name: component for component in resolve_components()}
     component = components.get("jcodemunch-mcp")
     if component is None:
         raise RuntimeError("missing optional component definition: jcodemunch-mcp")
+    suite_components = acknowledgement_group_components(component, list(components.values()))
 
     if ui is not None:
         try:
@@ -133,33 +136,33 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         lines = component_acknowledgement_lines(component)
         if bundle is not None:
             if not ui.page_text(
-                "Optional jCodeMunch MCP terms",
+                "Optional jGravelle Munch MCP suite terms",
                 bundle["text"],
                 prompt_hint="Enter advances; Esc cancels",
                 preface_lines=[
-                    ("Optional component: jCodeMunch MCP", ui.color("info") | curses.A_BOLD),
+                    ("Optional component suite: jCodeMunch, jDocMunch, and jDataMunch MCP", ui.color("info") | curses.A_BOLD),
                     (
-                        "The next pages show the current upstream terms for this optional indexed code navigation integration.",
+                        "The next pages show the current upstream terms for the optional jGravelle Munch MCP suite.",
                         ui.color("info"),
                     ),
                     ("", curses.A_NORMAL),
                     (
-                        "Press Esc to skip it for now, or keep pressing Enter to review the terms and continue.",
+                        "Press Esc to skip the suite for now, or keep pressing Enter to review the terms and continue.",
                         ui.color("info"),
                     ),
                 ],
             ):
-                ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                ui.status("info", "Continuing install without the optional jGravelle Munch MCP suite.")
                 return False
         if bundle is None:
-            accepted = ui.prompt_yes_no(lines + ["", "Enable it now?"], default=True)
+            accepted = ui.prompt_yes_no(lines + ["", "Enable the suite now?"], default=True)
             if not accepted:
-                ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                ui.status("info", "Continuing install without the optional jGravelle Munch MCP suite.")
                 return False
         else:
             while True:
                 reply = ui.prompt_text_input(
-                    "Optional jCodeMunch MCP",
+                    "Optional jGravelle Munch MCP suite",
                     "Type 'accept' to continue, or press Esc to skip:",
                     prompt_hint="Type accept and press Enter",
                     modal_size=ui.last_modal_size,
@@ -168,8 +171,8 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
                 if normalized == "accept":
                     break
                 if normalized in {"", "skip", "s", "no", "n", "q", "quit"} or reply is None:
-                    if ui.prompt_yes_no(["Skip optional jCodeMunch MCP for now?"], default=False):
-                        ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                    if ui.prompt_yes_no(["Skip the optional jGravelle Munch MCP suite for now?"], default=False):
+                        ui.status("info", "Continuing install without the optional jGravelle Munch MCP suite.")
                         return False
                     continue
                 ui.show_message(
@@ -185,13 +188,11 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         except RuntimeError as exc:
             warn(str(exc), ui=ui)
             if ui is not None:
-                ui.status("info", "Continuing install without optional jCodeMunch MCP.")
+                ui.status("info", "Continuing install without the optional jGravelle Munch MCP suite.")
             else:
-                print("Continuing install without optional jCodeMunch MCP.")
+                print("Continuing install without the optional jGravelle Munch MCP suite.")
             return False
 
-    package_name = component.backend.get("package_name", component.name)
-    action_label = "validating compatible invocation for" if component.backend.get("kind") == "uvx_tool" else "installing/updating"
     if ui is not None:
         def ui_run_live(args, *, cwd=None, check=True, env=None):
             ui.run_command(args, cwd=cwd, env=env)
@@ -218,32 +219,47 @@ def maybe_enable_jcodemunch(*, non_interactive: bool, ui=None) -> bool:
         def ui_progress(message):
             print(message, flush=True)
 
-        ui.status("info", f"Preparing optional {component.name}.")
+        ui.status("info", "Preparing the optional jGravelle Munch MCP suite.")
         with ui.capture_output():
-            print(f"{component.name}: {action_label} {package_name}...", flush=True)
-            print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
-            for line in update_component(
-                component,
-                run_live_fn=ui_run_live,
-                run_live_with_heartbeat_fn=ui_run_live_with_heartbeat,
-                progress_fn=ui_progress,
-            ):
-                print(line)
+            for suite_component in suite_components:
+                package_name = suite_component.backend.get("package_name", suite_component.name)
+                action_label = (
+                    "validating compatible invocation for"
+                    if suite_component.backend.get("kind") == "uvx_tool"
+                    else "installing/updating"
+                )
+                print(f"{suite_component.name}: {action_label} {package_name}...", flush=True)
+                print(f"$ {shlex.join(component_status(suite_component)['action'])}", flush=True)
+                for line in update_component(
+                    suite_component,
+                    run_live_fn=ui_run_live,
+                    run_live_with_heartbeat_fn=ui_run_live_with_heartbeat,
+                    progress_fn=ui_progress,
+                ):
+                    print(line)
     else:
-        print(f"{component.name}: {action_label} {package_name}...", flush=True)
-        print(f"$ {shlex.join(component_status(component)['action'])}", flush=True)
-        for line in update_component(component):
-            print(line)
+        for suite_component in suite_components:
+            package_name = suite_component.backend.get("package_name", suite_component.name)
+            action_label = (
+                "validating compatible invocation for"
+                if suite_component.backend.get("kind") == "uvx_tool"
+                else "installing/updating"
+            )
+            print(f"{suite_component.name}: {action_label} {package_name}...", flush=True)
+            print(f"$ {shlex.join(component_status(suite_component)['action'])}", flush=True)
+            for line in update_component(suite_component):
+                print(line)
 
-    record_component_enabled(component)
+    for suite_component in suite_components:
+        record_component_enabled(suite_component)
 
     if ui is not None:
-        ui.status("ok", "Optional jCodeMunch setup is ready.")
+        ui.status("ok", "Optional jGravelle Munch MCP suite setup is ready.")
     replace_managed_block(
         LOCAL_CONFIG_OVERLAY,
         JCODEMUNCH_MCP_BLOCK_START,
         JCODEMUNCH_MCP_BLOCK_END,
-        jcodemunch_mcp_overlay_body(),
+        munch_mcp_overlay_body(),
     )
     return True
 
@@ -282,6 +298,27 @@ def run_launchctl(args: list[str], *, label: str, ui=None) -> bool:
         ui=ui,
     )
     return False
+
+
+def write_install_verify_log(lines: list[str]) -> Path:
+    log_path = HOME / ".cache" / "codex-spine" / "install-verify.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return log_path
+
+
+def final_verify_failure_message(returncode: int, lines: list[str], log_path: Path) -> str:
+    detail_lines = [line for line in lines if line.strip()]
+    tail = detail_lines[-12:]
+    message_lines = [
+        f"Final verification failed with exit status {returncode}.",
+        f"Full verifier output was written to {log_path}.",
+    ]
+    if tail:
+        message_lines.extend(["", "Last verifier lines:", *tail])
+    return "\n".join(message_lines)
+
+
 def install_steps() -> list[Step]:
     return [
         Step("Step 1 of 4", "Keep your settings", "Carry over any Codex settings you still want before setup changes anything."),
@@ -355,7 +392,18 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         retired_memory_helper.unlink()
 
     for link in managed_links():
-        ensure_symlink(link.live_path, link.repo_path)
+        _, backup_path = ensure_symlink(
+            link.live_path,
+            link.repo_path,
+            backup_unmanaged_file=link.backup_unmanaged_file,
+            replace_empty_unmanaged_file=link.replace_empty_unmanaged_file,
+        )
+        if backup_path is not None:
+            message = f"Backed up the previous unmanaged file at {link.live_path} to {backup_path}."
+            if ui is not None:
+                ui.status("ok", message)
+            else:
+                print(message)
 
     if shell_plan.supported:
         sanitize_zshenv(HOME / ".zshenv")
@@ -371,7 +419,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
             heartbeat_message="Installing the main codex-spine tools; this can take a while...",
             heartbeat_interval=0.5,
         )
-        maybe_enable_jcodemunch(non_interactive=non_interactive, ui=ui)
+        maybe_enable_munch_suite(non_interactive=non_interactive, ui=ui)
         if "jcodemunch-mcp" in enabled_component_names():
             sync_jcodemunch_global_config()
         note = "qmd and the rest of the codex-spine tools are ready."
@@ -381,7 +429,7 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
     else:
         print("\nNow we'll install or update the core packages codex-spine manages. This can take a while on the first run.", flush=True)
         run_script("update", "--defaults-only", *(["--non-interactive"] if non_interactive else []))
-        maybe_enable_jcodemunch(non_interactive=non_interactive)
+        maybe_enable_munch_suite(non_interactive=non_interactive)
         if "jcodemunch-mcp" in enabled_component_names():
             sync_jcodemunch_global_config()
 
@@ -471,9 +519,21 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         for line in verify_lines:
             print(line)
         if verify_process.returncode:
-            raise subprocess.CalledProcessError(verify_process.returncode, verify_command)
+            log_path = write_install_verify_log(verify_lines)
+            raise RuntimeError(final_verify_failure_message(verify_process.returncode, verify_lines, log_path))
     else:
-        run_script("verify", ui=ui)
+        result = subprocess.run(
+            verify_command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        verify_lines = [*result.stdout.splitlines(), *result.stderr.splitlines()]
+        for line in verify_lines:
+            print(line)
+        if result.returncode:
+            log_path = write_install_verify_log(verify_lines)
+            raise RuntimeError(final_verify_failure_message(result.returncode, verify_lines, log_path))
     if not shell_plan.supported:
         if ui is not None:
             ui.status("warn", "Shell integration was skipped because the detected login shell is not zsh.")
@@ -485,9 +545,9 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
         ui.status("info", "Current terminals do not automatically pick up shell changes. Open a new shell when you want the refreshed environment.")
     if "jcodemunch-mcp" not in enabled_component_names():
         if ui is not None:
-            ui.status("info", "Optional next step: enable jCodeMunch MCP with `./scripts/component-enable jcodemunch-mcp`.")
+            ui.status("info", "Optional next step: enable the jGravelle Munch MCP suite with `./scripts/component-enable jcodemunch-mcp`.")
         else:
-            print("Optional next step: enable jCodeMunch MCP for indexed code navigation with `./scripts/component-enable jcodemunch-mcp`.")
+            print("Optional next step: enable the jGravelle Munch MCP suite for indexed code, docs, and data navigation with `./scripts/component-enable jcodemunch-mcp`.")
     print("Your Codex setup is ready.")
     print("install: ok")
 

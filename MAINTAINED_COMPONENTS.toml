@@ -1,5 +1,5 @@
 [profiles.codex_spine]
-components = ["qmd", "jcodemunch-mcp"]
+components = ["qmd", "jcodemunch-mcp", "jdocmunch-mcp", "jdatamunch-mcp"]
 description = "Public codex-spine installation profile."
 
 [components.qmd]
@@ -24,8 +24,11 @@ package_name = "jcodemunch-mcp"
 version_spec = ">=1.44.0,<2.0"
 executable = "uv"
 tool_name = "jcodemunch-mcp"
+mcp_server_name = "jcodemunch"
 version_args = ["--version"]
 requires_acknowledgement = true
+acknowledgement_group = "jgravelle-munch-suite"
+acknowledgement_label = "jGravelle Munch MCP suite"
 terms_source_url = "https://raw.githubusercontent.com/jgravelle/jcodemunch-mcp/main/README.md"
 terms_start_markers = [
   "## License (Dual Use)",
@@ -34,3 +37,57 @@ terms_start_markers = [
   "## FREE FOR PERSONAL USE",
 ]
 terms_end_markers = ["\n## Real-world results"]
+
+[components."jdocmunch-mcp"]
+summary = "jDocMunch MCP command used for indexed documentation navigation through a managed uv runner invocation."
+default_enabled = false
+
+[components."jdocmunch-mcp".backends.codex_spine]
+kind = "uvx_tool"
+package_name = "jdocmunch-mcp"
+version_spec = "<2.0"
+executable = "uv"
+tool_name = "jdocmunch-mcp"
+mcp_server_name = "jdocmunch"
+health_args = ["-h"]
+requires_acknowledgement = true
+acknowledgement_group = "jgravelle-munch-suite"
+acknowledgement_label = "jGravelle Munch MCP suite"
+terms_source_url = "https://raw.githubusercontent.com/jgravelle/jdocmunch-mcp/master/README.md"
+terms_start_markers = [
+  "> ## Commercial licenses",
+  "## Commercial licenses",
+  "## FREE FOR PERSONAL USE",
+]
+terms_end_markers = ["\n## Why this exists"]
+
+[components."jdocmunch-mcp".backends.codex_spine.env]
+JDOCMUNCH_SHARE_SAVINGS = "0"
+JDOCMUNCH_META_FIELDS = "[]"
+
+[components."jdatamunch-mcp"]
+summary = "jDataMunch MCP command used for indexed tabular-data navigation through a managed uv runner invocation."
+default_enabled = false
+
+[components."jdatamunch-mcp".backends.codex_spine]
+kind = "uvx_tool"
+package_name = "jdatamunch-mcp"
+version_spec = "<2.0"
+executable = "uv"
+tool_name = "jdatamunch-mcp"
+mcp_server_name = "jdatamunch"
+health_args = ["-h"]
+requires_acknowledgement = true
+acknowledgement_group = "jgravelle-munch-suite"
+acknowledgement_label = "jGravelle Munch MCP suite"
+terms_source_url = "https://raw.githubusercontent.com/jgravelle/jdatamunch-mcp/master/README.md"
+terms_start_markers = [
+  "> ## Commercial licenses",
+  "## Commercial licenses",
+  "## FREE FOR PERSONAL USE",
+]
+terms_end_markers = ["\n## Why agents need this"]
+
+[components."jdatamunch-mcp".backends.codex_spine.env]
+JDATAMUNCH_SHARE_SAVINGS = "0"
+JDATAMUNCH_META_FIELDS = "[]"

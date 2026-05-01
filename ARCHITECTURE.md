@@ -34,7 +34,8 @@ codex-spine/
 │   └── config/                 # Managed config fragments rendered into ~/.codex/config.toml
 ├── skills/
 │   ├── project-continuity/     # Reusable continuity skill, starter templates, and adoption reference
-│   └── multi-step/             # Reusable serial-pass workflow skill and packet templates
+│   ├── multi-step/             # Reusable serial-pass workflow skill and packet templates
+│   └── tufte-visualization/    # Evidence-first visualization skill and references
 ├── bin/                        # Durable wrappers and managed launcher entrypoints
 ├── shell/
 │   ├── zprofile.codex.sh       # Managed zsh login-shell source fragment
@@ -58,10 +59,10 @@ tracked repo policy + config fragments + wrappers
     -> continue in the same fullscreen installer session
     -> scripts/bootstrap.py under the current Python runtime
     -> managed config adoption + local example files + managed symlinks
-    -> managed ~/.config/uv/uv.toml with a seven-day default quarantine and a package-specific jcodemunch override
+    -> managed ~/.config/uv/uv.toml with a seven-day default quarantine and package-specific overrides for the optional jGravelle Munch suite
     -> managed zsh source blocks when supported, with repo-local manual shell fragments otherwise
     -> default managed component install/update
-    -> optional jcodemunch acknowledgement + enablement when chosen
+    -> optional jGravelle Munch suite acknowledgement + enablement when chosen
     -> rendered ~/.codex/config.toml
     -> LaunchAgent render
     -> first transcript sync + qmd index refresh
@@ -71,7 +72,7 @@ tracked repo policy + config fragments + wrappers
 
 `install` is the mechanism that turns tracked repo state into live user-level machine state. A change to config fragments, wrappers, shell hooks, or LaunchAgent behavior is not really installed until `make install` runs successfully.
 
-`Makefile` is part of the public operator surface, not build-only scaffolding. It is the thin dispatcher for `install`, `verify`, `update`, and `component-status`, while the shell and Python files under `scripts/` and `lib/` hold the actual implementation.
+`Makefile` is part of the public operator surface, not build-only scaffolding. It is the thin dispatcher for `install`, `verify`, `update`, `upgrade`, and `component-status`, while the shell and Python files under `scripts/` and `lib/` hold the actual implementation.
 
 ### Verification
 
@@ -80,12 +81,12 @@ repo state + live machine state
     -> scripts/verify
     -> maintenance manifest validation
     -> public doc, skill, and routing-contract validation
-    -> private-reference and secret scanning
+    -> secret and local-reference scanning
     -> symlink, shell, config, and LaunchAgent drift checks
     -> default and enabled-optional component health checks
 ```
 
-`verify` is the guardrail against drift, broken managed state, and accidental leakage of private paths or maintainer-only contracts into the public surface. The shipped repo-only path is behavior-first and boundary-first: it validates exported skills, the slim public `codex/AGENTS.md` and `codex/TOOLING.md` routing surface, manifests, and other public interfaces without hard-freezing every sentence.
+`verify` is the guardrail against drift, broken managed state, and accidental leakage of local paths, secrets, or machine-specific assumptions into the public surface. The shipped repo-only path is behavior-first and boundary-first: it validates shipped skills, the slim public `codex/AGENTS.md` and `codex/TOOLING.md` routing surface, manifests, and other public interfaces without hard-freezing every sentence.
 
 ### Memory and Retrieval Flow
 
@@ -99,34 +100,34 @@ Codex transcripts + project-memory material
 
 This subsystem is the default public core. It is built around [@tobi/qmd](https://github.com/tobi/qmd) and exists to give Codex better startup context and retrieval without requiring manual transcript spelunking.
 
-Built-in Codex memories and app-managed files under `~/.codex/memories/` are complementary client-managed context in this design, not the operator-facing retrieval lane. The shipped public contract keeps required rules in `codex/AGENTS.md` or checked-in repo docs, uses the `memory` MCP surface for bootstrap and transcript retrieval, and treats `/memories` plus `codex/config/90-local.toml` as the right control points for built-in settings such as `memories.use_memories`, `memories.generate_memories`, and `memories.no_memories_if_mcp_or_web_search`.
+Built-in Codex memories and app-managed files under `~/.codex/memories/` are complementary client-managed context in this design, not the operator-facing retrieval lane. The shipped public contract keeps required rules in `codex/AGENTS.md` or checked-in repo docs, uses the `memory` MCP surface for bootstrap and transcript retrieval, and treats `/memories` plus `codex/config/90-local.toml` as the right control points for built-in settings such as `memories.use_memories`, `memories.generate_memories`, and `memories.disable_on_external_context`.
 
 When project framing files exist in a target repo, the transcript-sync path prefers `PROJECT_CONTINUITY.md` as the durable product frame before lower-level handoff details so startup context stays anchored on purpose instead of only the latest execution state.
 
-### Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) Flow
+### Optional jGravelle Munch MCP Suite Flow
 
 ```text
-user requests optional indexed code navigation
+user requests optional indexed code, docs, and data navigation
     -> scripts/component-enable jcodemunch-mcp
-    -> retrieve the current upstream terms text
+    -> retrieve the current upstream terms text once
     -> require explicit accept at enable time
-    -> validate the latest compatible upstream uv runner invocation under <2.0
-    -> render local overlay that wires the MCP server
+    -> validate the latest compatible upstream uv runner invocations under <2.0
+    -> render one local overlay that wires the three MCP servers together
 ```
 
-The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) project stays a separate license boundary throughout this flow. Optional enablement fails closed if the managed `<2.0` compatibility contract cannot be satisfied.
+The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), [@jgravelle/jdocmunch-mcp](https://github.com/jgravelle/jdocmunch-mcp), and [@jgravelle/jdatamunch-mcp](https://github.com/jgravelle/jdatamunch-mcp) projects stay a separate license boundary throughout this flow. Optional enablement fails closed if the managed `<2.0` compatibility contract for any suite member cannot be satisfied.
 
 ## Public Understanding Surface
 
-`codex-spine` deliberately ships a smaller public operating surface than the private source repo it is derived from.
+`codex-spine` deliberately keeps its public operating surface small.
 
 - `README.md` and `Makefile` are the public operator entrypoints; common commands dispatch into `scripts/`.
 - `codex/AGENTS.md` is the compact startup and operating policy for installed public use.
 - `codex/TOOLING.md` is the public on-demand guide for continuity, memory retrieval, and code navigation only.
-- `skills/project-continuity/` and `skills/multi-step/` are reusable workflow scaffolds, not maintainer control-plane docs.
-- Repo-specific Git lifecycle helpers, maintainer closeout choreography, export QA authority, and private release-lane governance stay outside the shipped public tree.
+- `skills/project-continuity/`, `skills/multi-step/`, and `skills/tufte-visualization/` are reusable public skill payloads.
+- Repo-specific release, review, and local Git workflows stay outside the installed operating contract unless this repo documents them directly.
 
-That split is intentional. The public repo should explain installed product behavior and reusable workflow patterns without publishing the maintainer control plane that produces the repo.
+That split is intentional. The public repo should explain installed product behavior and reusable workflow patterns without turning its docs into project-management history.
 
 ## Public Runtime Payload
 
@@ -162,17 +163,26 @@ This tree ships a reusable serial-pass workflow for larger, drift-prone efforts:
 
 Like `project-continuity`, this skill is meant to be copied into the repo being worked in as needed. The shipped tree in `codex-spine` is the reusable source payload, not active state for every downstream project.
 
+### `skills/tufte-visualization/`
+
+This tree ships an evidence-first visualization workflow for charts, dashboards, analytical figures, visual tables, maps, and other decision-grade displays:
+
+- `SKILL.md` defines the comparison-first workflow, integrity rules, rendering checks, and delivery contract.
+- `references/` carries focused guidance for chart selection, visual principles, accessibility, critique, captions, and alt text.
+
+This skill is guidance for producing or reviewing evidence displays. It does not add a charting runtime or data source by itself.
+
 ## Key Invariants
 
 - [@tobi/qmd](https://github.com/tobi/qmd) and memory are part of the default public core.
-- Public workflow skills ship under `skills/` as reusable scaffolding; the actual continuity packet files still live in the repo being worked in.
-- The public skill payload is intentionally narrow: `project-continuity` and `multi-step` only, plus their shipped templates and the single public adoption reference.
+- Public skills ship under `skills/` as reusable scaffolding and guidance; the actual continuity packet files still live in the repo being worked in.
+- The public skill payload is intentionally narrow: `project-continuity`, `multi-step`, and `tufte-visualization`, plus their shipped templates and references.
 - `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
 - Built-in Codex memories remain an optional complementary surface, not a replacement for the `memory` MCP lane; required rules stay in shipped docs, and durable built-in-memory defaults belong in `codex/config/90-local.toml` rather than generated state under `~/.codex/memories/`.
-- [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) is optional but first-class.
-- The shipped `codex/TOOLING.md` surface is intentionally limited to continuity, memory, and code navigation; maintainer-only Git and release governance are out of scope for the public repo.
+- The optional jGravelle Munch MCP suite is optional but first-class.
+- The shipped `codex/TOOLING.md` surface is intentionally limited to continuity, memory, and code navigation; release governance is out of scope for the installed operating contract.
 - Managed shell-dotfile mutation is only tested for `zsh`. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation, with the shipped shell fragments kept available for explicit manual wiring.
-- launchd, shell, and config surfaces must remain free of private paths and personal-service assumptions.
+- launchd, shell, and config surfaces must remain free of personal paths and machine-specific service assumptions.
 - `MAINTAINED_COMPONENTS.toml` owns shipped acquisition and update shape; public runtime behavior should not depend on export-control metadata.
 - Managed update paths must fail closed when post-update health is red instead of accepting version-only success.
 
@@ -192,6 +202,7 @@ Like `project-continuity`, this skill is meant to be copied into the repo being 
 - LaunchAgent state is managed from tracked plist definitions and reloaded during bootstrap.
 - Repo-local `.state/` stores optional component enablement records.
 - `update` refreshes default components and any already-enabled optional components to the repo’s managed versions or compatibility constraints and stops with an error if the component remains unhealthy afterward.
+- `upgrade` is the explicit repo self-update path: it refuses dirty checkouts, fetches release tags, checks out the newest `vX.Y.Z` tag from the selected remote, then reruns install, update, and verify from that upgraded tree.
 - Exported skills, docs, and verifier gates are expected to agree as one shipped understanding surface. When they drift, `scripts/verify.py --repo-only` is supposed to catch it before release.
 
 ## Why This Doc Exists

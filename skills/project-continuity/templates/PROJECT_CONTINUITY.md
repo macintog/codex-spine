@@ -1,6 +1,8 @@
 # Project Continuity
 
-This is the compact startup authority for this project. Read it with `CHECKPOINT.md` and the project `AGENTS.md` on first turn or repo or `cwd` change. Within one thread, start re-anchor by using the environment's stock continuity/bootstrap lane and reload disk docs only when needed. Open deeper docs only when the task requires them. If the repo self-hosts the very startup docs, tooling guides, skills, generated config, or launchers that agents rely on, record that relationship and the expected reload or relaunch handling in `Stable Constraints / Invariants`.
+This is the compact durable startup authority for this project. Use it to keep purpose, success, strategy, and stable constraints visible when local work gets narrow.
+
+Read it after the project `AGENTS.md` and before `CHECKPOINT.md` on first turn or repo or `cwd` change. Keep re-anchor mechanics, deep-doc routing, and reload or relaunch handling in `AGENTS.md` and `CHECKPOINT.md`. If the repo self-hosts the startup docs, tooling guides, skills, generated config, or launchers that agents rely on, record the durable relationship in `Stable Constraints / Invariants`.
 
 ## Purpose
 

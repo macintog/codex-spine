@@ -1,18 +1,20 @@
 # codex-spine Codex Policy
 
 - Always describe current work and give regular progress updates with enough reasoning to follow.
+- Voice: warm, direct, and present. Truth over reassurance; no performative certainty.
 - Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed.
 - When a new thread or re-anchor needs durable repo continuity, call `memory.bootstrap_context` before broader doc reloads: repo or `cwd` changes, prior-thread references, compaction-drift symptoms, or any case where the startup packet and current turn are not enough.
 - Do not treat bootstrap as mandatory for lightweight local tasks that are already grounded by the startup packet and current user turn.
 - When the user changes the task within the same thread, keep that latest turn authoritative and add a short current-task restatement instead of treating bootstrap as permission to resume older work.
 - Use `codex/TOOLING.md` when the task needs the shared continuity packet, direct memory retrieval, or indexed code navigation. Ordinary code navigation counts here whenever you need repo shape, definitions, call sites, symbol usage, or adjacent implementations.
+- Interpret `do git magic` as the managed Git lifecycle in `codex/TOOLING.md`: commit the intended work, finish or merge it back to the authoritative line, clean up the current branch and safe residue, push keeper changes to the configured forge or local-host remote, and prove a clean top-of-tree state for every participating checkout.
 - When prior wording matters, use the memory lane in `codex/TOOLING.md` instead of guessing from recap.
 - Treat built-in Codex memories and app-managed files under `~/.codex/memories/` as complementary client-managed context. Keep required rules in `AGENTS.md` or checked-in docs, use `/memories` or `codex/config/90-local.toml` when you need to control them, and use the `memory` lane in `codex/TOOLING.md` for operator-facing bootstrap and transcript retrieval unless the task is explicitly about those app-managed memory files.
-- For ordinary code navigation, use the `jcodemunch` lane in `codex/TOOLING.md` first. Prefer targeted symbol retrieval and file outlines over broad file reads. Use filesystem-first search only for literal text or filename lookup, other small local checks, or after the indexed lane misses and needs repair.
+- For ordinary code navigation, use the indexed lane in `codex/TOOLING.md` first: `jcodemunch` for code, `jdocmunch` for docs, and `jdatamunch` for tabular data. Prefer targeted symbol retrieval and file outlines over broad file reads for code, and the corresponding targeted retrieval tools for docs and data. For broad code symbol discovery, leave `detail_level` implicit and avoid `debug` unless you need a specific shape; when you need bundled or ranked code context, pass a real `token_budget`. Use filesystem-first search only for literal text or filename lookup, other small local checks, or after the indexed lane misses and needs repair.
 - Treat those MCP lanes as part of the stock installed Codex environment, not as optional skill behavior.
-- This public repo ships the public-safe `project-continuity` and `multi-step` workflow skill trees while keeping the installed operating contract in `codex/AGENTS.md` and `codex/TOOLING.md`.
+- This public repo ships the `project-continuity`, `multi-step`, and `tufte-visualization` skill trees while keeping the installed operating contract in `codex/AGENTS.md` and `codex/TOOLING.md`.
 - Keep this file compact. Put detailed playbooks in `codex/TOOLING.md` or the deeper public docs instead of turning `codex/AGENTS.md` into a second playbook.
-- Prefer the managed commands (`make install`, `make verify`, `make update`, `./scripts/component-enable`) and fix behavior at the source that actually owns it instead of layering on ad hoc local edits.
+- Prefer the managed commands (`make install`, `make verify`, `make update`, `make upgrade`, `./scripts/component-enable`) and fix behavior at the source that actually owns it instead of layering on ad hoc local edits.
 - Before non-trivial repo-touching work, give a short task-start brief and required-surface checklist covering repo or branch posture, adjacent surfaces, validation plan, and any destructive-move guard.
 - Before editing an older code path or restoring prior behavior, inspect the earlier implementation and rationale first.
 - If a task changes startup docs, tooling guides, public docs, config fragments, launchers, or managed links, treat that as a coordinated understanding surface and say in closeout whether the current thread should reload docs or whether a fresh Codex session would help.

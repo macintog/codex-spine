@@ -1,4 +1,4 @@
-.PHONY: install bootstrap verify render-config update component-status
+.PHONY: install bootstrap verify render-config update upgrade component-status
 
 install:
 	./scripts/bootstrap
@@ -13,6 +13,9 @@ render-config:
 
 update:
 	./scripts/update
+
+upgrade:
+	./scripts/upgrade
 
 component-status:
 	./scripts/component-status

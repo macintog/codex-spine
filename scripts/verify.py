@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "lib"))
 
 from codex_spine import (  # noqa: E402
+    ADOPTED_CONFIG_OVERLAY,
     BLOCK_END,
     BLOCK_START,
     HOME,
@@ -26,20 +27,24 @@ from codex_spine import (  # noqa: E402
     REQUIRED_CLIS,
     cli_available,
     config_text_matches_rendered_contract,
-    detect_private_reference_hits,
+    deep_merge,
+    detect_local_reference_hits,
     detect_secret_hits,
     detect_shell_integration_plan,
     enabled_component_names,
     first_nonempty_line,
+    ensure_symlink,
     managed_links,
     render_config_text,
     render_launch_agent_text,
     runtime_env,
+    serialize_toml,
     shell_source_targets,
     text_file_paths,
     validate_public_doc_surface,
 )
 from component_manager import component_status, resolve_components, validate_maintenance_manifest  # noqa: E402
+from toml_compat import tomllib  # noqa: E402
 
 
 def fail(errors: list[str]) -> int:
@@ -52,16 +57,21 @@ def tag_verifier_messages(category: str, messages: list[str]) -> list[str]:
     return [f"[{category}] {message}" for message in messages]
 
 
-PUBLIC_SKILL_DIRS = frozenset({"multi-step", "project-continuity"})
+PUBLIC_SKILL_DIRS = frozenset({"multi-step", "project-continuity", "tufte-visualization"})
 PUBLIC_REQUIRED_SKILL_SENTINELS = (
     ("multi-step", "SKILL.md"),
     ("project-continuity", "SKILL.md"),
     ("project-continuity", "references/unseen-repo-adoption-prompt.md"),
+    ("tufte-visualization", "SKILL.md"),
+    ("tufte-visualization", "CITATIONS.md"),
+    ("tufte-visualization", "references/chart-selection.md"),
 )
 PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
     "README.md": (
         ("codex/TOOLING.md",),
         ("`memory` MCP", "memory` MCP", "memory MCP"),
+        ("jdocmunch",),
+        ("jdatamunch",),
         ("~/.codex/memories/", "built-in Codex memories", "built-in memories"),
         ("client-managed context", "complementary client-managed context"),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
@@ -72,6 +82,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("codex/TOOLING.md",),
         ("memory.bootstrap_context",),
         ("jcodemunch",),
+        ("jdocmunch",),
+        ("jdatamunch",),
         ("~/.codex/memories/", "built-in Codex memories", "built-in memories"),
         ("client-managed context", "complementary client-managed context"),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
@@ -90,13 +102,18 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("client-managed context", "complementary client-managed context"),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
         ("`/memories`", "/memories"),
-        ("`memories.no_memories_if_mcp_or_web_search`", "memories.no_memories_if_mcp_or_web_search"),
+        ("`memories.disable_on_external_context`", "memories.disable_on_external_context"),
         ("jcodemunch",),
+        ("jdocmunch",),
+        ("jdatamunch",),
         ("search_symbols",),
         ("get_symbol_source",),
         ("index_folder",),
+        ("search_sections",),
+        ("describe_dataset",),
     ),
 }
+LOCAL_ONLY_CONFIG_OVERLAYS = frozenset({ADOPTED_CONFIG_OVERLAY, LOCAL_CONFIG_OVERLAY})
 
 
 def validate_public_agents_policy_texts(
@@ -195,7 +212,7 @@ def validate_public_agents_policy() -> list[str]:
 
 def validate_component_cli_surface() -> list[str]:
     errors: list[str] = []
-    for script_name in ("component-enable.py", "update.py"):
+    for script_name in ("component-enable.py", "update.py", "upgrade.py"):
         script_path = REPO_ROOT / "scripts" / script_name
         result = subprocess.run(
             ["python3", str(script_path), "--help"],
@@ -221,6 +238,32 @@ def validate_component_cli_surface() -> list[str]:
     return errors
 
 
+def validate_optional_munch_runner_probes() -> list[str]:
+    errors: list[str] = []
+    components = {component.name: component for component in resolve_components()}
+    expected_health_only = {
+        "jdocmunch-mcp": ["-h"],
+        "jdatamunch-mcp": ["-h"],
+    }
+    for component_name, expected_health_args in expected_health_only.items():
+        component = components.get(component_name)
+        if component is None:
+            errors.append(f"optional Munch runner is missing from the maintenance manifest: {component_name}")
+            continue
+        if component.backend.get("version_args"):
+            errors.append(f"{component_name} must not use --version as its compatibility probe")
+        if component.backend.get("health_args") != expected_health_args:
+            errors.append(f"{component_name} must use {expected_health_args!r} as its non-blocking compatibility probe")
+
+    component = components.get("jcodemunch-mcp")
+    if component is None:
+        errors.append("optional Munch runner is missing from the maintenance manifest: jcodemunch-mcp")
+    elif component.backend.get("version_args") != ["--version"]:
+        errors.append("jcodemunch-mcp must keep its real --version compatibility probe")
+
+    return errors
+
+
 def validate_memory_public_surface() -> list[str]:
     errors: list[str] = []
 
@@ -242,11 +285,84 @@ def validate_memory_public_surface() -> list[str]:
 
     config_example_path = REPO_ROOT / "codex/config/90-local.toml.example"
     config_example_text = config_example_path.read_text(encoding="utf-8")
-    for anchor in ("[features]", "memories = true", "no_memories_if_mcp_or_web_search = true"):
+    for anchor in ("[features]", "memories = true", "disable_on_external_context = true"):
         if anchor not in config_example_text:
             errors.append(f"public local config example is missing a built-in memory anchor: {config_example_path}: {anchor}")
 
     return errors
+
+
+def validate_managed_link_adoption_policy() -> list[str]:
+    errors: list[str] = []
+    agents_links = [link for link in managed_links() if link.live_path == HOME / ".codex/AGENTS.md"]
+    if len(agents_links) != 1:
+        return [f"expected exactly one managed ~/.codex/AGENTS.md link, found {len(agents_links)}"]
+    agents_link = agents_links[0]
+    if not agents_link.backup_unmanaged_file:
+        errors.append("~/.codex/AGENTS.md must back up a pre-existing unmanaged file during first install")
+    if not agents_link.replace_empty_unmanaged_file:
+        errors.append("~/.codex/AGENTS.md must replace a zero-byte unmanaged file during first install")
+
+    with tempfile.TemporaryDirectory(prefix="codex-spine-link-policy-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        live_path = tmp_path / "home" / ".codex" / "AGENTS.md"
+        repo_path = tmp_path / "repo" / "codex" / "AGENTS.md"
+        repo_path.parent.mkdir(parents=True)
+        repo_path.write_text("managed\n", encoding="utf-8")
+        live_path.parent.mkdir(parents=True)
+        live_path.write_text("existing\n", encoding="utf-8")
+
+        changed, backup_path = ensure_symlink(live_path, repo_path, backup_unmanaged_file=True)
+        if not changed:
+            errors.append("managed link adoption fixture did not report a change")
+        if backup_path is None or not backup_path.exists():
+            errors.append("managed link adoption fixture did not create a backup")
+        elif backup_path.read_text(encoding="utf-8") != "existing\n":
+            errors.append("managed link adoption fixture backup did not preserve the original file")
+        if not live_path.is_symlink() or live_path.resolve(strict=False) != repo_path.resolve():
+            errors.append("managed link adoption fixture did not install the managed symlink")
+
+    with tempfile.TemporaryDirectory(prefix="codex-spine-empty-link-policy-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        live_path = tmp_path / "home" / ".codex" / "AGENTS.md"
+        repo_path = tmp_path / "repo" / "codex" / "AGENTS.md"
+        repo_path.parent.mkdir(parents=True)
+        repo_path.write_text("managed\n", encoding="utf-8")
+        live_path.parent.mkdir(parents=True)
+        live_path.write_text("", encoding="utf-8")
+
+        changed, backup_path = ensure_symlink(
+            live_path,
+            repo_path,
+            backup_unmanaged_file=True,
+            replace_empty_unmanaged_file=True,
+        )
+        if not changed:
+            errors.append("empty managed link fixture did not report a change")
+        if backup_path is not None:
+            errors.append("empty managed link fixture created an unnecessary backup")
+        if not live_path.is_symlink() or live_path.resolve(strict=False) != repo_path.resolve():
+            errors.append("empty managed link fixture did not install the managed symlink")
+
+    return errors
+
+
+def app_managed_config_variant(rendered_config: str) -> str:
+    rendered_data = tomllib.loads(rendered_config)
+    app_managed_data = {
+        "plugins": {
+            "browser-use@openai-bundled": {
+                "enabled": True,
+            },
+        },
+        "marketplaces": {
+            "openai-bundled": {
+                "source_type": "local",
+                "source": "/tmp/codex-app-marketplace",
+            },
+        },
+    }
+    return serialize_toml(deep_merge(rendered_data, app_managed_data))
 
 
 def main() -> int:
@@ -262,18 +378,20 @@ def main() -> int:
     errors.extend(tag_verifier_messages("stable-routing-anchor", validate_public_agents_policy()))
     errors.extend(tag_verifier_messages("boundary-and-leak-check", validate_memory_public_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_component_cli_surface()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_optional_munch_runner_probes()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_managed_link_adoption_policy()))
 
     for path in text_file_paths(REPO_ROOT):
-        if path == LOCAL_CONFIG_OVERLAY:
+        if path in LOCAL_ONLY_CONFIG_OVERLAYS:
             continue
         text = path.read_text(encoding="utf-8")
         secret_hits = detect_secret_hits(text)
         if secret_hits:
             errors.append(f"[boundary-and-leak-check] tracked repo file appears to contain a secret: {path}")
-        private_hits = detect_private_reference_hits(text, public_surface=True)
-        if private_hits:
+        local_hits = detect_local_reference_hits(text, public_surface=True)
+        if local_hits:
             errors.append(
-                f"[boundary-and-leak-check] tracked repo file still contains private references: {path}: {', '.join(private_hits)}"
+                f"[boundary-and-leak-check] tracked repo file still contains local-only references: {path}: {', '.join(local_hits)}"
             )
 
     if args.repo_only:
@@ -306,8 +424,12 @@ def main() -> int:
         errors.append(f"[behavior-contract] missing generated config: {LIVE_CONFIG_PATH}")
     else:
         live_text = LIVE_CONFIG_PATH.read_text(encoding="utf-8")
-        if not config_text_matches_rendered_contract(live_text, render_config_text()):
+        rendered_config = render_config_text()
+        if not config_text_matches_rendered_contract(live_text, rendered_config):
             errors.append(f"[behavior-contract] live config is out of sync with rendered output: {LIVE_CONFIG_PATH}")
+        app_managed_variant = app_managed_config_variant(rendered_config)
+        if not config_text_matches_rendered_contract(app_managed_variant, rendered_config):
+            errors.append("[behavior-contract] app-managed plugin marketplace config should not break verification")
 
     if not LIVE_QMD_CHAT_LAUNCH_AGENT_PATH.exists():
         errors.append(f"[behavior-contract] missing launch agent: {LIVE_QMD_CHAT_LAUNCH_AGENT_PATH}")

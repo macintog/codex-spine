@@ -7,8 +7,10 @@ QMD="${HOME}/.local/bin/qmd-codex"
 JQ="${JQ_BIN:-$(command -v jq || true)}"
 INDEX_NAME="codex_chat"
 COLLECTION_NAME="codex-chat"
-LOCK_DIR="${CODEX_CHAT_QMD_LOCK_DIR:-/tmp/codex-chat-qmd-sync.lock}"
+LOCK_DIR="${CODEX_CHAT_QMD_LOCK_DIR:-${HOME}/.cache/qmd/codex-chat-qmd-sync.lock}"
 LOCK_WAIT_SECONDS="${LOCK_WAIT_SECONDS:-90}"
+LOCK_STALE_SECONDS="${LOCK_STALE_SECONDS:-300}"
+LOCK_OWNER_FILE="owner.json"
 PROJECTION_VERSION="3"
 BOOTSTRAP_VERSION="1"
 STATE_DIR="$TARGET/.state"
@@ -63,6 +65,10 @@ require_bin() {
 wait_for_existing_sync() {
     local waited=0
     while [[ -d "$LOCK_DIR" ]]; do
+        if clear_stale_lock_if_needed; then
+            log "Recovered stale sync lock: $LOCK_DIR"
+            return 0
+        fi
         if (( waited >= LOCK_WAIT_SECONDS )); then
             log "ERROR timed out waiting for active sync to finish after ${LOCK_WAIT_SECONDS}s"
             return 1
@@ -72,6 +78,77 @@ wait_for_existing_sync() {
     done
 
     log "Existing sync finished after ${waited}s wait"
+}
+
+lock_owner_path() {
+    printf '%s/%s\n' "$LOCK_DIR" "$LOCK_OWNER_FILE"
+}
+
+write_lock_owner() {
+    local owner_path
+    owner_path="$(lock_owner_path)"
+    {
+        printf '{'
+        printf '"pid":%s,' "$$"
+        printf '"host":%s,' "$(printf '%s' "$(hostname 2>/dev/null || echo unknown)" | "$JQ" -Rs .)"
+        printf '"started_utc":%s' "$(date -u '+%Y-%m-%dT%H:%M:%SZ' | "$JQ" -Rs .)"
+        printf '}\n'
+    } > "$owner_path"
+}
+
+lock_owner_pid() {
+    local owner_path
+    owner_path="$(lock_owner_path)"
+    [[ -f "$owner_path" ]] || return 1
+    "$JQ" -r '.pid // empty' "$owner_path" 2>/dev/null | grep -E '^[0-9]+$' || return 1
+}
+
+lock_owner_host() {
+    local owner_path
+    owner_path="$(lock_owner_path)"
+    [[ -f "$owner_path" ]] || return 1
+    "$JQ" -r '.host // empty' "$owner_path" 2>/dev/null || return 1
+}
+
+lock_age_seconds() {
+    local now
+    local mtime
+    now="$(date +%s)"
+    mtime="$(stat -f '%m' "$LOCK_DIR" 2>/dev/null || stat -c '%Y' "$LOCK_DIR" 2>/dev/null || echo "$now")"
+    printf '%s\n' "$((now - mtime))"
+}
+
+clear_stale_lock_if_needed() {
+    [[ -d "$LOCK_DIR" ]] || return 1
+
+    local pid=""
+    local owner_host=""
+    local current_host=""
+    pid="$(lock_owner_pid || true)"
+    owner_host="$(lock_owner_host || true)"
+    current_host="$(hostname 2>/dev/null || echo unknown)"
+
+    if [[ -n "$pid" && -n "$owner_host" && "$owner_host" == "$current_host" ]]; then
+        if kill -0 "$pid" 2>/dev/null; then
+            return 1
+        fi
+        rm -f "$(lock_owner_path)"
+        rmdir "$LOCK_DIR" 2>/dev/null || return 1
+        return 0
+    fi
+
+    if (( "$(lock_age_seconds)" >= LOCK_STALE_SECONDS )); then
+        rm -f "$(lock_owner_path)"
+        rmdir "$LOCK_DIR" 2>/dev/null || return 1
+        return 0
+    fi
+
+    return 1
+}
+
+release_lock() {
+    rm -f "$(lock_owner_path)"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
 }
 
 target_for() {
@@ -1045,11 +1122,23 @@ main() {
     fi
 
     if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+        if clear_stale_lock_if_needed && mkdir "$LOCK_DIR" 2>/dev/null; then
+            write_lock_owner
+            trap release_lock EXIT
+        else
         log "Sync already running; waiting for current run to finish."
-        wait_for_existing_sync
-        exit $?
+        wait_for_existing_sync || exit $?
+        if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+            log "ERROR unable to acquire sync lock after wait"
+            exit 1
+        fi
+            write_lock_owner
+            trap release_lock EXIT
+        fi
+    else
+        write_lock_owner
+        trap release_lock EXIT
     fi
-    trap 'rmdir "$LOCK_DIR"' EXIT
 
     mkdir -p "$TARGET" "$STATE_DIR" "$PROJECTS_DIR"
     log "Starting codex chat projection sync"

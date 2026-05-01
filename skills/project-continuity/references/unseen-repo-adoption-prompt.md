@@ -27,11 +27,12 @@ Primary goal:
 - choose the right adoption posture, then move locally managed repos toward a small explicit contract that future GPT-based agents can follow reliably
 
 Important framing:
-- the continuity packet is one management overlay, not a universal measure of repo health
+- the continuity packet is our process overlay, not a universal measure of repo health
 - a healthy third-party or public upstream repo may need no in-tree continuity files at all
-- the primary positive signal that we have taken charge of a repo should be an explicit local marker or manifest when the environment supports one
-- do not treat missing README.md, AGENTS.md, PROJECT_CONTINUITY.md, CHECKPOINT.md, or an indexing declaration as defects until you know this repo should carry a continuity layer
-- do not treat the presence of a root `AGENTS.md` in a public repo as evidence that it uses your continuity packet; it may be the repo's own native contributor or agent-facing guidance
+- the primary positive signal that we have taken charge of a repo is `.codex/codex-spine.toml`
+- for `local-overlay` repos, the primary positive signal lives outside the repo tree in `~/.codex/codex-spine-overlays.toml`
+- do not treat missing README.md, AGENTS.md, PROJECT_CONTINUITY.md, CHECKPOINT.md, or .codex/indexes.toml as defects until you know this repo should carry our overlay
+- do not treat the presence of a root `AGENTS.md` in a public repo as evidence that it uses our continuity packet; it may be the repo's own native contributor or agent-facing guidance
 
 Possible adoption postures:
 - repo-native-only: understand and preserve the repo's existing structure with no continuity overlay
@@ -39,19 +40,21 @@ Possible adoption postures:
 - in-tree-adoption: add or migrate repo-local continuity files because this repo is locally managed and should carry the overlay itself
 
 Ownership signal:
-- if the repo already carries an environment-documented marker or external manifest, that is the primary signal that this repo is already under a continuity contract
-- if neither exists, do not infer "we own this" from filename overlap alone
+- if `.codex/codex-spine.toml` exists, that is the primary signal that this repo is already under our continuity contract
+- if `~/.codex/codex-spine-overlays.toml` contains a matching `local-overlay` entry, that is the primary positive signal for adopted upstream repos we manage locally without in-tree edits
+- if it does not exist, do not infer "we own this" from filename overlap alone
 
 Steady-state target for in-tree-adoption repos:
 - root continuity packet: README.md, AGENTS.md, PROJECT_CONTINUITY.md, CHECKPOINT.md
-- explicit repo-local ownership marker when the environment uses one
+- ownership cookie: .codex/codex-spine.toml
 - durable authored docs under docs/ by default
-- explicit indexing declarations for code/docs/datasets when supported
+- explicit .codex/indexes.toml for code/docs/datasets when supported
 - explicit docs index names so docs roots do not collide across projects
 
 Steady-state target for local-overlay repos:
 - keep the target repo clean in-tree
-- record ownership and posture in the external manifest or local notes the environment documents
+- record ownership and posture in `~/.codex/codex-spine-overlays.toml`
+- point that overlay entry at an external manifest that reuses the `.codex/indexes.toml` schema
 - keep index declarations explicit there instead of relying on inference
 
 Migration principles:
@@ -61,25 +64,25 @@ Migration principles:
 - separate one-time migration work from the steady-state contract
 - if a current layout is stale or odd, do not "perfect" it blindly; capture what should become the future default
 - if jcode/jdocs/jdata are available, use them first; otherwise do a careful filesystem audit
-- treat missing root packet files and overloaded AGENTS.md files as first-class findings only when the repo should actually carry a continuity layer; otherwise treat them as neutral observations about repo shape
+- treat missing root packet files and overloaded AGENTS.md files as first-class findings only when the repo should actually carry our overlay; otherwise treat them as neutral observations about repo shape
 - preserve public doc, packaging, and release contracts before proposing continuity-layer changes
 - preserve shipped agent-facing assets such as public `skills/`, plugin metadata, or installable MCP guidance as part of the repo's native surface unless the user explicitly wants a local overlay
-- if a public repo already ships `AGENTS.md`, treat it as a native repo surface first; do not assume it implies or partially satisfies your continuity packet
+- if a public repo already ships `AGENTS.md`, treat it as a native repo surface first; do not assume it implies or partially satisfies our own continuity packet
 
 Your workflow:
 1. Audit the repo shape first.
 2. Classify the repo posture before recommending changes:
-   - locally managed project that should probably carry the continuity packet in-tree
+   - locally managed project that should probably carry the continuity overlay in-tree
    - third-party or public upstream repo that should stay repo-native
-   - mixed case such as a local fork, adopted upstream, or repo that needs only a local overlay
+   - mixed case such as a local fork, adopted upstream, or repo that needs only a workspace-local overlay
 3. Classify the current surfaces:
-   - whether the repo already carries an environment-documented ownership marker or local manifest
-   - whether an external manifest or local notes already claim the repo for `local-overlay`
+   - whether `.codex/codex-spine.toml` exists and what it says
+   - whether `~/.codex/codex-spine-overlays.toml` already claims the repo for `local-overlay`
    - startup docs
    - durable docs
    - volatile handoff docs
    - shipped agent-facing assets such as public skills, plugin manifests, or installation guidance that are part of the repo's native contract
-   - root files whose names overlap with a local continuity contract, such as `AGENTS.md`, and whether they are actually native upstream guidance instead of a local overlay
+   - root files whose names overlap with this continuity contract, such as `AGENTS.md`, and whether they are actually native upstream guidance instead of a workspace overlay
    - runtime assets such as model weights, checkpoints, or other downloaded local artifacts required for execution but not meant for tabular retrieval
    - datasets intended for structured retrieval
    - operational logs, caches, or dumps that live near data but should not automatically be indexed as datasets
@@ -110,11 +113,11 @@ Your workflow:
    - whether current terminals, new shells, app restarts, or reboots are affected
 
 Rules for safe changes:
-- do not add a continuity packet to a third-party or public upstream repo unless the user explicitly wants in-tree adoption
-- adding an environment-documented repo-local ownership marker is the explicit act of taking charge; do not add it to third-party or public upstream repos unless the user explicitly wants in-tree adoption
-- do not add an in-tree indexing declaration to a public or third-party repo by default when the need is only local retrieval; prefer local overlay or external registration
-- for `local-overlay`, prefer updating the environment's external manifest or local notes over adding in-tree continuity files
-- adding an explicit indexing declaration is usually safe
+- do not add our continuity packet to a third-party or public upstream repo unless the user explicitly wants in-tree adoption
+- adding `.codex/codex-spine.toml` is the explicit act of taking charge; do not add it to third-party or public upstream repos unless the user explicitly wants in-tree adoption
+- do not add .codex/indexes.toml to a public or third-party repo by default when the need is only local retrieval; prefer local overlay or external registration
+- for `local-overlay`, prefer updating `~/.codex/codex-spine-overlays.toml` plus an external manifest over adding in-tree continuity files
+- adding .codex/indexes.toml is usually safe
 - adding docs/README.md as a canonical docs anchor is usually safe
 - updating repo-local references from PROJECT_SPINE.md to PROJECT_CONTINUITY.md may be safe if all references are local and obvious
 - when a repo already uses PROJECT_SPINE.md, legacy compatibility may need a migration bridge phase instead of an in-place delete
@@ -129,7 +132,7 @@ Rules for safe changes:
 - if you cannot isolate safely, do not make "just a small change" in place; stop at discovery and report the exact blocker
 - do not index the entire repo as docs if that would pull in noisy config or generated files; prefer a real docs root
 - if README.md participates in packaging, release, or install flows, treat that behavior as a contract before proposing doc reshaping
-- if the repo ships agent-facing assets for public consumption, treat those as part of the native product surface, not as evidence that a private continuity overlay belongs in-tree
+- if the repo ships agent-facing assets for public consumption, treat those as part of the native product surface, not as evidence that a local continuity overlay belongs in-tree
 
 Output format:
 - Findings
@@ -160,4 +163,4 @@ If the findings look right:
 
 Prompt-first is the default. Scripts should accelerate a known-good decision path, not substitute for judgment on unseen repos.
 
-The first judgment is whether this repo should carry a continuity overlay at all.
+The first judgment is whether this repo should carry our continuity overlay at all.

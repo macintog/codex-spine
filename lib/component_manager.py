@@ -405,11 +405,33 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                 errors.append(
                     f"backend optional field must be a non-empty string: components.{component_name}.backends.{backend_name}.tool_name"
                 )
+            mcp_server_name = backend.get("mcp_server_name")
+            if mcp_server_name is not None and (not isinstance(mcp_server_name, str) or not mcp_server_name.strip()):
+                errors.append(
+                    "backend optional field must be a non-empty string: "
+                    f"components.{component_name}.backends.{backend_name}.mcp_server_name"
+                )
             requires_acknowledgement = backend.get("requires_acknowledgement")
             if requires_acknowledgement is not None and not isinstance(requires_acknowledgement, bool):
                 errors.append(
                     "backend optional field must be boolean: "
                     f"components.{component_name}.backends.{backend_name}.requires_acknowledgement"
+                )
+            for optional_field in ("acknowledgement_group", "acknowledgement_label"):
+                optional_value = backend.get(optional_field)
+                if optional_value is not None and (not isinstance(optional_value, str) or not optional_value.strip()):
+                    errors.append(
+                        "backend optional field must be a non-empty string: "
+                        f"components.{component_name}.backends.{backend_name}.{optional_field}"
+                    )
+            env_map = backend.get("env")
+            if env_map is not None and (
+                not isinstance(env_map, dict)
+                or not all(isinstance(key, str) and isinstance(value, str) for key, value in env_map.items())
+            ):
+                errors.append(
+                    "backend optional field must be a table of string values: "
+                    f"components.{component_name}.backends.{backend_name}.env"
                 )
             for legacy_field in ("license_source_url", "license_start_marker", "license_end_marker"):
                 if legacy_field in backend:
@@ -466,6 +488,33 @@ def resolve_components(profile_name: str = "codex_spine", path: Path = MAINTAINE
     return resolved
 
 
+def component_acknowledgement_key(component: ResolvedComponent) -> str:
+    group = component.backend.get("acknowledgement_group")
+    if isinstance(group, str) and group.strip():
+        return group.strip()
+    return component.name
+
+
+def component_acknowledgement_label(component: ResolvedComponent) -> str:
+    label = component.backend.get("acknowledgement_label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    return component.name
+
+
+def acknowledgement_group_components(
+    component: ResolvedComponent,
+    resolved_components: list[ResolvedComponent] | None = None,
+) -> list[ResolvedComponent]:
+    key = component_acknowledgement_key(component)
+    if key == component.name:
+        return [component]
+
+    resolved = resolved_components or resolve_components(profile_name=component.backend_name)
+    group_members = [candidate for candidate in resolved if component_acknowledgement_key(candidate) == key]
+    return group_members or [component]
+
+
 def backend_version_spec(backend: dict) -> str:
     value = backend.get("version_spec")
     return value.strip() if isinstance(value, str) else ""
@@ -482,11 +531,25 @@ def component_requirement(component: ResolvedComponent) -> str:
 
 
 def component_acknowledgement_lines(component: ResolvedComponent) -> list[str]:
-    return [
-        f"{component.name} is an optional upstream component with its own terms.",
-        f"codex-spine will run {component_requirement(component)} through {component.executable_command}.",
-        "Continue only if you are comfortable with that upstream project and its terms.",
+    related_components = acknowledgement_group_components(component)
+    if len(related_components) == 1:
+        return [
+            f"{component.name} is an optional upstream component with its own terms.",
+            f"codex-spine will run {component_requirement(component)} through {component.executable_command}.",
+            "Continue only if you are comfortable with that upstream project and its terms.",
+        ]
+
+    related_names = ", ".join(member.name for member in related_components)
+    lines = [
+        f"{component_acknowledgement_label(component)} covers these optional upstream integrations: {related_names}.",
+        "codex-spine will enable them together through the managed uv runner path:",
     ]
+    lines.extend(
+        f"- {component_requirement(member)} via {member.executable_command}"
+        for member in related_components
+    )
+    lines.append("Continue only if you are comfortable with that upstream suite and its terms.")
+    return lines
 
 
 def _extract_reported_version(text: str) -> str:
@@ -630,7 +693,7 @@ def _status_uvx_tool(component: ResolvedComponent) -> dict:
     healthy = installed
     version_text = ""
     probe_detail = ""
-    version_args = component.backend.get("version_args", ["--version"])
+    version_args = component.backend.get("version_args", [])
     if installed and version_args:
         probe = _command_probe_args(_uvx_base_command(component) + version_args, env=_pnpm_env())
         version_text = str(probe["output"])
@@ -645,15 +708,18 @@ def _status_uvx_tool(component: ResolvedComponent) -> dict:
         if not bool(probe["ok"]):
             healthy = False
             probe_detail = str(probe["detail"])
+        elif not version_text:
+            probe_detail = f"health probe ok: {' '.join(health_args)}"
     expected = f"expected {component_requirement(component)} via {command}"
     detail = _combine_detail(version_text, probe_detail) or (
         expected if installed else f"missing command: {command}; {expected}"
     )
+    action_args = version_args or health_args
     return {
         "installed": installed,
         "healthy": healthy,
         "detail": detail,
-        "action": _uvx_base_command(component) + version_args,
+        "action": _uvx_base_command(component) + action_args,
     }
 
 
@@ -724,6 +790,37 @@ def record_component_enabled(component: ResolvedComponent) -> None:
     write_component_state(state)
 
 
+def acknowledgement_record(key: str) -> dict:
+    acknowledgements = load_component_state().get("acknowledgements", {})
+    if not isinstance(acknowledgements, dict):
+        return {}
+    record = acknowledgements.get(key)
+    return record if isinstance(record, dict) else {}
+
+
+def record_component_acknowledged(
+    component: ResolvedComponent,
+    *,
+    related_components: list[ResolvedComponent] | None = None,
+) -> None:
+    key = component_acknowledgement_key(component)
+    related = related_components or acknowledgement_group_components(component)
+    state = load_component_state()
+    acknowledgements = state.setdefault("acknowledgements", {})
+    existing = acknowledgements.get(key)
+    accepted_at = (
+        existing.get("accepted_at")
+        if isinstance(existing, dict) and existing.get("accepted_at")
+        else now_iso()
+    )
+    acknowledgements[key] = {
+        "accepted_at": accepted_at,
+        "components": [member.name for member in related],
+        "label": component_acknowledgement_label(component),
+    }
+    write_component_state(state)
+
+
 def _extract_terms_text(source_text: str, backend: dict) -> str:
     extracted = source_text
     matched_start_marker = False
@@ -777,7 +874,7 @@ def fetch_component_terms(component: ResolvedComponent) -> dict | None:
     }
 
 
-def _page_terms_text(text: str) -> None:
+def _page_terms_text(text: str, *, label: str) -> None:
     lines = text.splitlines()
     page_size = max(shutil.get_terminal_size(fallback=(80, 24)).lines - 4, 8)
     total = len(lines) or 1
@@ -791,7 +888,7 @@ def _page_terms_text(text: str) -> None:
             break
         reply = input("\nPress Return for more, or type 'q' to stop reviewing and skip installation: ").strip().lower()
         if reply in {"q", "quit", "stop"}:
-            raise RuntimeError("Stopped reviewing the upstream terms before the end. jCodeMunch MCP was not enabled.")
+            raise RuntimeError(f"Stopped reviewing the upstream terms before the end. {label} was not enabled.")
 
 
 def ensure_component_acknowledged(
@@ -801,13 +898,22 @@ def ensure_component_acknowledged(
 ) -> None:
     if not component.backend.get("requires_acknowledgement"):
         return
-    if component.name in enabled_component_names():
+    related_components = acknowledgement_group_components(component)
+    key = component_acknowledgement_key(component)
+    enabled = enabled_component_names()
+    if acknowledgement_record(key):
+        return
+    if component.name in enabled:
         record_component_enabled(component)
+        record_component_acknowledged(component, related_components=related_components)
+        return
+    if any(member.name in enabled for member in related_components):
+        record_component_acknowledged(component, related_components=related_components)
         return
 
     if non_interactive:
         raise RuntimeError(
-            f"{component.name} requires interactive terms acknowledgement from a TTY."
+            f"{component_acknowledgement_label(component)} requires interactive terms acknowledgement from a TTY."
         )
 
     bundle = fetch_component_terms(component)
@@ -816,21 +922,24 @@ def ensure_component_acknowledged(
         print(line)
     print()
     if bundle is not None:
-        print(f"Retrieved current upstream terms for {component.name} from {bundle['source_url']}\n")
-        _page_terms_text(bundle["text"])
+        print(f"Retrieved current upstream terms for {component_acknowledgement_label(component)} from {bundle['source_url']}\n")
+        _page_terms_text(bundle["text"], label=component_acknowledgement_label(component))
     while True:
         try:
             reply = _read_accept_or_escape(
                 "Type 'accept' to continue, or press Esc to skip for now: "
             ).strip().lower()
         except EOFError as exc:
-            raise RuntimeError(f"Stopped before acknowledging the upstream terms. {component.name} was not enabled.") from exc
+            raise RuntimeError(
+                f"Stopped before acknowledging the upstream terms. {component_acknowledgement_label(component)} was not enabled."
+            ) from exc
         if reply == "accept":
+            record_component_acknowledged(component, related_components=related_components)
             break
         if reply in {"skip", "s", "no", "n", "q", "quit", "\x1b"}:
-            raise RuntimeError(f"Skipped enabling {component.name} for now.")
+            raise RuntimeError(f"Skipped enabling {component_acknowledgement_label(component)} for now.")
         if not reply:
-            if _prompt_yes_no(f"Skip enabling {component.name} for now?", default=False):
-                raise RuntimeError(f"Skipped enabling {component.name} for now.")
+            if _prompt_yes_no(f"Skip enabling {component_acknowledgement_label(component)} for now?", default=False):
+                raise RuntimeError(f"Skipped enabling {component_acknowledgement_label(component)} for now.")
             continue
         print("Please type 'accept' or press Esc.")

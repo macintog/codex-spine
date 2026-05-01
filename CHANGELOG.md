@@ -2,13 +2,23 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.5.4
+
+This release widens the optional indexed-retrieval lane from code-only enablement to a shared three-tool suite.
+
+- The public skill payload now includes `tufte-visualization` and installs it under `~/.codex/skills/` with the other shipped skills
+- Interactive install and `./scripts/component-enable jcodemunch-mcp` now treat `jcodemunch-mcp`, `jdocmunch-mcp`, and `jdatamunch-mcp` as one optional suite with one terms readthrough and one `accept`
+- The managed optional overlay now wires `jcodemunch`, `jdocmunch`, and `jdatamunch` together while keeping the existing jCodeMunch global profile sync for `~/.code-index/config.jsonc`
+- Public docs and package policy now describe the optional jGravelle Munch MCP suite instead of a jCodeMunch-only add-on
+- `make upgrade` is available as an explicit repo self-update path for clean checkouts; it fetches release tags, checks out the newest release, then runs install, update, and verify
+
 ## 0.5.3
 
 This release tightens the public Codex operating surface for `codex-spine`, bringing the memory model, architecture guide, and shipped workflow surface back into sync.
 
 - The public release line now adds the reusable `project-continuity` and `multi-step` skills as part of the installable workflow surface
 - Shipped public guidance now treats built-in Codex memories as complementary client-managed context while keeping the `memory` MCP lane as the operator-facing bootstrap and transcript-retrieval path
-- Public config examples and verifier coverage now call out the built-in memory controls that matter operationally, including `/memories`, `memories.use_memories`, `memories.generate_memories`, and `memories.no_memories_if_mcp_or_web_search`
+- Public config examples and verifier coverage now call out the built-in memory controls that matter operationally, including `/memories`, `memories.use_memories`, `memories.generate_memories`, and `memories.disable_on_external_context`
 - `ARCHITECTURE.md` now reflects that split explicitly so the deep technical reference matches the shipped README and Codex operating docs
 
 ## 0.5.2
@@ -25,14 +35,14 @@ Current installable public release line for `codex-spine`. This patch keeps the 
 
 - Ordinary code navigation now routes through `jcodemunch` first in the public startup and tooling guidance
 - Public repo verification now expects `get_symbol_source` instead of the older symbol-read wording
-- Public closeout guidance and verification no longer require private local Git helpers
+- Public closeout guidance and verification no longer require repo-local Git helpers
 - Install now manages `~/.config/uv/uv.toml` with a seven-day default quarantine and a package-specific `jcodemunch-mcp` override so the optional runner stays installable on clean systems
 
 ## 0.5
 
 Initial public release line for `codex-spine`.
 
-- Initial release-candidate line for `codex-spine`
+- Initial public release line for `codex-spine`
 - Managed install, verify, update, and component-status commands
 - Default [@tobi/qmd](https://github.com/tobi/qmd) and memory integration
 - Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) enablement now shows the current upstream terms, requires explicit `accept`, and runs the latest compatible `<2.0` release through the managed `uv` runner

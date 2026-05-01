@@ -13,6 +13,8 @@ const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
 const LATEST_PROJECT_KEY_FILE = path.join(STATE_ROOT, "latest_project_key.txt");
 const SYNC_SCRIPT = path.join(HOME, ".local", "bin", "sync-codex-chat-qmd.sh");
 const SYNC_LOCK_DIR = "/tmp/codex-chat-qmd-sync.lock";
+const SYNC_LOCK_STALE_SECONDS = Number(process.env.MEMORY_SYNC_LOCK_STALE_SECONDS || process.env.LOCK_STALE_SECONDS || "300");
+const SYNC_LOCK_OWNER_FILE = "owner.json";
 const QMD_CLI = process.env.QMD_CLI || path.join(HOME, ".local", "bin", "qmd-codex");
 const SQLITE3_BIN = process.env.SQLITE3_BIN || "sqlite3";
 const DEFAULT_INDEX = process.env.QMD_DEFAULT_INDEX || "codex_chat";
@@ -136,7 +138,69 @@ function refreshSync(projectPath) {
   return { ok: false, reason: detail };
 }
 
+function lockOwnerPath() {
+  return path.join(SYNC_LOCK_DIR, SYNC_LOCK_OWNER_FILE);
+}
+
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error && error.code === "EPERM";
+  }
+}
+
+function lockAgeSeconds() {
+  try {
+    const stat = fs.statSync(SYNC_LOCK_DIR);
+    return Math.max(0, Math.floor((Date.now() - stat.mtimeMs) / 1000));
+  } catch {
+    return 0;
+  }
+}
+
+function clearStaleSyncLockIfNeeded() {
+  if (!fs.existsSync(SYNC_LOCK_DIR)) {
+    return false;
+  }
+
+  const owner = readJsonIfExists(lockOwnerPath());
+  const ownerPid = owner && Number(owner.pid);
+  const ownerHost = owner && typeof owner.host === "string" ? owner.host : "";
+  const currentHost = os.hostname();
+
+  if (Number.isInteger(ownerPid) && ownerPid > 0 && ownerHost && ownerHost === currentHost) {
+    if (processIsAlive(ownerPid)) {
+      return false;
+    }
+    try {
+      fs.rmSync(lockOwnerPath(), { force: true });
+      fs.rmdirSync(SYNC_LOCK_DIR);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (lockAgeSeconds() >= SYNC_LOCK_STALE_SECONDS) {
+    try {
+      fs.rmSync(lockOwnerPath(), { force: true });
+      fs.rmdirSync(SYNC_LOCK_DIR);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 function backgroundRefreshRunning() {
+  if (!fs.existsSync(SYNC_LOCK_DIR)) {
+    return false;
+  }
+  clearStaleSyncLockIfNeeded();
   return fs.existsSync(SYNC_LOCK_DIR);
 }
 
@@ -817,12 +881,14 @@ function toolListResult() {
       },
       {
         name: "status",
-        description: "Show transcript-index status for the codex_chat retrieval backend.",
+        description:
+          "Show transcript-index status for the codex_chat retrieval backend. Use early when retrieval feels stale, sparse, or surprising.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
       },
       {
         name: "deep_search",
-        description: "Deep search using QMD query expansion and reranking.",
+        description:
+          "Default broad-recall retrieval across the codex_chat index, backed by QMD query. Use for complex or ambiguous questions, especially when intent can disambiguate overloaded terms.",
         inputSchema: {
           type: "object",
           properties: {
@@ -844,7 +910,8 @@ function toolListResult() {
       },
       {
         name: "search",
-        description: "Keyword search across the codex_chat retrieval index.",
+        description:
+          "Keyword BM25 search across the codex_chat retrieval index. Best for exact terms, identifiers, filenames, quoted phrases, and minus exclusions. If it returns nothing, broaden wording or switch to deep_search/vector_search before concluding there is no evidence.",
         inputSchema: {
           type: "object",
           properties: {
@@ -866,7 +933,8 @@ function toolListResult() {
       },
       {
         name: "vector_search",
-        description: "Vector similarity search across the codex_chat retrieval index.",
+        description:
+          "Semantic vector search across the codex_chat retrieval index. Use a full natural-language question for same-idea/different-wording recall when you do not know the exact stored vocabulary.",
         inputSchema: {
           type: "object",
           properties: {

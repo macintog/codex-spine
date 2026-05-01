@@ -2,6 +2,6 @@
 # Keep freshly published packages out of account-wide uv resolution long enough
 # for obvious supply-chain problems to be spotted and yanked upstream.
 exclude-newer = "7 days"
-# Freeze the optional jCodeMunch package to the current known-good publication
-# cutoff until newer releases age past the global quarantine window.
-exclude-newer-package = { "jcodemunch-mcp" = "2026-04-14T16:45:03.948580Z" }
+# Freeze the optional jGravelle Munch packages to the current known-good
+# publication cutoffs until newer releases age past the global quarantine window.
+exclude-newer-package = { "jcodemunch-mcp" = "2026-04-14T16:45:03.948580Z", "jdocmunch-mcp" = "2026-03-23T22:49:30.291644Z", "jdatamunch-mcp" = "2026-03-26T21:19:34.694167Z" }

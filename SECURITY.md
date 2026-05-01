@@ -10,7 +10,7 @@
 - editing user shell startup files to source managed fragments
 - installing a user LaunchAgent at `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - bootstrapping Homebrew when it is missing, which can trigger a one-time macOS password prompt before the rest of the install continues in user space
-- installing or updating managed third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd), and wiring the optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) integration through a constrained `uv` runner invocation backed by `exclude-newer = "7 days"` as the default `uv` quarantine plus a package-specific `jcodemunch-mcp` override
+- installing or updating managed third-party user-space tools such as [@tobi/qmd](https://github.com/tobi/qmd), and wiring the optional jGravelle Munch MCP suite (`jcodemunch-mcp`, `jdocmunch-mcp`, and `jdatamunch-mcp`) through constrained `uv` runner invocations backed by `exclude-newer = "7 days"` as the default `uv` quarantine plus package-specific suite overrides
 
 Outside the optional first-run Homebrew bootstrap path, `codex-spine` does not require root, install privileged daemons, expose a network service, or act as a sandbox for untrusted code.
 
@@ -19,12 +19,12 @@ Outside the optional first-run Homebrew bootstrap path, `codex-spine` does not r
 - The repo and generated public config are intended to remain secret-free.
 - Provider credentials should stay in the user’s normal Codex or operating-system secret mechanisms, not in tracked files.
 - The default [@tobi/qmd](https://github.com/tobi/qmd)-backed memory flow stores local transcript and derived project-memory data under `~/.cache/qmd/codex_chat`. Treat that local index as sensitive if your Codex transcripts contain sensitive content.
-- Optional [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) enablement stores only local enablement state under the repo-local `.state/` directory. It does not store credentials or a copy of the upstream terms text.
+- Optional jGravelle Munch MCP suite enablement stores only local enablement state under the repo-local `.state/` directory. It does not store credentials or a copy of the upstream terms text.
 
 ## Trust Boundaries
 
 - Tracked repo files and generated local overlays are part of the trusted local installation surface.
-- Upstream package artifacts and the fetched terms text shown during optional enablement are external inputs. `codex-spine` reduces risk through explicit opt-in enablement and a managed `<2.0` compatibility ceiling for [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), not through sandboxing.
+- Upstream package artifacts and the fetched terms text shown during optional enablement are external inputs. `codex-spine` reduces risk through explicit opt-in enablement and managed `<2.0` compatibility ceilings for the optional jGravelle Munch MCP suite, not through sandboxing.
 - Indexed source trees, Codex transcripts, and project-memory material may contain arbitrary user or project content. `codex-spine` does not claim to sanitize that content for downstream tools.
 
 ## Supported Assumptions
@@ -35,4 +35,4 @@ Outside the optional first-run Homebrew bootstrap path, `codex-spine` does not r
 
 ## Reporting
 
-Report security concerns privately to the maintainer rather than opening a public issue with exploit details until a dedicated public reporting channel is published.
+Report security concerns confidentially to the maintainer rather than opening a public issue with exploit details until a dedicated public reporting channel is published.

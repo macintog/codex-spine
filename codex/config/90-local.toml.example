@@ -1,6 +1,6 @@
 # Non-secret machine-local overrides only.
 #
-# `./scripts/component-enable jcodemunch-mcp` manages the optional jCodeMunch MCP block here for you.
+# `./scripts/component-enable jcodemunch-mcp` manages the optional jGravelle Munch MCP suite block here for you.
 #
 # Example:
 #
@@ -13,7 +13,7 @@
 # [memories]
 # use_memories = true
 # generate_memories = true
-# no_memories_if_mcp_or_web_search = true
+# disable_on_external_context = true
 #
 # [projects."/absolute/path/to/a/project"]
 # trust_level = "trusted"

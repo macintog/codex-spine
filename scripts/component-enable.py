@@ -18,7 +18,7 @@ from codex_spine import (  # noqa: E402
     LOCAL_CONFIG_EXAMPLE,
     LOCAL_CONFIG_OVERLAY,
     ensure_example_copy,
-    jcodemunch_mcp_overlay_body,
+    munch_mcp_overlay_body,
     prepare_generated_config_target,
     render_config_text,
     replace_managed_block,
@@ -26,6 +26,7 @@ from codex_spine import (  # noqa: E402
     write_generated_config,
 )
 from component_manager import (  # noqa: E402
+    acknowledgement_group_components,
     ensure_component_acknowledged,
     record_component_enabled,
     resolve_components,
@@ -49,20 +50,23 @@ def main() -> int:
             print(f"{component.name} is already enabled by default")
             return 0
 
+        target_components = acknowledgement_group_components(component, list(components.values()))
+
         ensure_example_copy(LOCAL_CONFIG_EXAMPLE, LOCAL_CONFIG_OVERLAY)
         ensure_component_acknowledged(
             component,
             non_interactive=args.non_interactive or not sys.stdin.isatty(),
         )
-        update_component(component)
-        record_component_enabled(component)
+        for target_component in target_components:
+            update_component(target_component)
+            record_component_enabled(target_component)
 
-        if component.name == "jcodemunch-mcp":
+        if any(target_component.name == "jcodemunch-mcp" for target_component in target_components):
             replace_managed_block(
                 LOCAL_CONFIG_OVERLAY,
                 JCODEMUNCH_MCP_BLOCK_START,
                 JCODEMUNCH_MCP_BLOCK_END,
-                jcodemunch_mcp_overlay_body(),
+                munch_mcp_overlay_body(),
             )
             sync_jcodemunch_global_config()
 
@@ -82,7 +86,7 @@ def main() -> int:
             print(f"Backed up the previous live Codex config to {config_plan.backup_path}")
 
         subprocess.run([str(REPO_ROOT / "scripts" / "verify")], check=True)
-        print(f"{component.name}: enabled")
+        print(f"{', '.join(target_component.name for target_component in target_components)}: enabled")
         return 0
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

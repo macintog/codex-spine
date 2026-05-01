@@ -50,7 +50,9 @@ LIVE_QMD_CHAT_LAUNCH_AGENT_PATH = LAUNCH_AGENTS_DIR / QMD_CHAT_LAUNCH_AGENT_NAME
 LAUNCH_AGENT_TEMPLATE_PATH = REPO_ROOT / "launchd" / QMD_CHAT_LAUNCH_AGENT_NAME
 
 OPERATOR_TUNABLE_CONFIG_KEYS = (
+    "marketplaces",
     "model_reasoning_effort",
+    "plugins",
 )
 
 STATE_DIR = REPO_ROOT / ".state"
@@ -61,6 +63,11 @@ BLOCK_START = "# >>> codex-spine managed >>>"
 BLOCK_END = "# <<< codex-spine managed <<<"
 JCODEMUNCH_MCP_BLOCK_START = "# >>> codex-spine jcodemunch-mcp managed >>>"
 JCODEMUNCH_MCP_BLOCK_END = "# <<< codex-spine jcodemunch-mcp managed <<<"
+MUNCH_MCP_COMPONENTS = (
+    "jcodemunch-mcp",
+    "jdocmunch-mcp",
+    "jdatamunch-mcp",
+)
 
 REQUIRED_CLIS = [
     "git",
@@ -100,14 +107,14 @@ TEXT_SECRET_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9]+"),
 ]
 
-PRIVATE_REFERENCE_PATTERNS = [
+LOCAL_REFERENCE_PATTERNS = [
     re.compile(r"/Users/[A-Za-z0-9._-]+"),
     re.compile(r"(?:https?://|ssh://|git@)[a-z0-9.-]+\.local(?::\d+)?", re.IGNORECASE),
     re.compile(r"\b[a-z0-9.-]+\.local:\d+\b", re.IGNORECASE),
 ]
 
 PUBLIC_SURFACE_REFERENCE_PATTERNS = [
-    *PRIVATE_REFERENCE_PATTERNS,
+    *LOCAL_REFERENCE_PATTERNS,
 ]
 
 REQUIRED_PUBLIC_DOC_PATHS = [
@@ -124,6 +131,8 @@ REQUIRED_PUBLIC_DOC_PATHS = [
 class ManagedLink:
     live_path: Path
     repo_path: Path
+    backup_unmanaged_file: bool = False
+    replace_empty_unmanaged_file: bool = False
 
 
 @dataclass(frozen=True)
@@ -143,9 +152,15 @@ class ConfigWritePlan:
 
 def managed_links() -> list[ManagedLink]:
     return [
-        ManagedLink(HOME / ".codex/AGENTS.md", REPO_ROOT / "codex/AGENTS.md"),
+        ManagedLink(
+            HOME / ".codex/AGENTS.md",
+            REPO_ROOT / "codex/AGENTS.md",
+            backup_unmanaged_file=True,
+            replace_empty_unmanaged_file=True,
+        ),
         ManagedLink(HOME / ".codex/skills/multi-step", REPO_ROOT / "skills" / "multi-step"),
         ManagedLink(HOME / ".codex/skills/project-continuity", REPO_ROOT / "skills" / "project-continuity"),
+        ManagedLink(HOME / ".codex/skills/tufte-visualization", REPO_ROOT / "skills" / "tufte-visualization"),
         ManagedLink(LIVE_UV_CONFIG_PATH, REPO_ROOT / "uv" / "uv.toml"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),
@@ -553,7 +568,13 @@ def _looks_like_prior_codex_spine_target(target: Path, repo_path: Path) -> bool:
     return target.name == repo_path.name and "codex-spine" in target.parts
 
 
-def ensure_symlink(live_path: Path, repo_path: Path) -> tuple[bool, Path | None]:
+def ensure_symlink(
+    live_path: Path,
+    repo_path: Path,
+    *,
+    backup_unmanaged_file: bool = False,
+    replace_empty_unmanaged_file: bool = False,
+) -> tuple[bool, Path | None]:
     live_path.parent.mkdir(parents=True, exist_ok=True)
     if live_path.is_symlink() and live_path.resolve(strict=False) == repo_path.resolve():
         return False, None
@@ -561,6 +582,15 @@ def ensure_symlink(live_path: Path, repo_path: Path) -> tuple[bool, Path | None]
         if live_path.is_dir() and not live_path.is_symlink():
             raise RuntimeError(f"refusing to replace directory with symlink: {live_path}")
         if not live_path.is_symlink():
+            if replace_empty_unmanaged_file and live_path.is_file() and live_path.stat().st_size == 0:
+                live_path.unlink()
+                live_path.symlink_to(repo_path)
+                return True, None
+            if backup_unmanaged_file and live_path.is_file():
+                backup_path = backup_existing(live_path)
+                live_path.unlink()
+                live_path.symlink_to(repo_path)
+                return True, backup_path
             raise RuntimeError(
                 f"refusing to replace unmanaged path with symlink: {live_path}. Move it aside and rerun bootstrap."
             )
@@ -790,11 +820,11 @@ def load_maintenance_manifest() -> dict:
     return tomllib.loads(content)
 
 
-def jcodemunch_mcp_overlay_body() -> str:
+def mcp_overlay_body_for_component(component_name: str) -> str:
     backend = (
         load_maintenance_manifest()
         .get("components", {})
-        .get("jcodemunch-mcp", {})
+        .get(component_name, {})
         .get("backends", {})
         .get("codex_spine", {})
     )
@@ -804,18 +834,45 @@ def jcodemunch_mcp_overlay_body() -> str:
     version_spec = str(backend.get("version_spec", "")).strip()
     requirement = f"{package_name}{version_spec}"
     tool_name = str(backend.get("tool_name", package_name))
+    server_name = str(backend.get("mcp_server_name", package_name.removesuffix("-mcp")))
     if kind == "uvx_tool":
         args = ["tool", "run", "--from", requirement, tool_name] if command == "uv" else ["--from", requirement, tool_name]
-        return f"""[mcp_servers.jcodemunch]
-command = "{command}"
-args = {json.dumps(args)}
-enabled = true"""
+        lines = [
+            f"[mcp_servers.{server_name}]",
+            f'command = "{command}"',
+            f"args = {json.dumps(args)}",
+            "enabled = true",
+        ]
+    else:
+        rendered_command = command.replace("~/", "__HOME__/") if command.startswith("~/") else command
+        lines = [
+            f"[mcp_servers.{server_name}]",
+            f'command = "{rendered_command}"',
+            "args = []",
+            "enabled = true",
+        ]
 
-    rendered_command = command.replace("~/", "__HOME__/") if command.startswith("~/") else command
-    return f"""[mcp_servers.jcodemunch]
-command = "{rendered_command}"
-args = []
-enabled = true"""
+    env = backend.get("env", {})
+    if isinstance(env, Mapping) and env:
+        lines.append("")
+        lines.append(f"[mcp_servers.{server_name}.env]")
+        for key, value in env.items():
+            if isinstance(key, str) and isinstance(value, str):
+                lines.append(f'{key} = "{value}"')
+
+    return "\n".join(lines)
+
+
+def munch_mcp_overlay_body() -> str:
+    sections = [
+        mcp_overlay_body_for_component(component_name)
+        for component_name in MUNCH_MCP_COMPONENTS
+    ]
+    return "\n\n".join(section for section in sections if section)
+
+
+def jcodemunch_mcp_overlay_body() -> str:
+    return munch_mcp_overlay_body()
 
 
 def enabled_component_names() -> set[str]:
@@ -902,9 +959,9 @@ def detect_secret_hits(text: str) -> list[str]:
     return hits
 
 
-def detect_private_reference_hits(text: str, *, public_surface: bool = False) -> list[str]:
+def detect_local_reference_hits(text: str, *, public_surface: bool = False) -> list[str]:
     hits: list[str] = []
-    patterns = PUBLIC_SURFACE_REFERENCE_PATTERNS if public_surface else PRIVATE_REFERENCE_PATTERNS
+    patterns = PUBLIC_SURFACE_REFERENCE_PATTERNS if public_surface else LOCAL_REFERENCE_PATTERNS
     for pattern in patterns:
         if pattern.search(text):
             hits.append(pattern.pattern)
