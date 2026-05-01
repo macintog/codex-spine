@@ -51,6 +51,8 @@ For academic plates and technical atlas figures:
 - Avoid card-heavy or panel-heavy composition. Boxes are not forbidden, but they must be structural evidence containers, not decorative UI cards.
 - Favor alignment, brackets, hairline rules, leader lines, callouts, bands, and whitespace over filled rounded rectangles.
 - Use arrows sparingly. Too many arrowheads make explanatory figures feel like enterprise architecture. Prefer numbered flowlines, annotated transitions, or before/after spatial ordering unless direction would otherwise be ambiguous.
+- Treat connector routing as a first-class layout problem. Curves, arrows, spokes, leader lines, and rules must not cross text, run under labels, or enter labeled node interiors unless the line is an actual axis, underline, or bracket belonging to that label. Reserve clear channels and gutters; if a connector competes with text, remove the connector, reroute it through whitespace, or replace it with numbering.
+- For circular, radial, or icon-like nodes, prove the label fits inside a smaller safe zone, not merely inside the outer shape. Long identifiers and file paths usually belong in external captions or marginal notes. If any line approaches the boundary, wraps awkwardly, or appears clipped by the curve, enlarge the mark, shorten/wrap the text, or move the text out of the shape.
 - Keep color almost monochrome by default. Use one muted accent for emphasis, exception, or path tracing. Do not use pastel categorical fills just to make subsystems look different.
 - Include enough local evidence that the reader can audit the claim: source files, commit/date, sample size, units, filters, denominators, or uncertainty as appropriate.
 - Apply a dignity check before delivery: would a capable reader feel cheated if this figure appeared in a serious printed reference book? If yes, revise the visual language, not just the content.
@@ -80,6 +82,7 @@ For academic plates and technical atlas figures:
    - Prefer white or near-white canvas unless the target medium requires dark mode.
    - Start in grayscale, then add quiet color only to distinguish, encode, or emphasize.
    - For academic plates, start with typography, page margins, rule weights, and annotation structure before adding boxes or color.
+   - For diagrams, reserve text safe zones before drawing connectors. Draw connection paths through whitespace between zones, not through label boxes, node centers, or captions. Z-order, white masks, and "the text is still readable" do not make a connector-text collision acceptable.
    - Remove UI styling that signals software cards, dashboards, marketing pages, or generic architecture posters unless that genre was chosen explicitly.
 
 5. Verify the rendered artifact.
@@ -87,6 +90,7 @@ For academic plates and technical atlas figures:
    - Inspect the actual rendered pixels or pages for label collisions, text overflow, clipping, unreadable text, weak contrast, misleading scales, missing units, hidden caveats, broken small multiples, and hover-only essential meaning.
    - For multi-panel figures, inspect every panel or viewport section at final size; a clean overview can still hide local failures.
    - For diagrams, maps, and annotated figures, check that connectors, arrows, callouts, brackets, and leader lines terminate on the intended marks and do not inherit styling or direction where it changes the claim.
+   - Inspect close-up crops around every connector-label relationship, especially curved connectors, radial spokes, arrowheads near nodes, and text inside circles or compact shapes. A full-page view can miss a line that clips a descender, crosses a code identifier, or visually slices a label.
    - When text is placed in bounded elements such as cards, nodes, bars, labels, legends, callouts, axes, or table cells, prove the longest rendered text fits. Do not assume SVG, canvas, PDF, or chart libraries will wrap text automatically.
    - Check the genre promise. If the user asked for a Tufte-like or academic-hardback result and the render reads as a dashboard, card UI, generic infographic, or commodity architecture diagram, treat that as a QA failure.
    - If the rendered artifact has visible layout defects, do not present it as complete. Revise, re-render, and inspect again.
@@ -100,7 +104,8 @@ Treat rendered QA as a hard gate, not a polish pass.
 - Do not claim validation from build success, parser success, snapshot generation, file existence, or a quick source skim. Those checks can support QA; they cannot replace rendered inspection.
 - For static artifacts, open or view the final PNG, PDF, SVG render, slide page, notebook output, spreadsheet chart, or document page at final size. For responsive or interactive views, inspect every required viewport or state.
 - Check bounded text aggressively: alignment, wrapping, truncation, overflow, baseline consistency, line height, clipping, and whether labels stay inside their intended marks or containers.
-- Check graphical geometry: connector endpoints, arrowheads, leader lines, brackets, axis ticks, legends, annotations, and data marks. They must land on the intended evidence and avoid accidental relationships.
+- Check graphical geometry: connector endpoints, arrowheads, leader lines, brackets, axis ticks, legends, annotations, and data marks. They must land on the intended evidence, avoid accidental relationships, and never visually cut through text or node labels.
+- Treat connector-text contact as a rendered QA failure, even when the underlying SVG/PDF source is syntactically valid and even when the label is technically legible. Repair by rerouting, shortening, resizing, externalizing the label, or removing the connector; do not defend it as a layering artifact.
 - Check visual dignity against the selected genre. For academic plates, look for bookish typography, restrained color, high evidence density, direct annotation, and absence of product-card styling.
 - When a defect is found after presentation, acknowledge the failed QA plainly, repair the artifact, re-render it, and report the new rendered inspection. Do not defend the earlier artifact with source-level checks.
 
@@ -136,8 +141,8 @@ This skill owns evidence design. Medium-specific skills own mechanics.
 - Create a reproducible figure pipeline: load data, validate data, compute derived measures explicitly, plot data marks first, style with restraint, add direct labels and documentation, export, inspect.
 - Prefer one excellent chart over many mediocre charts. Use a coherent figure set only when the task needs overview, comparison, detail, and documentation.
 - Prefer vector output such as SVG or PDF for publication and web. Use high-resolution raster output only when the target medium requires it.
-- When hand-authoring vector diagrams, prefer explicit anchors and per-element styling for connectors, markers, and callouts; grouped defaults are acceptable only after rendered inspection confirms they do not add unintended arrows, emphasis, or relationships.
-- When hand-authoring SVG or canvas text, either measure/wrap text explicitly or keep copy short enough to fit with generous margin. SVG `<text>` is not a layout engine.
+- When hand-authoring vector diagrams, prefer explicit anchors and per-element styling for connectors, markers, and callouts; grouped defaults are acceptable only after rendered inspection confirms they do not add unintended arrows, emphasis, relationships, or connector-text collisions.
+- When hand-authoring SVG or canvas text, either measure/wrap text explicitly or keep copy short enough to fit with generous margin. SVG `<text>` is not a layout engine. For circular nodes, use a conservative inner text box such as about 60-70% of the diameter, or place dense labels outside the circle.
 - Keep titles factual and specific: subject, metric, population or geography, and time period when space allows.
 - Include source, data vintage or access date, metric definition, denominator, filters, transformations, smoothing, interpolation, and model assumptions when the display informs decisions.
 - For interactive charts, the default view must show the central comparison. Hover may add exact values, but must not be the only place for labels, units, caveats, or source.
