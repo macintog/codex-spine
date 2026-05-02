@@ -7,12 +7,15 @@
 # Avoid top-level sandbox_mode / approval_policy here for Codex desktop use.
 # Explicit values force the desktop app into "custom (config.toml)" mode.
 #
+# Built-in Codex Memories are enabled by the base config. Override these only
+# when this workstation should intentionally narrow or tune that behavior.
+#
 # [features]
 # memories = true
 #
 # [memories]
-# use_memories = true
 # generate_memories = true
+# use_memories = true
 # disable_on_external_context = true
 #
 # [projects."/absolute/path/to/a/project"]

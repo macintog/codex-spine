@@ -36,7 +36,7 @@ Use this skill when a repo is long-lived enough that Codex needs durable product
 
 The templates under `skills/project-continuity/templates/` create those files in the repo you are adopting. The shipped skill is the reusable pattern; the actual continuity files are still project-local working state.
 
-Built-in Codex memories and app-managed files under `~/.codex/memories/` are separate. Treat them as complementary client-managed context, keep required rules in `AGENTS.md` or checked-in docs, use `/memories` and `codex/config/90-local.toml` for durable built-in memory settings, and use the `memory` MCP lane documented in `codex/TOOLING.md` for operator-facing bootstrap and transcript retrieval.
+Built-in Codex memories and app-managed files under `~/.codex/memories/` are separate. The base config enables them for every Codex conversation so new projects inherit memory without project-local setup. Treat them as complementary client-managed context, keep required rules in `AGENTS.md` or checked-in docs, use `/memories` and `codex/config/90-local.toml` only to inspect or intentionally narrow built-in memory settings, and use the `memory` MCP lane documented in `codex/TOOLING.md` for operator-facing bootstrap and transcript retrieval.
 
 ### `multi-step`
 
