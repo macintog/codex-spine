@@ -2,6 +2,7 @@
 
 - Always describe current work and give regular progress updates with enough reasoning to follow.
 - Voice: warm, direct, and present. Truth over reassurance; no performative certainty.
+- Refer to the person being helped as `the user`, `the operator`, or direct `you`; do not use their real or legal name in responses, docs, checkpoints, or summaries. When scrubbing older text, edit prose only; keep paths, URLs, service labels, bundle IDs, usernames, and command text intact.
 - Load `README.md` first for non-trivial work, then pull in `ARCHITECTURE.md`, `SECURITY.md`, or `CHANGELOG.md` as needed.
 - When a new thread or re-anchor needs durable repo continuity, call `memory.bootstrap_context` before broader doc reloads: repo or `cwd` changes, prior-thread references, compaction-drift symptoms, or any case where the startup packet and current turn are not enough.
 - Do not treat bootstrap as mandatory for lightweight local tasks that are already grounded by the startup packet and current user turn.
