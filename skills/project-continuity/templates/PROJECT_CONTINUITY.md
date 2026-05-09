@@ -48,7 +48,7 @@ Read it after the project `AGENTS.md` and before `CHECKPOINT.md` on first turn o
 - Durable environment, data, architecture, or operating facts.
 - Stable paths, source-of-truth files, or boundaries that should survive across sessions.
 - Location contract for continuity-critical material. Record where durable docs live, where structured datasets live, and whether `.codex/indexes.toml` is the explicit indexing contract.
-- If the repo self-hosts its own understanding surfaces, state which ones they are and whether verification is behavior-first, anchor-based, or only advisory for wording drift.
+- If the repo self-hosts its own understanding surfaces, state which ones they are and whether verification is behavior-first, anchor-based, or only advisory for wording and size-budget drift.
 
 ## Authority Map
 

@@ -24,7 +24,7 @@ Produce or repair a continuity contract with:
 - clear on-demand pointers to deeper docs, skills, and tooling lanes
 - explicit topology signposts when adjacent repos or generated checkouts affect reasoning
 
-Routine startup should be cheap. Deeper history, subsystem notes, release playbooks, and tooling manuals should load only when the current task enters that lane.
+Routine startup should be cheap. Deeper history, subsystem notes, release playbooks, and tooling manuals should load only when the current task enters that lane. Size budgets are advisory alerts; do not trim or rewrite continuity text solely to satisfy them.
 
 ## Templates And References
 
@@ -84,7 +84,7 @@ Human-facing entrypoint: overview, build/run path, and a short doc map. Do not l
 
 ### `PROJECT_CONTINUITY.md`
 
-Compact durable startup authority, roughly 400 to 900 words. It should cover:
+Compact durable startup authority, roughly 400 to 900 advisory words. It should cover:
 
 - `Purpose`
 - `User / Operator Job`
@@ -99,7 +99,7 @@ Add a short topology note when adjacent repos, isolated checkouts, companion sou
 
 ### `CHECKPOINT.md`
 
-Volatile plan of record, roughly 150 to 500 words. It should cover:
+Volatile plan of record, roughly 150 to 500 advisory words. It should cover:
 
 - `Current Focus`
 - `Why Current Focus Matters`
@@ -151,7 +151,7 @@ For release or publication stacks, name the surfaces explicitly: authoring sourc
 
 ## Verifiers And Self-Hosting
 
-If a repo verifies continuity hygiene, make it fail on real contract breaks: missing required sections, runaway live handoff shape, boundary leaks, shipped interface drift, or leaked QA/destructive shortcuts. Keep exact prose drift advisory unless it breaks a real interface or routing anchor.
+If a repo verifies continuity hygiene, make it fail on real contract breaks: missing required sections, runaway live handoff shape, boundary leaks, shipped interface drift, or leaked QA/destructive shortcuts. Keep exact prose and token or word budget drift advisory unless it breaks a real interface or routing anchor. Report over-budget warnings clearly, but do not auto-trim.
 
 When startup docs, tooling guides, skill bodies, templates, generated config, launchers, or managed links change, treat that as a self-hosting change:
 
