@@ -219,6 +219,24 @@ def runtime_env() -> dict[str, str]:
     return env
 
 
+def managed_mcp_runtime_path() -> str:
+    parts: list[str] = []
+    seen: set[str] = set()
+    for part in PREFERRED_RUNTIME_PATHS:
+        if not part or part in seen:
+            continue
+        parts.append(part)
+        seen.add(part)
+    return ":".join(parts)
+
+
+def resolve_runtime_command(command: str) -> str:
+    if "/" in command or command.startswith("~"):
+        candidate = Path(command).expanduser()
+        return str(candidate)
+    return shutil.which(command, path=managed_mcp_runtime_path()) or shutil.which(command, path=preferred_runtime_path()) or command
+
+
 def run(
     args: list[str],
     *,
@@ -830,21 +848,22 @@ def mcp_overlay_body_for_component(component_name: str) -> str:
     )
     kind = str(backend.get("kind", ""))
     command = str(backend.get("executable", ""))
+    rendered_command = resolve_runtime_command(command)
     package_name = str(backend.get("package_name", "jcodemunch-mcp"))
     version_spec = str(backend.get("version_spec", "")).strip()
     requirement = f"{package_name}{version_spec}"
     tool_name = str(backend.get("tool_name", package_name))
     server_name = str(backend.get("mcp_server_name", package_name.removesuffix("-mcp")))
     if kind == "uvx_tool":
-        args = ["tool", "run", "--from", requirement, tool_name] if command == "uv" else ["--from", requirement, tool_name]
+        args = ["tool", "run", "--from", requirement, tool_name] if Path(rendered_command).name == "uv" else ["--from", requirement, tool_name]
         lines = [
             f"[mcp_servers.{server_name}]",
-            f'command = "{command}"',
+            f'command = "{rendered_command}"',
             f"args = {json.dumps(args)}",
             "enabled = true",
         ]
     else:
-        rendered_command = command.replace("~/", "__HOME__/") if command.startswith("~/") else command
+        rendered_command = rendered_command.replace("~/", "__HOME__/") if rendered_command.startswith("~/") else rendered_command
         lines = [
             f"[mcp_servers.{server_name}]",
             f'command = "{rendered_command}"',
@@ -853,12 +872,17 @@ def mcp_overlay_body_for_component(component_name: str) -> str:
         ]
 
     env = backend.get("env", {})
+    rendered_env = {"PATH": managed_mcp_runtime_path()}
     if isinstance(env, Mapping) and env:
-        lines.append("")
-        lines.append(f"[mcp_servers.{server_name}.env]")
         for key, value in env.items():
             if isinstance(key, str) and isinstance(value, str):
-                lines.append(f'{key} = "{value}"')
+                rendered_env[key] = value
+
+    if rendered_env:
+        lines.append("")
+        lines.append(f"[mcp_servers.{server_name}.env]")
+        for key, value in rendered_env.items():
+            lines.append(f'{key} = "{value}"')
 
     return "\n".join(lines)
 
