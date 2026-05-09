@@ -1,4 +1,5 @@
 [features]
+hooks = true
 multi_agent = true
 memories = true
 
