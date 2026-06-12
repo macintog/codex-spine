@@ -21,6 +21,8 @@
   <dict>
     <key>PATH</key>
     <string>__HOME__/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>QMD_SYNC_EMBED</key>
+    <string>0</string>
   </dict>
   <key>StandardOutPath</key>
   <string>/tmp/codex-spine-qmd-codex-chat.log</string>

@@ -61,7 +61,7 @@ Use this skill when creating, revising, or critiquing evidence displays: charts,
 - renders `~/.codex/config.toml`
 - installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
 - installs or updates the default managed components
-- runs the first transcript sync and [@tobi/qmd](https://github.com/tobi/qmd) index refresh so memory and transcript retrieval are warm before install finishes
+- runs the first transcript sync and [@tobi/qmd](https://github.com/tobi/qmd) lexical index refresh so memory and transcript retrieval are warm before install finishes
 
 The optional jGravelle Munch MCP suite stays out of the default core path, but interactive install can include it when you opt in.
 
@@ -69,7 +69,7 @@ If you choose that suite during interactive install, `codex-spine` remembers tha
 
 Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
 
-macOS may also show a one-time `Background Items Added` notification for `sync-codex-chat-qmd.sh` during install. That is expected because `codex-spine` registers the transcript-sync LaunchAgent under Login Items & Extensions.
+macOS may also show a one-time `Background Items Added` notification for `sync-codex-chat-qmd.sh` during install. That is expected because `codex-spine` registers the transcript-sync LaunchAgent under Login Items & Extensions. The scheduled agent sets `QMD_SYNC_EMBED=0`, so it refreshes transcript projection, bootstrap state, the lexical QMD index, and contexts without running vector embedding in the background.
 
 ## Requirements
 
@@ -101,7 +101,7 @@ When `make install` installs missing baseline formulae, it installs these Homebr
 
 `make install` is interactive when run from a TTY. On stock macOS, the installer explains the Homebrew packages it is about to install and asks for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
 If Homebrew installation needs macOS password authentication, `codex-spine` keeps that prompt inside the installer's bottom panel and then continues in the same fullscreen session.
-Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local [@tobi/qmd](https://github.com/tobi/qmd) index before the final verification step, so the first run can take noticeably longer than later runs.
+Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local [@tobi/qmd](https://github.com/tobi/qmd) lexical index before the final verification step, so the first run can take noticeably longer than later runs. To intentionally test vector embedding, run `QMD_SYNC_EMBED=1 sync-codex-chat-qmd.sh`; failed embed attempts record a cooldown marker under the QMD state directory instead of retrying on every scheduled run.
 
 `zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, install warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
 

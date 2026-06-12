@@ -19,6 +19,9 @@ LATEST_PROJECTION_FILE="$STATE_DIR/latest_projection.txt"
 LATEST_QMD_URI_FILE="$STATE_DIR/latest_qmd_uri.txt"
 LATEST_PROJECT_KEY_FILE="$STATE_DIR/latest_project_key.txt"
 PROJECT_DOCS_DIR="$TARGET/projects"
+EMBED_FAILURE_MARKER="${EMBED_FAILURE_MARKER:-$STATE_DIR/embed-failure.env}"
+EMBED_FAILURE_COOLDOWN_SECONDS="${EMBED_FAILURE_COOLDOWN_SECONDS:-21600}"
+QMD_SYNC_EMBED="${QMD_SYNC_EMBED:-1}"
 INTENT_PIN_LIMIT="${INTENT_PIN_LIMIT:-20}"
 OPEN_LOOP_LIMIT="${OPEN_LOOP_LIMIT:-12}"
 DECISION_LIMIT="${DECISION_LIMIT:-10}"
@@ -1108,8 +1111,109 @@ embed_qmd_index() {
     if "$QMD" --index "$INDEX_NAME" embed; then
         log "Embedding complete: $INDEX_NAME"
     else
-        log "ERROR embedding failed for index: $INDEX_NAME"
-        return 1
+        local rc=$?
+        log "ERROR embedding failed for index: $INDEX_NAME exit=$rc"
+        return "$rc"
+    fi
+}
+
+qmd_sync_embed_disabled() {
+    local mode
+    mode="$(printf '%s' "$QMD_SYNC_EMBED" | tr '[:upper:]' '[:lower:]')"
+    case "$mode" in
+        0|false|off|no|disabled|disable|skip|skipped)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+qmd_embed_retry_forced() {
+    local mode
+    mode="$(printf '%s' "${QMD_EMBED_RETRY:-}" | tr '[:upper:]' '[:lower:]')"
+    case "$mode" in
+        1|true|yes|on|force)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+qmd_embed_cooldown_seconds() {
+    case "$EMBED_FAILURE_COOLDOWN_SECONDS" in
+        ''|*[!0-9]*)
+            printf '21600\n'
+            ;;
+        *)
+            printf '%s\n' "$EMBED_FAILURE_COOLDOWN_SECONDS"
+            ;;
+    esac
+}
+
+qmd_embed_failure_age_seconds() {
+    local now
+    local mtime
+    now="$(date +%s)"
+    mtime="$(stat -f '%m' "$EMBED_FAILURE_MARKER" 2>/dev/null || stat -c '%Y' "$EMBED_FAILURE_MARKER" 2>/dev/null || echo "$now")"
+    printf '%s\n' "$((now - mtime))"
+}
+
+qmd_embed_cooldown_active() {
+    [[ -f "$EMBED_FAILURE_MARKER" ]] || return 1
+    qmd_embed_retry_forced && return 1
+
+    local cooldown
+    local age
+    cooldown="$(qmd_embed_cooldown_seconds)"
+    (( cooldown > 0 )) || return 1
+    age="$(qmd_embed_failure_age_seconds)"
+
+    if (( age < cooldown )); then
+        log "Embedding skipped: previous failure ${age}s ago; cooldown is ${cooldown}s. Set QMD_EMBED_RETRY=1 for a manual retry after fixing QMD."
+        return 0
+    fi
+
+    log "Previous embed failure cooldown expired; retrying embedding."
+    return 1
+}
+
+record_qmd_embed_failure() {
+    local rc="$1"
+    mkdir -p "$STATE_DIR"
+    {
+        printf 'failed_at_utc=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf 'exit_code=%s\n' "$rc"
+        printf 'index=%s\n' "$INDEX_NAME"
+        printf 'collection=%s\n' "$COLLECTION_NAME"
+        printf 'cooldown_seconds=%s\n' "$(qmd_embed_cooldown_seconds)"
+    } > "$EMBED_FAILURE_MARKER"
+    log "Recorded embed failure marker: $EMBED_FAILURE_MARKER"
+}
+
+clear_qmd_embed_failure() {
+    if [[ -f "$EMBED_FAILURE_MARKER" ]]; then
+        rm -f "$EMBED_FAILURE_MARKER"
+        log "Cleared embed failure marker: $EMBED_FAILURE_MARKER"
+    fi
+}
+
+maybe_embed_qmd_index() {
+    if qmd_sync_embed_disabled; then
+        log "Embedding skipped: QMD_SYNC_EMBED=$QMD_SYNC_EMBED; lexical index remains current."
+        return 0
+    fi
+
+    if qmd_embed_cooldown_active; then
+        return 0
+    fi
+
+    if embed_qmd_index; then
+        clear_qmd_embed_failure
+        return 0
+    else
+        local rc=$?
+        record_qmd_embed_failure "$rc"
+        return "$rc"
     fi
 }
 
@@ -1157,8 +1261,8 @@ main() {
     if qmd_collection_exists; then
         if [[ "$QMD_INDEX_CHANGED" == "1" ]]; then
             sync_qmd_index
-            if ! embed_qmd_index; then
-                log "Continuing despite embed failure; next run will retry."
+            if ! maybe_embed_qmd_index; then
+                log "Continuing with lexical index and project contexts; embeddings will retry after cooldown."
             fi
             sync_project_contexts
         else
@@ -1168,8 +1272,8 @@ main() {
     else
         log "QMD collection missing; building index from current projections"
         sync_qmd_index
-        if ! embed_qmd_index; then
-            log "Continuing despite embed failure; next run will retry."
+        if ! maybe_embed_qmd_index; then
+            log "Continuing with lexical index and project contexts; embeddings will retry after cooldown."
         fi
         sync_project_contexts
     fi
