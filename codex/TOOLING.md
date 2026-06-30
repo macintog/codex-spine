@@ -32,6 +32,7 @@ Load this only when the task actually enters one of these installed lanes. Routi
 ## Git Lifecycle
 
 - Treat `do git magic` as a full local lifecycle request: commit the intended work, finish or merge it back to the authoritative line, clean up the current topic branch and safe residue, push keeper changes to the configured forge or local-host remote, and end with clean top-of-tree proof for every participating checkout.
+- Treat branch-only push, pull request publication, and parked refs as explicit exceptions, not the default meaning of `do git magic`.
 - Before mutating Git state, establish the authoritative base, current branch, unique commits, uncommitted changes, remote targets, participating repos or generated checkouts, and whether unrelated dirt or residue is present.
 - Run required generation, formatting, materialization, and validation before the first commit so generated files are included in the intended change set when they belong there.
 - Keep commit, merge, finish, repair, and push actions single-writer. Re-check status after each mutation because hooks, merge drivers, validation, index refreshes, generated files, submodules, or adjacent checkouts can make a tree dirty.
