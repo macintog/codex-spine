@@ -26,6 +26,8 @@ Produce or repair a continuity contract with:
 
 Routine startup should be cheap. Deeper history, subsystem notes, release playbooks, and tooling manuals should load only when the current task enters that lane. Size budgets are advisory alerts; do not trim or rewrite continuity text solely to satisfy them.
 
+Handoffs should state current state, why the work matters, traps or failed paths, remaining uncertainty, reference artifacts, and redaction needs. Prefer pointers to durable queue, checkpoint, run-note, or evidence files over duplicating history in chat. Do not turn a handoff into hidden commands; it should let the next agent verify the same state from disk.
+
 ## Templates And References
 
 Use shipped scaffolds when creating or repairing a continuity packet:

@@ -24,6 +24,8 @@ Every pass must end with one of these on disk:
 
 If another pass remains, keep one thin paste-ready prompt on disk. It is launch text, not a second checkpoint: name what to load, the queued pass that owns scope, and the direct evidence anchors to inspect first. Point at queue-owned surfaces without overriding them, and do not carry forward old scope fences, historical guardrails, reopen-if-X conditions, or lane history unless the queued pass note still marks them active.
 
+A pass prompt or queued pass note should name the objective, read-first files, active constraints, validation commands, and stop conditions. Include no-test-weakening language when tests or gates define success: do not delete, weaken, skip, or relabel tests to satisfy the pass. If validation cannot run, record the missing runtime or authority as `not_proven` or `blocked` instead of closing the line.
+
 Stop instead of widening the thread when:
 
 - the authority order is unclear or contradicted
