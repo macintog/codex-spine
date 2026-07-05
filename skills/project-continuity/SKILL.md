@@ -11,7 +11,7 @@ Use this skill when a project is large enough, long-lived enough, or drift-prone
 
 The goal is not more documentation. The goal is a compact continuity design that answers, at startup, what the project is for, what success means, what strategy is active, what subproblem is current, and why that subproblem matters.
 
-This skill designs the continuity packet and file roles. Concrete bootstrap tools, memory retrieval, Git lifecycle, indexing, and local proof commands belong to the repo's environment docs and tooling guide.
+This skill designs the continuity packet and file roles. Concrete bootstrap tools, memory retrieval, Git lifecycle, indexing, and local proof commands belong to the repo-declared environment docs, installed environment lanes, or an explicitly claimed tooling guide. Do not infer a repo-local `codex/TOOLING.md` from this skill alone.
 
 ## Core Output
 
@@ -72,7 +72,7 @@ For a project-continuity repo, the intended default startup packet is:
 3. `PROJECT_CONTINUITY.md`
 4. `CHECKPOINT.md`
 
-Keep repo-local tooling guides, architecture references, and skill bodies out of routine startup. Load them just in time.
+Keep repo-local tooling guides, architecture references, and skill bodies out of routine startup. Load them just in time, and only look for a repo-local tooling guide when the repo explicitly claims one.
 
 Inside the same thread, when the user shifts to a materially new request, keep the latest turn authoritative and add a short task restatement. Re-anchor only when durable grounding is needed: repo or `cwd` change, prior-thread reference, compaction drift, or an explicit reload request.
 
@@ -116,11 +116,11 @@ When history still matters, archive it by theme or layer rather than keeping one
 
 ### Project `AGENTS.md`
 
-Repo-specific working rules and document update rules, short enough for routine load. Point to skills and on-demand tooling guides; do not inline their playbooks.
+Repo-specific working rules and document update rules, short enough for routine load. Point to skills, installed environment lanes, or repo-declared on-demand tooling guides; do not inline their playbooks.
 
 ### Deep Docs And Tooling Guides
 
-Architecture notes, safety docs, release playbooks, `TOOLING.md`, and subsystem references are on-demand. Startup docs may point to them, but should not force-load them.
+Architecture notes, safety docs, release playbooks, repo-claimed tooling guides, and subsystem references are on-demand. Startup docs may point to them, but should not force-load them. A literal `codex/TOOLING.md` is only a project surface when that repo ships and claims it.
 
 ### Index And Overlay Declarations
 
@@ -166,4 +166,4 @@ Distinguish canonical source from installed copies. If the source lives elsewher
 
 ## Git Posture Signposts
 
-Continuity docs do not own Git mechanics, but they should prevent Git-state ambiguity from becoming continuity drift. Own Git posture for the user in plain language, route routine local lifecycle through the local Git control plane in `codex/TOOLING.md`, and signpost the isolated-checkout pattern when parallel work or scratch state affects the project.
+Continuity docs do not own Git mechanics, but they should prevent Git-state ambiguity from becoming continuity drift. Own Git posture for the user in plain language, route routine local lifecycle through the installed local Git control plane or the repo's declared tooling lane, and signpost the isolated-checkout pattern when parallel work or scratch state affects the project. Do not search for `codex/TOOLING.md` unless the current repo explicitly owns that file.

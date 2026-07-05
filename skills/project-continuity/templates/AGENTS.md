@@ -14,7 +14,8 @@ Open deeper docs only when the task needs them.
 
 - Repo-specific execution and validation rules only.
 - Keep this file short and operational.
-- Route to specialized skills or on-demand tooling guides instead of inlining their whole playbooks here.
+- Route to specialized skills, installed environment lanes, or repo-declared on-demand tooling guides instead of inlining their whole playbooks here.
+- Do not assume this repo has `codex/TOOLING.md`; use it only if this repo explicitly ships and claims that file.
 - If a point needs dated evidence, repeated examples, or deep subsystem nuance, put that detail in a deep doc or archive and keep only the routing rule here.
 
 ## Understanding Surfaces
@@ -28,7 +29,7 @@ Open deeper docs only when the task needs them.
 - Own Git posture for the user in plain language. Translate desired outcomes into the change-lifecycle plan instead of making the user infer Git mechanics.
 - If the stock local Git control plane uses preview-first lifecycle verbs, say when you are previewing versus mutating and use `--apply` only for the real mutation pass.
 - Define the authoritative base branch and protected refs before branch cleanup.
-- In this environment, route routine local start, finish, park, and repair through the stock local Git control plane instead of embedding ad hoc git sequences here.
+- In this environment, route routine local start, finish, park, and repair through the stock local Git control plane instead of embedding ad hoc git sequences here. Do not infer that control plane from a repo-local `codex/TOOLING.md` unless the repo explicitly owns one.
 - For parallel work or branch-switch-heavy work, prefer an isolated checkout or clone before editing. If the repo has a local isolation pattern, record it here.
 - State ancestry results in words; do not report raw exit codes as branch-safety conclusions.
 - If preservation intent or base choice is unclear and the answer would change history, ask a short clarifying question before mutating refs or switching a shared branch.
