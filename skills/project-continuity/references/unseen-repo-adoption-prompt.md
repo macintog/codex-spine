@@ -1,166 +1,70 @@
 # Unseen Repo Adoption Prompt
 
-Use this when a repo may be worth keeping aligned over time, but the current layout is partially unknown, stale, dirty, or inconsistent.
+Use this for a repo whose continuity ownership is unknown, stale, or mixed. Start from `undetermined`; do not treat location or familiar filenames as proof of adoption.
 
-The goal is not to make the repo perfect in one pass. The goal is to decide the right adoption posture first, then move locally managed repos toward an explicit, low-fragility operating model without assuming a clean history or a clean working tree.
-
-## Operator Inputs
-
-Fill these in before use:
+## Inputs And Authority
 
 - Repo root: `<absolute path>`
 - Mode: `discovery-only` or `apply-safe-changes`
-- Adoption posture: `undetermined`, `repo-native-only`, `local-overlay`, or `in-tree-adoption`
-- Constraint: do not touch public/exported surfaces unless explicitly asked
-- Constraint: do not use destructive git operations
-- Constraint: if the repo is already dirty, prefer an isolated worktree or branch before edits
-- Constraint: if safe isolation is not available, stay in discovery-only mode and report the blocker instead of editing in place
+- Initial posture: `undetermined`, `repo-native-only`, `local-overlay`, or `in-tree-adoption`
+- Allowed write roots: `<repo root only by default>`
+- Allowed index targets: `<none unless named>`
+- Public/exported surfaces: read-only unless explicitly authorized
+
+`discovery-only` is read-only. `apply-safe-changes` permits scoped writes only inside the named repo by default. Writing external overlays under `~/.codex`, refreshing or creating indexes, changing remotes, destructive actions, or widening scope requires explicit authority naming the target.
 
 ## Prompt
 
 ```text
-You are evaluating an unseen repo for continuity adoption.
+Evaluate this repo for continuity adoption.
 
-Work conservatively. Treat this as a migration decision on a possibly dirty, possibly stale repo that may contain mixed-lifetime docs, ad hoc structure, public release contracts, and local history we should not disturb.
+Goal:
+- choose the smallest truthful posture: repo-native-only, local-overlay, or in-tree-adoption
+- preserve the repo's existing public, contributor, release, packaging, and agent-facing contracts
+- make only the changes authorized by the supplied mode and write roots
 
-Primary goal:
-- choose the right adoption posture, then move locally managed repos toward a small explicit contract that future GPT-based agents can follow reliably
+Evidence first:
+1. Inspect repo shape, native guidance, Git posture, existing ownership markers, indexes, docs, volatile handoffs, generated areas, datasets, runtime assets, and adjacent checkouts.
+2. Treat `.codex/codex-spine.toml` as evidence of in-tree adoption and a matching external overlay entry as evidence of local-overlay adoption. Filename overlap alone proves nothing.
+3. Classify the posture before proposing or applying changes.
 
-Important framing:
-- the continuity packet is our process overlay, not a universal measure of repo health
-- a healthy third-party or public upstream repo may need no in-tree continuity files at all
-- the primary positive signal that we have taken charge of a repo is `.codex/codex-spine.toml`
-- for `local-overlay` repos, the primary positive signal lives outside the repo tree in `~/.codex/codex-spine-overlays.toml`
-- do not treat missing README.md, AGENTS.md, PROJECT_CONTINUITY.md, CHECKPOINT.md, or .codex/indexes.toml as defects until you know this repo should carry our overlay
-- do not treat the presence of a root `AGENTS.md` in a public repo as evidence that it uses our continuity packet; it may be the repo's own native contributor or agent-facing guidance
+Postures:
+- repo-native-only: preserve native structure; add no continuity overlay
+- local-overlay: keep the repo clean and place continuity/index declarations only in an explicitly authorized external overlay
+- in-tree-adoption: add the smallest repo-local continuity contract because the repo is intentionally managed under it
 
-Possible adoption postures:
-- repo-native-only: understand and preserve the repo's existing structure with no continuity overlay
-- local-overlay: keep any Codex-specific continuity or indexing metadata outside the repo tree
-- in-tree-adoption: add or migrate repo-local continuity files because this repo is locally managed and should carry the overlay itself
+Apply mode:
+- In discovery-only mode, report findings and stop without writes or refreshes.
+- In apply-safe-changes mode, write only inside the allowed roots and only after the posture is established.
+- If an external overlay or index refresh is needed but not authorized, report the exact target and stop.
+- If the checkout is dirty, shared, or unsafe to isolate, remain read-only unless the supplied authority explicitly covers that state.
 
-Ownership signal:
-- if `.codex/codex-spine.toml` exists, that is the primary signal that this repo is already under our continuity contract
-- if `~/.codex/codex-spine-overlays.toml` contains a matching `local-overlay` entry, that is the primary positive signal for adopted upstream repos we manage locally without in-tree edits
-- if it does not exist, do not infer "we own this" from filename overlap alone
+Verification:
+- run the lightest existing check that exercises the changed contract
+- refresh only explicitly authorized index targets
+- report missing runtime or authority as not_proven or blocked instead of substituting weaker evidence
 
-Steady-state target for in-tree-adoption repos:
-- root continuity packet: README.md, AGENTS.md, PROJECT_CONTINUITY.md, CHECKPOINT.md
-- ownership cookie: .codex/codex-spine.toml
-- durable authored docs under docs/ by default
-- explicit .codex/indexes.toml for code/docs/datasets when supported
-- explicit docs index names so docs roots do not collide across projects
+Stop when:
+- ownership or posture remains ambiguous
+- a public/native contract would be overwritten
+- the next action requires an unapproved external write, index refresh, Git mutation, destructive action, or scope expansion
 
-Steady-state target for local-overlay repos:
-- keep the target repo clean in-tree
-- record ownership and posture in `~/.codex/codex-spine-overlays.toml`
-- point that overlay entry at an external manifest that reuses the `.codex/indexes.toml` schema
-- keep index declarations explicit there instead of relying on inference
-
-Migration principles:
-- prefer detect-and-report before rewrite
-- prefer additive changes before renames or relocations
-- do not invent repo-specific special cases unless the repo truly requires them
-- separate one-time migration work from the steady-state contract
-- if a current layout is stale or odd, do not "perfect" it blindly; capture what should become the future default
-- if jcode/jdocs/jdata are available, use them first; otherwise do a careful filesystem audit
-- treat missing root packet files and overloaded AGENTS.md files as first-class findings only when the repo should actually carry our overlay; otherwise treat them as neutral observations about repo shape
-- preserve public doc, packaging, and release contracts before proposing continuity-layer changes
-- preserve shipped agent-facing assets such as public `skills/`, plugin metadata, or installable MCP guidance as part of the repo's native surface unless the user explicitly wants a local overlay
-- if a public repo already ships `AGENTS.md`, treat it as a native repo surface first; do not assume it implies or partially satisfies our own continuity packet
-
-Your workflow:
-1. Audit the repo shape first.
-2. Classify the repo posture before recommending changes:
-   - locally managed project that should probably carry the continuity overlay in-tree
-   - third-party or public upstream repo that should stay repo-native
-   - mixed case such as a local fork, adopted upstream, or repo that needs only a workspace-local overlay
-3. Classify the current surfaces:
-   - whether `.codex/codex-spine.toml` exists and what it says
-   - whether `~/.codex/codex-spine-overlays.toml` already claims the repo for `local-overlay`
-   - startup docs
-   - durable docs
-   - volatile handoff docs
-   - shipped agent-facing assets such as public skills, plugin manifests, or installation guidance that are part of the repo's native contract
-   - root files whose names overlap with this continuity contract, such as `AGENTS.md`, and whether they are actually native upstream guidance instead of a workspace overlay
-   - runtime assets such as model weights, checkpoints, or other downloaded local artifacts required for execution but not meant for tabular retrieval
-   - datasets intended for structured retrieval
-   - operational logs, caches, or dumps that live near data but should not automatically be indexed as datasets
-   - whether docs-root variants such as `Docs/` and `docs/` are truly distinct in git or only aliases on the local filesystem
-   - noisy/generated/build-only areas
-   - whether noisy/generated/build-only areas are tracked in git or only present locally
-   - whether there are adjacent worktrees, sibling checkouts, or in-progress migration surfaces that affect judgment
-4. Identify the minimum steady-state contract this repo should converge to for its chosen posture.
-5. Distinguish clearly between:
-   - safe changes to apply now
-   - migration-only changes that should be deferred or explicitly approved
-6. Call out any mismatch between the repo's claimed workflow and its actual on-disk structure.
-7. If the repo is dirty or on a shared branch, choose the safest available isolation path before edits:
-   - repo-local worktree if the repo already has a pattern for that
-   - fresh branch if the working tree is otherwise clean and branch-local edits are acceptable
-   - discovery-only with no edits if the checkout is dirty, shared, ambiguous, or not safely isolatable
-8. Say explicitly which isolation path you chose and why.
-9. In `apply-safe-changes` mode, make only the minimum safe changes that improve future startup and indexing reliability for the chosen posture.
-10. Run the lightest obvious verification path you can justify without adding new dependencies or setup churn, and say when no trustworthy verifier exists.
-11. Re-index or re-qualify the affected surfaces and report what was actually picked up.
-12. End with:
-   - findings
-   - chosen adoption posture
-   - changes made
-   - isolation path used
-   - deferred migration items
-   - verification evidence
-   - whether current terminals, new shells, app restarts, or reboots are affected
-
-Rules for safe changes:
-- do not add our continuity packet to a third-party or public upstream repo unless the user explicitly wants in-tree adoption
-- adding `.codex/codex-spine.toml` is the explicit act of taking charge; do not add it to third-party or public upstream repos unless the user explicitly wants in-tree adoption
-- do not add .codex/indexes.toml to a public or third-party repo by default when the need is only local retrieval; prefer local overlay or external registration
-- for `local-overlay`, prefer updating `~/.codex/codex-spine-overlays.toml` plus an external manifest over adding in-tree continuity files
-- adding .codex/indexes.toml is usually safe
-- adding docs/README.md as a canonical docs anchor is usually safe
-- updating repo-local references from PROJECT_SPINE.md to PROJECT_CONTINUITY.md may be safe if all references are local and obvious
-- when a repo already uses PROJECT_SPINE.md, legacy compatibility may need a migration bridge phase instead of an in-place delete
-- renaming or relocating existing docs is not automatically safe on a dirty repo; propose it unless the repo is clearly isolated for migration
-- do not treat tracked generated output as routine cleanup; if build/noise directories are tracked, report that as a migration decision
-- if README.md is missing or still a stock scaffold, say so explicitly when evaluating a locally managed repo; for third-party repos, treat it as a repo-native documentation finding, not evidence they need our packet
-- do not declare datasets unless they are actually intended for structured retrieval
-- do not auto-declare caches, logs, or refresh byproducts as datasets just because they live under `data/`
-- do not treat runtime model or checkpoint assets as datasets or routine cleanup targets; if the repo depends on ignored or downloaded weights, treat that location as part of the runtime contract
-- do not treat sibling worktrees or adjacent migration experiments as blessed source without saying so explicitly
-- if `Docs/` and `docs/` both appear, check whether they are actually distinct tracked paths before recommending normalization
-- if you cannot isolate safely, do not make "just a small change" in place; stop at discovery and report the exact blocker
-- do not index the entire repo as docs if that would pull in noisy config or generated files; prefer a real docs root
-- if README.md participates in packaging, release, or install flows, treat that behavior as a contract before proposing doc reshaping
-- if the repo ships agent-facing assets for public consumption, treat those as part of the native product surface, not as evidence that a local continuity overlay belongs in-tree
-
-Output format:
-- Findings
-- Chosen adoption posture
-- Proposed steady-state contract
-- Safe changes applied now
-- Deferred migration items
-- Verification
-- Risks or ambiguities
+Return:
+- findings and evidence
+- chosen posture
+- changes made, if any
+- write roots and isolation path used
+- verification result
+- deferred or blocked actions with the authority needed
+- reload or restart impact
 ```
 
-## How To Iterate
+## Low-Risk Discovery
 
-Run the prompt in `discovery-only` mode first on a repo you do not fully trust.
-
-When helpful, gather the low-risk facts first with:
+When available, gather the initial repo facts with:
 
 ```bash
 python3 scripts/repo-adoption-audit.py --json <repo-root>
 ```
 
-If the findings look right:
-
-1. switch to `apply-safe-changes`
-2. keep the change set minimal
-3. verify the resulting indexes
-4. extract any repeated judgment into scripts only after the prompt has stabilized across multiple repos
-
-Prompt-first is the default. Scripts should accelerate a known-good decision path, not substitute for judgment on unseen repos.
-
-The first judgment is whether this repo should carry our continuity overlay at all.
+Use the result as evidence, not as permission to adopt or write. For unfamiliar or externally owned repos, run `discovery-only` first.

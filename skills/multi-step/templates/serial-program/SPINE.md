@@ -63,6 +63,15 @@ Replace those placeholders with the actual order that should govern the lane.
 - `authority-cleanup`: reconcile stale packet or startup surfaces without reopening closed product lines
 - `closeout-gate`: confirm the lane is truthful, replayable, and either closed or explicitly split into a new follow-on lane
 
+## State Vocabulary
+
+- Lane states: `active`, `blocked`, `historical`, `closed`
+- Rubric states: `red`, `ambiguous`, `green`, `split`
+- Verification outcomes: `not_run`, `aligned`, `aligned_with_residual_risk`, `still_ambiguous`, `misaligned`, `split_required`, `reopen_required`
+- Residual risk: `none`, `minor`, `material`, `unknown`
+
+Other packet files record current values from this vocabulary without redefining it.
+
 ## Lane Rubric
 
 - Define the task-specific checklist that governs this program.

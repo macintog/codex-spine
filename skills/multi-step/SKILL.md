@@ -51,15 +51,9 @@ If the truth stack is still unclear, resolve that first. This skill can structur
 
 ## Core Invariants
 
-- One fresh thread owns one narrow pass with explicit in-scope and out-of-scope boundaries.
-- The on-disk queue is the source of truth for open, queued, blocked, and closed work.
-- Authority order is chosen up front and does not silently change mid-program.
-- Each pass declares its pass type before work starts and does not silently switch type.
-- The lane carries a task-specific rubric that classifies lines with evidence.
-- Durable theory, expectations, and target definitions live in named authority docs, not in an ever-growing queue.
-- Every pass writes reasoning and outcome to disk; deep history lives in pass artifacts, not the live handoff.
-- Closed lines stay closed unless reopened with new evidence and an explicit reopen note.
-- Correction passes are followed by fresh verification before closure.
+- One fresh thread owns one typed, narrow pass; the on-disk queue and named authority order define scope.
+- A task-specific rubric advances only from evidence. Durable theory stays in authority docs and deep history stays in pass artifacts.
+- Corrections require fresh verification. Closed lines reopen only through an explicit evidence-backed note.
 - Closeout is real only when queue, handoff, startup surfaces, and late proof agree.
 
 These invariants matter more than any particular filename or folder layout.
@@ -97,7 +91,7 @@ A fresh thread should start with durable rules, current state, and one owned tas
 
 ### 5. Keep queue truth explicit
 
-Queued pass notes, rubric state, and live handoff must agree. Chat-only intent does not create scope. If they disagree, run an authority-cleanup or reconciliation pass before more correction work.
+Queued pass notes, rubric state, and live handoff must agree. If they disagree, reconcile them before more correction work.
 
 ### 6. Use pass types
 
@@ -115,7 +109,7 @@ Do not let one pass silently become all of them.
 
 ### 7. Keep each pass narrow
 
-A good pass owns one question family, one surface family, or one finding cluster. Its artifact should say what was in scope, what evidence was checked, what changed, what must not change, what remains ambiguous, and what comes next.
+A good pass owns one question family, surface family, or finding cluster. Its work order owns scope and constraints; its completed artifact records evidence, findings, state deltas, residual risk, and the next pass.
 
 For verification, also say whether the target is aligned, aligned with residual risk, still ambiguous, or misaligned.
 

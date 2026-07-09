@@ -3,7 +3,7 @@
 ## Queue Metadata
 
 - Pass slug / path: `passes/<NNN>-<pass-slug>.md`
-- Pass type: `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, or `closeout-gate`
+- Pass type: `<value from README.md State Vocabulary>`
 - Finding IDs owned by this pass: `F001` or `F001,F002`
 
 ## Purpose

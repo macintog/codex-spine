@@ -6,32 +6,12 @@ If a pass cannot answer one of them cleanly, record that as an ambiguity instead
 This file is also the task-specific checklist for the lane.
 It is allowed to start incomplete if the lane is still discovering the real seams, but every new seam should be added here before it becomes "just one more thing" in chat.
 
-## Rubric Status Model
+## State Models
 
-- `red`: known misaligned or still missing required proof
-- `ambiguous`: not yet classifiable truthfully
-- `green`: aligned and verified strongly enough for this lane
-- `split`: no longer belongs in this lane and now needs a separate queued note or follow-on packet
+Use the rubric, verification, and residual-risk definitions in `SPINE.md`.
 
 Only move a line to `green` when the required evidence and any required fresh verification both exist on disk.
 If a green line later contradicts new evidence, record the contradiction explicitly, downgrade the line truthfully, and queue a `reopen-decision` or `scope-expansion` pass instead of editing history silently.
-
-## Verification Outcome Model
-
-- `not_run`: no fresh verification has happened yet
-- `aligned`: the owning surface matches the stated authority with no meaningful residual risk
-- `aligned_with_residual_risk`: the owning surface is aligned, but the pass must name the remaining risk explicitly
-- `still_ambiguous`: evidence is still too weak or contradictory to settle the line
-- `misaligned`: the owning surface still fails the authority check
-- `split_required`: the line cannot close inside this lane and must move into follow-on scope
-- `reopen_required`: a historical or green line needs an explicit reopen decision
-
-## Residual Risk Model
-
-- `none`: no meaningful residual concern remains for this lane
-- `minor`: acceptable to close here if the packet says why
-- `material`: too large to hide inside a green line; split or reopen it
-- `unknown`: the pass could not classify risk truthfully
 
 ## Checklist
 
@@ -95,11 +75,4 @@ Every completed pass artifact should end with:
 Every completed pass artifact should also say which checklist lines changed state and why.
 It should also say whether the next-thread prompt text was updated in that artifact's owning surface or intentionally left owned elsewhere.
 
-Verification artifacts should also classify the audited surface as one of:
-
-- `aligned`
-- `aligned_with_residual_risk`
-- `still_ambiguous`
-- `misaligned`
-- `split_required`
-- `reopen_required`
+Verification artifacts also record one verification outcome from `SPINE.md`.

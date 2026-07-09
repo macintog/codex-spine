@@ -10,13 +10,7 @@ Choose one profile before instantiating anything:
 
 If the lane depends on durable theory, expectations, or target definitions, keep those in adjacent authority docs rather than stuffing them into the active queue packet.
 
-Both profiles share the same core vocabulary:
-
-- lane states: `active`, `blocked`, `historical`, `closed`
-- pass types: `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, `closeout-gate`
-- finding or rubric states: `red`, `ambiguous`, `green`, `split`
-- verification outcomes: `not_run`, `aligned`, `aligned_with_residual_risk`, `still_ambiguous`, `misaligned`, `split_required`, `reopen_required`
-- residual risk levels: `none`, `minor`, `material`, `unknown`
+Each instantiated profile owns one canonical state vocabulary: `serial-program/SPINE.md` for full programs and `finite-findings/README.md` for bounded findings lanes. Other packet files record current values without restating every allowed value.
 
 ## Instantiation Rules
 

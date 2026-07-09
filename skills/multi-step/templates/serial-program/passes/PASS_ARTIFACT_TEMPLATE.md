@@ -1,28 +1,10 @@
 # Pass Artifact: <Pass Title>
 
-## Pass Type
+## Work Order
 
-- `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, or `closeout-gate`
-
-## Purpose
-
-State the narrow pass objective in one paragraph.
-
-## Scope
-
-- name the exact surface family
-- name the exact files, sections, or artifacts in scope
-- name explicit out-of-scope areas
-
-## Inputs
-
-- packet docs consulted
-- named authority docs consulted
-- exact evidence anchors consulted
-
-## Questions Answered
-
-List the exact questions from `QUESTION_BANK.md` that this pass answered.
+- Pass note: `passes/<NNN>-<pass-slug>.md`
+- Pass type: `<value from SPINE.md Pass Families>`
+- Evidence checked: `<exact anchors and artifacts>`
 
 ## Queue State Updates
 
@@ -46,17 +28,12 @@ List the exact questions from `QUESTION_BANK.md` that this pass answered.
 
 ## Verification Outcome
 
-- `not_run`, `aligned`, `aligned_with_residual_risk`, `still_ambiguous`, `misaligned`, `split_required`, or `reopen_required`
+- `<value from SPINE.md State Vocabulary>`
 
 ## Residual Risk
 
-- `none`, `minor`, `material`, or `unknown`
+- `<value from SPINE.md State Vocabulary>`
 - State why that classification is truthful for this lane.
-
-## Must Not Change
-
-- invariant one
-- invariant two
 
 ## Unresolved Ambiguities
 
@@ -68,10 +45,10 @@ List the exact questions from `QUESTION_BANK.md` that this pass answered.
 - State whether this pass stayed inside scope, queued a `scope-expansion` note, or queued a `reopen-decision` note.
 - If a historical or green line was challenged, record the exact contradiction and the on-disk note that now owns it.
 
-## Completion Criteria
+## Completion Delta
 
 - what made this pass complete
-- which rubric lines changed state on disk
+- which rubric and queue fields changed
 - what still needs fresh verification, if anything
 
 ## Next Recommended Pass

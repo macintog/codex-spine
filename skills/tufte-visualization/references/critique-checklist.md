@@ -44,6 +44,15 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Are titles specific and factual?
 - Are source notes and caveats close enough to the figure?
 
+### Connector And Bounded-Text Geometry
+
+- Reserve whitespace channels for curves, arrows, spokes, leaders, brackets, and rules. They must not cross text, labels, unrelated boundaries, panel rules, table cells, or non-target marks.
+- Leave a visible air gap between connector endpoints or arrowheads and bounded marks. Marker geometry extends past mathematical path endpoints.
+- Inspect native-resolution crops around connector-label, connector-boundary, and connector-crossing relationships. One collision triggers inspection of every similar connector class.
+- Prove the longest bounded label fits inside a conservative safe zone. SVG and canvas text do not wrap automatically; move dense identifiers or file paths to external notes when needed.
+- Repair contact by shortening, offsetting, rerouting, using detached leaders or brackets, externalizing labels, replacing arrows with ordered labels, or removing the connector.
+- Re-render and re-inspect the same close-up after every repair. Source validity, z-order, white masks, or technical legibility do not override a visible defect.
+
 ## Accessibility
 
 - Is meaning preserved without color?

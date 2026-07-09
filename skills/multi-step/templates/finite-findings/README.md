@@ -13,8 +13,9 @@ Fresh threads should load this packet only after the normal repo startup packet 
 
 1. `README.md`
 2. `CHECKPOINT.md`
-3. `REVIEW_FINDINGS.md`
-4. Only the current pass note and the exact evidence named by that pass
+3. The current pass note and its exact evidence
+
+Read only the owning rows from `REVIEW_FINDINGS.md`; keep completed findings and old pass notes cold.
 
 Do not load every pass note by default.
 The packet is designed so a fresh thread can stay cold on completed steps and still know exactly what to do next.
@@ -26,6 +27,14 @@ The packet is designed so a fresh thread can stay cold on completed steps and st
 - `REVIEW_FINDINGS.md`: the finite seed list and lightweight queue ledger for this lane
 - `passes/PASS_NOTE_TEMPLATE.md`: template for one-note pass work orders
 
+## State Vocabulary
+
+- Lane states: `active`, `blocked`, `historical`, `closed`
+- Pass types: `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, `closeout-gate`
+- Finding states: `red`, `ambiguous`, `green`, `split`
+- Verification outcomes: `not_run`, `aligned`, `aligned_with_residual_risk`, `still_ambiguous`, `misaligned`, `split_required`, `reopen_required`
+- Residual risk: `none`, `minor`, `material`, `unknown`
+
 This profile is intentionally thinner than `serial-program/`.
 Queue truth lives in `REVIEW_FINDINGS.md` plus `CHECKPOINT.md`; do not add a second machine-readable control plane unless the lane has clearly outgrown this profile.
 
@@ -34,7 +43,7 @@ Queue truth lives in `REVIEW_FINDINGS.md` plus `CHECKPOINT.md`; do not add a sec
 - One fresh thread owns one pass.
 - Each pass should retire one finding or one tightly coupled findings cluster only.
 - Treat `REVIEW_FINDINGS.md` as the red-to-green checklist for the lane, not just as static prose.
-- Use the shared pass-type vocabulary, but most lanes here should only need `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, or `closeout-gate`.
+- Use the canonical pass-type vocabulary above; most lanes need only its narrow audit, correction, verification, or closeout states.
 - Edit only the target note or owning narrow surface plus this packet's handoff files.
 - After a `correction` pass, queue a fresh `verification` pass before treating a finding as green unless the lane explicitly records why stronger existing evidence already satisfies that proof need.
 - If truthful repair would require reopening the broader closed program, stop and queue a separate scope-expansion note instead of widening the active pass.

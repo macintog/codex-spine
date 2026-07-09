@@ -12,10 +12,9 @@ Fresh threads should load this packet only after the normal repo startup packet 
 
 1. `SPINE.md`
 2. `CHECKPOINT.md`
-3. `STATUS.toml`
-4. `QUESTION_BANK.md`
-5. `SURFACE_MAP.md`
-6. Only the current pass note and any exact evidence anchors named by the checkpoint or status file
+3. The current pass note and its exact evidence anchors
+
+Read only the `STATUS.toml` fields, `QUESTION_BANK.md` rows, `SURFACE_MAP.md` sections, and authority docs named by the active pass.
 
 Do not open every pass note by default.
 The packet is designed so a fresh thread can stay cold on old details and still know exactly what to do next.

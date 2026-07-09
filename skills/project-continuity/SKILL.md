@@ -36,6 +36,7 @@ Use shipped scaffolds when creating or repairing a continuity packet:
 - `templates/CHECKPOINT.md`: volatile handoff scaffold
 - `templates/AGENTS.md`: repo-local working-rules scaffold
 - `references/unseen-repo-adoption-prompt.md`: adoption prompt for first-pass continuity setup in an unfamiliar repo
+- `references/self-hosting-signposts.md`: validation, reload, and Git signposts for repos that self-host these surfaces
 
 ## When To Use This Skill
 
@@ -59,7 +60,7 @@ For repos we actively manage over time, make ownership explicit instead of relyi
 
 Filename overlap, especially `AGENTS.md`, is not proof that a repo uses this continuity contract. Decide the posture before treating local overlay rules as native repo rules.
 
-In a managed local workspace, every repo except obvious `scratch` space should be treated as continuity-worthy unless the user explicitly says otherwise. The steady state is not inferred coverage; a kept repo should be explicitly claimed as either `repo-local` or `local-overlay`.
+Start unfamiliar repos at `undetermined`. Adopt continuity only after evidence supports `repo-local`, `local-overlay`, or `repo-native only`; do not infer adoption from location, filename overlap, or the fact that a repo is being kept.
 
 Continuity-worthy repos should converge on declared locations: durable docs live under `docs/` by default, `.codex/indexes.toml` is the preferred declaration for code, docs, and dataset indexing targets, and `.codex/codex-spine.toml` is the in-tree ownership cookie when we have taken charge. Inference is a migration aid, not the target operating model.
 
@@ -151,19 +152,6 @@ Record:
 
 For release or publication stacks, name the surfaces explicitly: authoring source, release coordination notes, published tree, and QA checkout. If functional changes belong only in the authoring source, say that plainly.
 
-## Verifiers And Self-Hosting
+## Self-Hosting And Git Signposts
 
-If a repo verifies continuity hygiene, make it fail on real contract breaks: missing required sections, runaway live handoff shape, boundary leaks, shipped interface drift, or leaked QA/destructive shortcuts. Keep exact prose and token or word budget drift advisory unless it breaks a real interface or routing anchor. Report over-budget warnings clearly, but do not auto-trim.
-
-When startup docs, tooling guides, skill bodies, templates, generated config, launchers, or managed links change, treat that as a self-hosting change:
-
-- update coordinated surfaces together
-- verify the authoring source and any published surface that users inherit
-- re-read changed startup or routing surfaces in-thread if semantics changed
-- close out with reload expectations for current threads, new shells, app restarts, or reboots
-
-Distinguish canonical source from installed copies. If the source lives elsewhere, treat the installed copy or cache as immutable instead of patching another maintainer's surface. Adapt in repo-owned docs, verifiers, wrappers, or overlays instead.
-
-## Git Posture Signposts
-
-Continuity docs do not own Git mechanics, but they should prevent Git-state ambiguity from becoming continuity drift. Own Git posture for the user in plain language, route routine local lifecycle through the installed local Git control plane or the repo's declared tooling lane, and signpost the isolated-checkout pattern when parallel work or scratch state affects the project. Do not search for `codex/TOOLING.md` unless the current repo explicitly owns that file.
+When a continuity task changes startup, generated, installed, exported, or Git-topology surfaces, load `references/self-hosting-signposts.md`. Keep the detailed lifecycle rules there instead of expanding every continuity task with generic environment mechanics.

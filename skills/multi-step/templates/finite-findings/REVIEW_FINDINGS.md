@@ -8,22 +8,9 @@ Treat this file as the lane checklist: each finding should have an explicit stat
 
 - `<target-note-or-surface>`
 
-## Finding Status Model
+## State Models
 
-- `red`: known mismatch or missing required proof
-- `ambiguous`: not yet classifiable truthfully
-- `green`: aligned and verified strongly enough for this lane
-- `split`: no longer belongs in this lane and now needs a separate note or follow-on packet
-
-## Verification Outcome Model
-
-- `not_run`
-- `aligned`
-- `aligned_with_residual_risk`
-- `still_ambiguous`
-- `misaligned`
-- `split_required`
-- `reopen_required`
+Use the finding, verification, and residual-risk definitions in `README.md`.
 
 ## Findings Ledger
 

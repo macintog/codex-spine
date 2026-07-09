@@ -4,9 +4,9 @@ This is the volatile handoff for `<lane-name>`.
 
 ## Lane State
 
-- State: `active`, `blocked`, `historical`, or `closed`
+- State: `<value from README.md State Vocabulary>`
 - Active queue note: `passes/<pass-slug>.md` or `none`
-- Active pass type: `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, or `closeout-gate`
+- Active pass type: `<value from README.md State Vocabulary>`
 - Canonical prompt surface: `CHECKPOINT.md`, another packet file, or `none`
 
 ## Current Focus
@@ -30,7 +30,7 @@ This is the volatile handoff for `<lane-name>`.
 
 ## Residual Risk / Reopen Signals
 
-- If the latest verification left residual risk, classify it as `minor`, `material`, or `unknown`.
+- If the latest verification left residual risk, record the current value from `README.md`.
 - If a green finding might need to reopen, name the exact contradiction and the note that should own that decision.
 
 ## Next Safe Step

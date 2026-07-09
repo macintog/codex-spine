@@ -5,9 +5,9 @@ Use it after `SPINE.md`, not instead of it.
 
 ## Lane State
 
-- State: `active`, `blocked`, `historical`, or `closed`
+- State: `<value from SPINE.md State Vocabulary>`
 - Active queue note: `passes/<pass-slug>.md` or `none`
-- Active pass type: `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, or `closeout-gate`
+- Active pass type: `<value from SPINE.md Pass Families>`
 - Canonical prompt surface: `CHECKPOINT.md`, another packet file, or `none`
 
 ## Current Focus
@@ -32,7 +32,7 @@ Use it after `SPINE.md`, not instead of it.
 
 ## Residual Risk / Reopen Signals
 
-- If the latest verification left residual risk, classify it as `minor`, `material`, or `unknown`.
+- If the latest verification left residual risk, record the current value from `SPINE.md`.
 - If a formerly green or historical line might need attention again, name the exact contradiction and the note that should own the reopen decision.
 
 ## Next Safe Step

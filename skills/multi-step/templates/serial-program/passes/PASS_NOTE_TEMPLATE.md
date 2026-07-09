@@ -3,9 +3,9 @@
 ## Queue Metadata
 
 - Pass slug / path: `passes/<NNN>-<pass-slug>.md`
-- Pass type: `audit`, `correction`, `verification`, `scope-expansion`, `reopen-decision`, `authority-cleanup`, or `closeout-gate`
+- Pass type: `<value from SPINE.md Pass Families>`
 - Queue owner: exact rubric line or line cluster this note owns
-- Expected lane state on entry: `active`, `blocked`, or `historical`
+- Expected lane state on entry: `<value from SPINE.md State Vocabulary>`
 
 ## Purpose
 

@@ -24,18 +24,12 @@ Open deeper docs only when the task needs them.
 - Update validation and closeout reload or relaunch guidance when those surfaces change.
 - If those changes materially alter startup or tool-routing semantics, say whether the current thread should reload docs or whether a fresh session is recommended.
 
-## Git Safety
+## Repo Git Contract
 
-- Own Git posture for the user in plain language. Translate desired outcomes into the change-lifecycle plan instead of making the user infer Git mechanics.
-- If the stock local Git control plane uses preview-first lifecycle verbs, say when you are previewing versus mutating and use `--apply` only for the real mutation pass.
-- Define the authoritative base branch and protected refs before branch cleanup.
-- In this environment, route routine local start, finish, park, and repair through the stock local Git control plane instead of embedding ad hoc git sequences here. Do not infer that control plane from a repo-local `codex/TOOLING.md` unless the repo explicitly owns one.
-- For parallel work or branch-switch-heavy work, prefer an isolated checkout or clone before editing. If the repo has a local isolation pattern, record it here.
-- State ancestry results in words; do not report raw exit codes as branch-safety conclusions.
-- If preservation intent or base choice is unclear and the answer would change history, ask a short clarifying question before mutating refs or switching a shared branch.
-- Treat Git warnings during deletion as blockers.
-- When signals disagree, preserve state and escalate instead of cleaning up for tidiness.
-- If adjacent repos, managed clones, or companion source checkouts require different Git interpretation than the root repo, record those comparison rules here explicitly.
+- Authoritative base: `<branch or ref>`
+- Protected refs or remotes: `<repo-specific list>`
+- Isolation pattern for parallel work: `<worktree, clone, or repo-native rule>`
+- Route routine lifecycle mechanics through the installed environment lane or this repo's explicitly owned tooling guide; keep generic Git and approval playbooks out of this file.
 
 ## Document Roles
 
