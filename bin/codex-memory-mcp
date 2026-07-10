@@ -20,7 +20,28 @@ const SQLITE3_BIN = process.env.SQLITE3_BIN || "sqlite3";
 const DEFAULT_INDEX = process.env.QMD_DEFAULT_INDEX || "codex_chat";
 const PROJECT_CACHE_ROOT = path.join(HOME, ".cache", "qmd", DEFAULT_INDEX);
 const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
+const BOOTSTRAP_MAX_BYTES = Number(process.env.MEMORY_BOOTSTRAP_MAX_BYTES || "8000");
+const BOOTSTRAP_EVENTS_FILE = path.join(STATE_ROOT, "bootstrap-events.jsonl");
+const bootstrapCache = new Map();
 let transportStyle = "framed";
+
+function bootstrapContract() {
+  return {
+    source: "codex-memory-mcp",
+    allowed_reasons: ["repo_cwd_change", "prior_thread_recovery", "demonstrated_drift"],
+    default_recent_sessions: 3,
+    max_recent_sessions: 5,
+    max_serialized_payload_bytes: BOOTSTRAP_MAX_BYTES,
+    deduplication: { proven: true, scope: "same_mcp_process_per_project_reason_and_recent_session_limit", behavior: "returns a compact response without repeated structured context" },
+    payload_bound: { proven: true, max_bytes: BOOTSTRAP_MAX_BYTES, measurement: "final structuredContent JSON UTF-8 bytes" },
+    historical_retrieval_boundary: "Bootstrap is a durable re-anchor; use search then get or multi_get for historical wording and docs-vs-transcript evidence.",
+  };
+}
+
+if (process.argv[2] === "--bootstrap-contract") {
+  process.stdout.write(`${JSON.stringify(bootstrapContract())}\n`);
+  process.exit(0);
+}
 
 function writeMessage(message) {
   if (transportStyle === "json") {
@@ -358,12 +379,56 @@ function buildSearchArgs(commandName, args) {
   return cliArgs;
 }
 
+function sessionMetadataForUri(uri) {
+  uri = normalizeReturnedQmdUri(uri);
+  if (!isPublicQmdUri(uri) || !fs.existsSync(PROJECTS_DIR)) return null;
+  for (const entry of fs.readdirSync(PROJECTS_DIR)) {
+    const index = readJsonIfExists(path.join(PROJECTS_DIR, entry, "session_index.json"));
+    for (const session of index?.sessions || []) {
+      if (`qmd://codex-chat/${session.projection_rel || ""}` === uri) return session;
+    }
+  }
+  return null;
+}
+
+function filterSearchResults(results, args) {
+  const hasFilter = ["date_from", "date_to", "cwd", "project_root", "thread_id", "parent_thread_id", "own_thread_id"].some((key) => typeof args[key] === "string" && args[key].trim());
+  if (!hasFilter) return results;
+  return results.filter((item) => {
+    const meta = sessionMetadataForUri(item?.file || "");
+    if (!meta) return false;
+    const started = String(meta.started_utc || "").slice(0, 10);
+    if (args.date_from && started < args.date_from) return false;
+    if (args.date_to && started > args.date_to) return false;
+    if (args.cwd && meta.cwd !== args.cwd) return false;
+    if (args.project_root && meta.project_path !== args.project_root) return false;
+    if (args.thread_id && meta.session_id !== args.thread_id) return false;
+    if (args.parent_thread_id && meta.parent_thread_id !== args.parent_thread_id) return false;
+    if (args.own_thread_id && meta.session_id !== args.own_thread_id && meta.parent_thread_id !== args.own_thread_id) return false;
+    return true;
+  });
+}
+
 function callSearch(commandName, args) {
-  return { results: runQmd(buildSearchArgs(commandName, args), { expectJson: true }) };
+  for (const key of ["date_from", "date_to"]) if (args[key] && (!/^\d{4}-\d{2}-\d{2}$/.test(args[key]) || Number.isNaN(Date.parse(`${args[key]}T00:00:00Z`)) || new Date(`${args[key]}T00:00:00Z`).toISOString().slice(0, 10) !== args[key])) throw new Error(`${key} must be a real YYYY-MM-DD date`);
+  if (Number.isInteger(args.limit) && args.limit <= 0) throw new Error("limit must be greater than zero");
+  const filtered = ["date_from", "date_to", "cwd", "project_root", "thread_id", "parent_thread_id", "own_thread_id"].some((key) => args[key]);
+  const requested = Number.isInteger(args.limit) ? args.limit : undefined;
+  const engineArgs = filtered ? { ...args, limit: Math.max(requested || 20, 100) } : args;
+  const results = filterSearchResults(runQmd(buildSearchArgs(commandName, engineArgs), { expectJson: true }), args);
+  return { results: requested ? results.slice(0, requested) : results };
 }
 
 function isPublicQmdUri(value) {
   return String(value || "").startsWith("qmd://codex-chat/");
+}
+
+function normalizeReturnedQmdUri(value) {
+  const raw = String(value || "").trim();
+  if (!isPublicQmdUri(raw)) return raw;
+  const normalized = raw.split("?", 1)[0];
+  if (!/^qmd:\/\/codex-chat\/.+/.test(normalized)) throw new Error("returned qmd URI has no safe document path");
+  return normalized;
 }
 
 function isQmdDocId(value) {
@@ -390,7 +455,7 @@ function requirePublicQmdUri(file) {
 }
 
 function requirePublicQmdGetTarget(file) {
-  const target = String(file || "").trim();
+  const target = normalizeReturnedQmdUri(file);
   if (isPublicQmdUri(target) || isQmdDocId(target)) {
     return target;
   }
@@ -400,11 +465,11 @@ function requirePublicQmdGetTarget(file) {
 function normalizePublicQmdBatchPattern(pattern) {
   const trimmed = String(pattern || "").trim();
   if (isPublicQmdUri(trimmed) || isQmdDocId(trimmed)) {
-    return trimmed;
+    return normalizeReturnedQmdUri(trimmed);
   }
   const parts = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
   if (parts.length > 1 && parts.every((part) => isPublicQmdUri(part) || isQmdDocId(part))) {
-    return parts.join(",");
+    return parts.map(normalizeReturnedQmdUri).join(",");
   }
   return "";
 }
@@ -691,6 +756,59 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
   return result;
 }
 
+function appendBootstrapEvent(event) {
+  try {
+    fs.mkdirSync(path.dirname(BOOTSTRAP_EVENTS_FILE), { recursive: true });
+    fs.appendFileSync(BOOTSTRAP_EVENTS_FILE, `${JSON.stringify(event)}\n`, "utf8");
+  } catch {
+    // Telemetry must never turn a read-only bootstrap into a failed startup.
+  }
+}
+
+function bootstrapReason(args) {
+  const reason = typeof args.reason === "string" ? args.reason.trim() : "";
+  const allowed = new Set(["repo_cwd_change", "prior_thread_recovery", "demonstrated_drift"]);
+  if (!allowed.has(reason)) throw new Error("reason must be repo_cwd_change, prior_thread_recovery, or demonstrated_drift; use search then get/multi_get for historical wording");
+  return reason;
+}
+
+function boundBootstrap(result) {
+  for (const key of ["project_frame", "summary"]) if (Object.hasOwn(result, key)) result[key] = limitUtf8Text(String(result[key] || ""), 2000);
+  for (const key of ["intent_pins", "open_loops", "evidence_paths"]) if (Object.hasOwn(result, key)) result[key] = (Array.isArray(result[key]) ? result[key] : []).slice(0, 4).map((value) => limitUtf8Text(String(value), 240));
+  if (Object.hasOwn(result, "recent_sessions")) result.recent_sessions = (Array.isArray(result.recent_sessions) ? result.recent_sessions : []).slice(0, 3).map((item) => ({ path: limitUtf8Text(String(item.path || ""), 240), started_utc: String(item.started_utc || "").slice(0, 32) }));
+  let payload = Buffer.byteLength(JSON.stringify(result), "utf8");
+  for (const key of ["intent_pins", "open_loops", "evidence_paths", "recent_sessions"]) {
+    while (payload > BOOTSTRAP_MAX_BYTES && Array.isArray(result[key]) && result[key].length) {
+      result[key].pop();
+      payload = Buffer.byteLength(JSON.stringify(result), "utf8");
+    }
+  }
+  for (const key of ["summary", "project_frame"]) {
+    while (payload > BOOTSTRAP_MAX_BYTES && typeof result[key] === "string" && Buffer.byteLength(result[key], "utf8") > 128) {
+      result[key] = limitUtf8Text(result[key], Math.max(128, Math.floor(Buffer.byteLength(result[key], "utf8") * 0.75)));
+      payload = Buffer.byteLength(JSON.stringify(result), "utf8");
+    }
+  }
+  if (payload > BOOTSTRAP_MAX_BYTES) throw new Error(`bootstrap structured payload exceeds ${BOOTSTRAP_MAX_BYTES} bytes after bounding`);
+  return payload;
+}
+
+function finalizeBootstrap(result, telemetry) {
+  result.telemetry = { ...telemetry, payload_bytes: 0 };
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    boundBootstrap(result);
+    const payloadBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    if (result.telemetry.payload_bytes === payloadBytes) return payloadBytes;
+    result.telemetry.payload_bytes = payloadBytes;
+  }
+  const payloadBytes = boundBootstrap(result);
+  result.telemetry.payload_bytes = payloadBytes;
+  const finalBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+  if (finalBytes > BOOTSTRAP_MAX_BYTES) throw new Error(`bootstrap structured payload exceeds ${BOOTSTRAP_MAX_BYTES} bytes after telemetry`);
+  result.telemetry.payload_bytes = finalBytes;
+  return finalBytes;
+}
+
 function latestBootstrapResource() {
   const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
   const bootstrap = readBootstrapForKey(latestProjectKey);
@@ -702,36 +820,7 @@ function latestBootstrapResource() {
 }
 
 function resourceListResult() {
-  const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
-  const resources = [
-    {
-      uri: "bootstrap_context",
-      name: "bootstrap_context",
-      mimeType: "text/markdown",
-      description: "Latest project startup brief derived from codex_chat bootstrap state.",
-    },
-    {
-      uri: "memory://bootstrap/latest",
-      name: "latest bootstrap summary",
-      mimeType: "text/markdown",
-      description: "Alias for the latest project startup brief.",
-    },
-  ];
-  if (latestProjectKey) {
-    resources.push({
-      uri: `memory://projects/${latestProjectKey}/bootstrap`,
-      name: `${latestProjectKey} bootstrap`,
-      mimeType: "text/markdown",
-      description: "Bootstrap summary for the latest project key.",
-    });
-    resources.push({
-      uri: `qmd://codex-chat/projects/${latestProjectKey}`,
-      name: `${latestProjectKey} project memory`,
-      mimeType: "text/markdown",
-      description: "Projected project-memory document from codex_chat.",
-    });
-  }
-  return { resources };
+  return { resources: [] };
 }
 
 function readResource(params) {
@@ -740,36 +829,7 @@ function readResource(params) {
     throw new Error("uri is required");
   }
 
-  if (uri === "bootstrap_context" || uri === "memory://bootstrap/latest") {
-    const latest = latestBootstrapResource();
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: "text/markdown",
-          text: latest.summary,
-        },
-      ],
-    };
-  }
-
-  if (uri.startsWith("memory://projects/") && uri.endsWith("/bootstrap")) {
-    const projectKey = uri.slice("memory://projects/".length, -"/bootstrap".length);
-    const bootstrap = readBootstrapForKey(projectKey);
-    if (!bootstrap) {
-      throw new Error(`unknown project key: ${projectKey}`);
-    }
-    const result = buildSummaryFromBootstrap(bootstrap, 3);
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: "text/markdown",
-          text: result.summary,
-        },
-      ],
-    };
-  }
+  if (uri === "bootstrap_context" || uri.startsWith("memory://bootstrap") || (uri.startsWith("memory://projects/") && uri.endsWith("/bootstrap"))) throw new Error(`bootstrap startup context is tool-only; ${uri} is not a readable resource. Use tools/call with name bootstrap_context and an explicit reason.`);
 
   if (uri.startsWith("qmd://")) {
     return {
@@ -790,62 +850,36 @@ function bootstrapContext(args) {
   const cwd = typeof args.cwd === "string" && args.cwd.length > 0 ? args.cwd : process.cwd();
   const refreshIfStale = args.refresh_if_stale !== false;
   const maxRecent = Number.isInteger(args.max_recent_sessions)
-    ? Math.max(1, Math.min(20, args.max_recent_sessions))
+    ? Math.max(1, Math.min(5, args.max_recent_sessions))
     : 3;
 
   const projectPath = canonicalProjectPath(cwd);
   const inferredProjectKey = projectKeyForPath(projectPath);
-
-  let bootstrap = readBootstrapForKey(inferredProjectKey);
-  const exactBootstrap = bootstrap;
-  let activeProjectKey = inferredProjectKey;
-
-  if (!bootstrap) {
-    const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
-    if (latestProjectKey) {
-      const latestBootstrap = readBootstrapForKey(latestProjectKey);
-      if (latestBootstrap) {
-        bootstrap = latestBootstrap;
-        activeProjectKey = latestProjectKey;
-      }
-    }
+  const reason = bootstrapReason(args);
+  const cacheKey = `${inferredProjectKey}:${reason}:${maxRecent}`;
+  const cached = bootstrapCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < STALE_SECONDS * 1000) {
+    const summary = `Bootstrap already supplied for ${inferredProjectKey}; use search then get/multi_get for history.`;
+    const result = { project_key: inferredProjectKey, summary };
+    const payloadBytes = finalizeBootstrap(result, { reason, source: "process_cache", summary_bytes: Buffer.byteLength(summary, "utf8"), source_payload_bytes: cached.result.telemetry.payload_bytes, max_bytes: BOOTSTRAP_MAX_BYTES, max_recent_sessions: maxRecent, deduplicated: true });
+    appendBootstrapEvent({ at: new Date().toISOString(), event: "bootstrap", project_key: inferredProjectKey, reason, source: "process_cache", payload_bytes: payloadBytes, deduplicated: true });
+    return result;
   }
 
+  const exactBootstrap = readBootstrapForKey(inferredProjectKey);
   const lastSyncSeconds = unixSecondsFromIso(exactBootstrap?.last_sync_utc || "");
   const nowSeconds = Math.floor(Date.now() / 1000);
   const isStale = exactBootstrap ? nowSeconds - lastSyncSeconds > STALE_SECONDS : true;
 
-  if (refreshIfStale && !exactBootstrap) {
-    const refresh = refreshSync(projectPath);
-    if (refresh.ok) {
-      const freshBootstrap = readBootstrapForKey(inferredProjectKey);
-      if (freshBootstrap) {
-        bootstrap = freshBootstrap;
-        activeProjectKey = inferredProjectKey;
-      } else {
-        const latestProjectKey = readTextIfExists(LATEST_PROJECT_KEY_FILE);
-        if (latestProjectKey) {
-          const latestBootstrap = readBootstrapForKey(latestProjectKey);
-          if (latestBootstrap) {
-            bootstrap = latestBootstrap;
-            activeProjectKey = latestProjectKey;
-          }
-        }
-      }
-    }
-  } else if (refreshIfStale && isStale) {
+  if (refreshIfStale && isStale) {
     startBackgroundRefresh(projectPath);
   }
 
-  let result;
-  const finalBootstrap = readBootstrapForKey(inferredProjectKey);
-  if (!finalBootstrap) {
-    result = buildColdStart(projectPath, inferredProjectKey);
-  } else {
-    result = buildSummaryFromBootstrap(finalBootstrap, maxRecent);
-    result.project_key = inferredProjectKey;
-  }
-
+  const result = exactBootstrap ? buildSummaryFromBootstrap(exactBootstrap, maxRecent) : buildColdStart(projectPath, inferredProjectKey);
+  result.project_key = inferredProjectKey;
+  const payloadBytes = finalizeBootstrap(result, { reason, source: exactBootstrap ? "project_bootstrap" : "cold_start", summary_bytes: Buffer.byteLength(result.summary, "utf8"), max_bytes: BOOTSTRAP_MAX_BYTES, max_recent_sessions: maxRecent, deduplicated: false });
+  bootstrapCache.set(cacheKey, { at: Date.now(), result });
+  appendBootstrapEvent({ at: new Date().toISOString(), event: "bootstrap", project_key: inferredProjectKey, reason, source: result.telemetry.source, payload_bytes: payloadBytes, max_recent_sessions: maxRecent, deduplicated: false });
   return result;
 }
 
@@ -855,7 +889,7 @@ function toolListResult() {
       {
         name: "bootstrap_context",
         description:
-          "Return a compact, project-scoped memory brief for Codex startup context with optional stale refresh.",
+          "Return a bounded, project-scoped durable re-anchor for an explicit repo change, prior-thread recovery, or demonstrated drift. Use search then get/multi_get for history.",
         inputSchema: {
           type: "object",
           properties: {
@@ -871,11 +905,17 @@ function toolListResult() {
             max_recent_sessions: {
               type: "integer",
               minimum: 1,
-              maximum: 20,
+              maximum: 5,
               description: "Maximum recent session references to include in the output.",
               default: 3,
             },
+            reason: {
+              type: "string",
+              enum: ["repo_cwd_change", "prior_thread_recovery", "demonstrated_drift"],
+              description: "Why a compact re-anchor is needed. Bootstrap is not historical retrieval; use search then get/multi_get for wording or docs-vs-transcript evidence.",
+            },
           },
+          required: ["reason"],
           additionalProperties: false,
         },
       },
@@ -897,6 +937,13 @@ function toolListResult() {
               description: "Plain search text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
             },
             collection: { type: "string" },
+            date_from: { type: "string", description: "Inclusive YYYY-MM-DD filter applied from projected session metadata." },
+            date_to: { type: "string", description: "Inclusive YYYY-MM-DD filter applied from projected session metadata." },
+            cwd: { type: "string", description: "Exact projected cwd filter." },
+            project_root: { type: "string", description: "Exact canonical project-root filter." },
+            thread_id: { type: "string", description: "Exact projected session/thread ID filter." },
+            parent_thread_id: { type: "string", description: "Exact delegated parent-thread filter." },
+            own_thread_id: { type: "string", description: "Restrict to this thread and its delegated children." },
             intent: {
               type: "string",
               description: "Background context to disambiguate the query. Does not search on its own.",
@@ -920,6 +967,7 @@ function toolListResult() {
               description: "Plain search text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
             },
             collection: { type: "string" },
+            date_from: { type: "string" }, date_to: { type: "string" }, cwd: { type: "string" }, project_root: { type: "string" }, thread_id: { type: "string" }, parent_thread_id: { type: "string" }, own_thread_id: { type: "string" },
             intent: {
               type: "string",
               description: "Background context to disambiguate the query. Does not search on its own.",
@@ -943,6 +991,7 @@ function toolListResult() {
               description: "Plain natural-language query text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
             },
             collection: { type: "string" },
+            date_from: { type: "string" }, date_to: { type: "string" }, cwd: { type: "string" }, project_root: { type: "string" }, thread_id: { type: "string" }, parent_thread_id: { type: "string" }, own_thread_id: { type: "string" },
             intent: {
               type: "string",
               description: "Background context to disambiguate the query. Does not search on its own.",

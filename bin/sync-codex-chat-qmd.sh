@@ -1,17 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-SOURCE="${HOME}/.codex/sessions"
-TARGET="${HOME}/.cache/qmd/codex_chat"
-QMD="${HOME}/.local/bin/qmd-codex"
+SOURCE="${SOURCE:-${HOME}/.codex/sessions}"
+TARGET="${TARGET:-${HOME}/.cache/qmd/codex_chat}"
+QMD="${QMD_CLI:-${HOME}/.local/bin/qmd-codex}"
 JQ="${JQ_BIN:-$(command -v jq || true)}"
 INDEX_NAME="codex_chat"
 COLLECTION_NAME="codex-chat"
-LOCK_DIR="${CODEX_CHAT_QMD_LOCK_DIR:-${HOME}/.cache/qmd/codex-chat-qmd-sync.lock}"
+LOCK_DIR="${MEMORY_SYNC_LOCK_DIR:-${CODEX_CHAT_QMD_LOCK_DIR:-${HOME}/.cache/qmd/codex-chat-qmd-sync.lock}}"
 LOCK_WAIT_SECONDS="${LOCK_WAIT_SECONDS:-90}"
 LOCK_STALE_SECONDS="${LOCK_STALE_SECONDS:-300}"
 LOCK_OWNER_FILE="owner.json"
-PROJECTION_VERSION="3"
+PROJECTION_VERSION="4"
 BOOTSTRAP_VERSION="1"
 STATE_DIR="$TARGET/.state"
 PROJECTS_DIR="$STATE_DIR/projects"
@@ -283,6 +283,8 @@ extract_role_lines() {
           );
         def strip_noise:
           gsub("(?s)# AGENTS\\.md instructions for .*?</INSTRUCTIONS>"; "")
+          | gsub("(?s)<codex_delegation>.*?</codex_delegation>"; "")
+          | gsub("(?s)<recommended_plugins>.*?</recommended_plugins>"; "")
           | gsub("(?s)<environment_context>.*?</environment_context>"; "")
           | gsub("(?s)<permissions instructions>.*?</permissions instructions>"; "")
           | gsub("(?s)<app-context>.*?</app-context>"; "")
@@ -402,6 +404,7 @@ build_project_state() {
     local session_id
     local session_ts
     local session_cwd
+    local parent_thread_id
     local project_path
     local project_key
     local projected
@@ -474,6 +477,7 @@ build_project_state() {
         session_id="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.id // ""' 2>/dev/null || true)"
         session_ts="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.timestamp // ""' 2>/dev/null || true)"
         session_cwd="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.cwd // ""' 2>/dev/null || true)"
+        parent_thread_id="$("$JQ" -rs -r '[.. | strings | select(test("<codex_delegation>")) | (capture("<source_thread_id>(?<id>[^<]+)")?.id // empty)] | first // ""' "$src" 2>/dev/null || true)"
         [[ -z "$session_ts" ]] && session_ts="$(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%SZ' "$src" 2>/dev/null || true)"
         project_path="$(canonical_project_path "$session_cwd")"
         if [[ -n "$TARGET_PROJECT_PATH" && "$project_path" != "$TARGET_PROJECT_PATH" ]]; then
@@ -492,6 +496,7 @@ build_project_state() {
             --arg projection_abs "$out" \
             --arg started_utc "$session_ts" \
             --arg session_id "$session_id" \
+            --arg parent_thread_id "$parent_thread_id" \
             --arg suppressed_reason "$suppressed_reason" \
             --argjson projected "$projected" \
             --argjson suppressed "$suppressed" \
@@ -505,6 +510,8 @@ build_project_state() {
                 projection_abs: (if $projection_rel == "" then null else $projection_abs end),
                 started_utc: $started_utc,
                 session_id: (if $session_id == "" then null else $session_id end),
+                parent_thread_id: (if $parent_thread_id == "" then null else $parent_thread_id end),
+                delegated: ($parent_thread_id != ""),
                 projected: $projected,
                 suppressed: $suppressed,
                 suppressed_reason: (if $suppressed_reason == "" then null else $suppressed_reason end)
@@ -547,11 +554,11 @@ build_project_state() {
 
         projected_sources_file="$tmp_root/$project_key.projected_sources.txt"
         "$JQ" -cs -r --argjson limit "$RECENT_SESSION_LIMIT" '
-            [.[] | select(.projected == true and (.source_abs // "") != "") | .source_abs][0:$limit][]
+            [.[] | select(.projected == true and (.delegated // false) != true and (.source_abs // "") != "") | .source_abs][0:$limit][]
         ' "$sorted_file" > "$projected_sources_file"
 
-        latest_projected_src="$("$JQ" -cs -r '[.[] | select(.projected == true)][0].source_abs // ""' "$sorted_file")"
-        latest_project_started_utc="$("$JQ" -cs -r '[.[] | select(.projected == true)][0].started_utc // ""' "$sorted_file")"
+        latest_projected_src="$("$JQ" -cs -r '[.[] | select(.projected == true and (.delegated // false) != true)][0].source_abs // ""' "$sorted_file")"
+        latest_project_started_utc="$("$JQ" -cs -r '[.[] | select(.projected == true and (.delegated // false) != true)][0].started_utc // ""' "$sorted_file")"
         project_path_value="$("$JQ" -cs -r '.[0].project_path // ""' "$sorted_file")"
 
         user_lines_file="$tmp_root/$project_key.user_lines.txt"
@@ -612,11 +619,11 @@ build_project_state() {
         open_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$open_out_file")"
         decision_json="$("$JQ" -Rsc 'split("\n") | map(select(length > 0))' < "$decisions_out_file")"
         recent_sessions_json="$("$JQ" -cs --argjson limit "$RECENT_SESSION_LIMIT" '
-            [.[] | select(.projected == true and (.projection_rel // "") != "")
+            [.[] | select(.projected == true and (.delegated // false) != true and (.projection_rel // "") != "")
             | {path: ("qmd://codex-chat/" + .projection_rel), started_utc: (.started_utc // "")}][0:$limit]
         ' "$sorted_file")"
         evidence_json="$("$JQ" -cs '
-            [.[] | select(.projected == true and (.projection_rel // "") != "") | ("qmd://codex-chat/" + .projection_rel)][0:8]
+            [.[] | select(.projected == true and (.delegated // false) != true and (.projection_rel // "") != "") | ("qmd://codex-chat/" + .projection_rel)][0:8]
         ' "$sorted_file")"
 
         summary="$("$JQ" -nr \
@@ -707,7 +714,7 @@ build_project_state() {
         mkdir -p "$(dirname "$project_doc_path")"
         project_doc_tmp="$(mktemp "${project_doc_path}.tmp.XXXXXX")"
         recent_session_lines="$("$JQ" -cs -r '
-            [.[] | select(.projected == true and (.projection_rel // "") != "")
+            [.[] | select(.projected == true and (.delegated // false) != true and (.projection_rel // "") != "")
             | "- `" + (.started_utc // "unknown") + "` " + (.projection_rel // "")]
             | .[0:8]
             | if length == 0 then "- (none)" else .[] end
@@ -854,6 +861,8 @@ projection_metrics() {
           );
         def strip_noise:
           gsub("(?s)# AGENTS\\.md instructions for .*?</INSTRUCTIONS>"; "")
+          | gsub("(?s)<codex_delegation>.*?</codex_delegation>"; "")
+          | gsub("(?s)<recommended_plugins>.*?</recommended_plugins>"; "")
           | gsub("(?s)<environment_context>.*?</environment_context>"; "")
           | gsub("(?s)<permissions instructions>.*?</permissions instructions>"; "")
           | gsub("(?s)<app-context>.*?</app-context>"; "")
@@ -891,6 +900,7 @@ render_chat_projection() {
     local rel="${src#$SOURCE/}"
     local session_id=""
     local session_ts=""
+    local parent_thread_id=""
     local is_awaiter="false"
     local user_count=0
     local assistant_count=0
@@ -898,6 +908,7 @@ render_chat_projection() {
     local compaction_count=0
 
     read -r is_awaiter user_count assistant_count non_slash_user_count compaction_count < <(projection_metrics "$src")
+    parent_thread_id="$("$JQ" -rs -r '[.. | strings | select(test("<codex_delegation>")) | (capture("<source_thread_id>(?<id>[^<]+)")?.id // empty)] | first // ""' "$src" 2>/dev/null || true)"
 
     if [[ "$is_awaiter" == "true" ]]; then
         log "Skipping thread (awaiter utility session): $rel"
@@ -908,7 +919,7 @@ render_chat_projection() {
         log "Skipping thread (no assistant reply): $rel"
         return 10
     fi
-    if [[ "$non_slash_user_count" -eq 0 ]]; then
+    if [[ "$non_slash_user_count" -eq 0 && -z "$parent_thread_id" ]]; then
         log "Skipping thread (slash-command only): $rel"
         return 11
     fi
@@ -925,6 +936,8 @@ render_chat_projection() {
         echo "- source: \`$rel\`"
         [[ -n "$session_id" ]] && echo "- session_id: \`$session_id\`"
         [[ -n "$session_ts" ]] && echo "- started_utc: \`$session_ts\`"
+        [[ -n "$parent_thread_id" ]] && echo "- parent_thread_id: \`$parent_thread_id\`"
+        [[ -n "$parent_thread_id" ]] && echo "- delegated: \`true\`"
         [[ "$compaction_count" -gt 0 ]] && echo "- context_compactions: \`$compaction_count\`"
         echo
         "$JQ" -r '
@@ -936,6 +949,8 @@ render_chat_projection() {
               );
             def strip_noise:
               gsub("(?s)# AGENTS\\.md instructions for .*?</INSTRUCTIONS>"; "")
+              | gsub("(?s)<codex_delegation>.*?</codex_delegation>"; "")
+              | gsub("(?s)<recommended_plugins>.*?</recommended_plugins>"; "")
               | gsub("(?s)<environment_context>.*?</environment_context>"; "")
               | gsub("(?s)<permissions instructions>.*?</permissions instructions>"; "")
               | gsub("(?s)<app-context>.*?</app-context>"; "")
