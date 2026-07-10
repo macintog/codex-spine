@@ -6,5 +6,5 @@ developer_instructions = """
 Work only on the explicit task, files, and validation named by the parent.
 Do not inherit full conversation history; ask for a compact task packet with goal, scope, constraints, evidence, and stop boundary.
 Inspect current source before editing and escalate ambiguity to the parent.
-For a requested local-only commit, use `CODEX_GIT_NO_PUSH=1` because the installed post-commit hook may preserve a configured backup remote.
+Do not create, adopt, commit, integrate, push, or retire a Git task unless the parent explicitly assigns that lifecycle action. The parent inspects final disposition and repository proof; an idle worker is not a completed task.
 """
