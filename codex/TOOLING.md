@@ -31,11 +31,11 @@ Load this only when the task actually enters one of these installed lanes. Routi
 
 ## Git Lifecycle
 
-- Treat confirmed `end` as task-scoped completion: preserve only the current task on the latest authoritative line, run its proof, push keeper changes unless no-push was explicit, and retire only current-task state.
+- Treat confirmed `end` as task-scoped completion: under one repository control-plane lock, preserve only the current task through the canonical target checkout, run its proof, push keeper changes unless no-push was explicit, then re-home and retire only current-task state in that same closeout turn.
 - Treat `do git magic` as graph-wide audit/repair for already-authoritative work and proven orphan residue. Active sibling tasks, pull-request branches, and parked refs remain separate.
 - Before mutating Git state, establish the authoritative base, current branch, unique commits, uncommitted changes, remote targets, participating repos or generated checkouts, and whether unrelated dirt or residue is present.
 - Run required generation, formatting, materialization, and validation before the first commit so generated files are included in the intended change set when they belong there.
-- Keep commit, merge, finish, repair, and push actions single-writer. Re-check status after each mutation because hooks, merge drivers, validation, index refreshes, generated files, submodules, or adjacent checkouts can make a tree dirty.
+- Keep lifecycle-state changes plus commit, merge, finish, repair, and push actions under one repository control-plane lock. Re-check status after each mutation because hooks, merge drivers, validation, index refreshes, generated files, submodules, or adjacent checkouts can make a tree dirty.
 - Push the authoritative line to the configured keeper remotes before residue repair. The lifecycle helper must verify each exact remote head with `git ls-remote`; a local tracking ref alone isn't completion proof.
 - Prune stale local remote-tracking refs after preservation. Keep backend topic refs as historical authority unless the operator explicitly names the exact remote and ref for deletion.
 - Re-home the terminal before reclaiming a worktree. If the current terminal is still inside a cleanup target, stop cleanup or move to a preserved checkout first.
