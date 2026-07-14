@@ -80,6 +80,9 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
     "codex/AGENTS.md": (
         ("README.md",),
         ("codex/TOOLING.md",),
+        ("Default to silent execution",),
+        ("repo-declared closeout mode",),
+        ("configured integration task classes",),
         ("memory.bootstrap_context",),
         ("jcodemunch",),
         ("jdocmunch",),

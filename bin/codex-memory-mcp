@@ -39,8 +39,7 @@ function bootstrapContract() {
 }
 
 if (process.argv[2] === "--bootstrap-contract") {
-  process.stdout.write(`${JSON.stringify(bootstrapContract())}\n`);
-  process.exit(0);
+  process.stdout.write(`${JSON.stringify(bootstrapContract())}\n`, () => process.exit(0));
 }
 
 function writeMessage(message) {

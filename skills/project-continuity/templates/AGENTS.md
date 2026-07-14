@@ -29,7 +29,10 @@ Open deeper docs only when the task needs them.
 - Authoritative base: `<branch or ref>`
 - Protected refs or remotes: `<repo-specific list>`
 - Isolation pattern for parallel work: `<worktree, clone, or repo-native rule>`
+- Thread closeout mode: `<integrate or pull_request>`
+- Integration task classes: `<classes allowed to select ready PR refs and advance the authoritative base>`
 - Route routine lifecycle mechanics through the installed environment lane or this repo's explicitly owned tooling guide; keep generic Git and approval playbooks out of this file.
+- Read-only work may stay in place. Before the first ordinary Git-backed mutation, automatically preflight and enter the exact managed task worktree. Ordinary prompts should concern the work, then conversational `end -yes`, which follows the declared closeout mode. In pull-request mode ordinary tasks publish verified PRs and retire locally; only declared integration task classes select ready refs and advance the authoritative base.
 
 ## Document Roles
 
