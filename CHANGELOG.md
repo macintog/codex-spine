@@ -7,6 +7,7 @@ All notable user-visible changes to `codex-spine` should be tracked here.
 This release widens the optional indexed-retrieval lane from code-only enablement to a shared three-tool suite.
 
 - The public skill payload now includes `tufte-visualization` and installs it under `~/.codex/skills/` with the other shipped skills
+- `tufte-visualization` now treats Tufte as an evidence-design standard rather than an aesthetic costume, with explicit uncertainty, anti-reflex taste, host-style, responsive-composition, accessibility, and rendered-QA guidance
 - Interactive install and `./scripts/component-enable jcodemunch-mcp` now treat `jcodemunch-mcp`, `jdocmunch-mcp`, and `jdatamunch-mcp` as one optional suite with one terms readthrough and one `accept`
 - The managed optional overlay now wires `jcodemunch`, `jdocmunch`, and `jdatamunch` together while keeping the existing jCodeMunch global profile sync for `~/.code-index/config.jsonc`
 - Public docs and package policy now describe the optional jGravelle Munch MCP suite instead of a jCodeMunch-only add-on

@@ -147,8 +147,9 @@ The shipped `skills/` tree is part of the public product surface, not incidental
 This tree ships a reusable continuity workflow for long-lived repos:
 
 - `SKILL.md` defines the continuity model itself: durable project authority, volatile handoff, startup packet shape, and self-hosting rules.
-- `templates/PROJECT_CONTINUITY.md`, `templates/CHECKPOINT.md`, and `templates/AGENTS.md` provide starter files for repos that adopt that continuity structure.
-- `references/unseen-repo-adoption-prompt.md` is a reusable audit/adoption prompt for deciding whether a repo should stay repo-native, use a local overlay, or adopt the packet in-tree.
+- `assets/PROJECT_CONTINUITY.template.md`, `assets/CHECKPOINT.template.md`, `assets/AGENTS.fragment.md`, and `assets/ARCHIVE_NOTE.template.md` provide merge-preserving starter artifacts for repositories that adopt that continuity structure.
+- `references/adoption-procedure.md` is the direct procedure for deciding whether a repository should remain `repo-native-only`, use a local overlay, or adopt the packet in-tree.
+- `scripts/audit-continuity.py` is a read-only structural, state-anchor, redaction, and pointer audit; `agents/openai.yaml` owns UI metadata and implicit invocation policy.
 
 This skill is reusable scaffolding. It does not mean `codex-spine` itself owns the downstream repo's continuity files.
 
@@ -168,7 +169,8 @@ Like `project-continuity`, this skill is meant to be copied into the repo being 
 This tree ships an evidence-first visualization workflow for charts, dashboards, analytical figures, visual tables, maps, and other decision-grade displays:
 
 - `SKILL.md` defines the comparison-first workflow, integrity rules, rendering checks, and delivery contract.
-- `references/` carries focused guidance for chart selection, visual principles, accessibility, critique, captions, and alt text.
+- `agents/openai.yaml` provides the user-facing invocation metadata.
+- `references/` carries focused guidance for visual principles, chart selection, uncertainty, accessibility, critique, captions, text equivalents, and source provenance.
 
 This skill is guidance for producing or reviewing evidence displays. It does not add a charting runtime or data source by itself.
 

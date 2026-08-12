@@ -12,6 +12,7 @@ Choose a comparison architecture, not a fashionable chart type. Prefer designs t
 | Compare many groups over time | Small multiples with common scales, sparkline table | Spaghetti chart unless few series; tabs that hide comparisons |
 | Show distribution | Dot or strip plot, histogram, box plot plus raw points | Mean-only bar chart, decorative violin without explanation |
 | Show relationship | Scatterplot with direct labels for notable points; fitted line only when justified | Bubble chart unless area encoding is necessary and explained |
+| Show estimates or uncertainty | Dot-and-interval plot, distribution plot, uncertainty band, quantile display, scenario small multiples | Unnamed error bars, mean-only bars, opacity as the sole uncertainty cue |
 | Show composition | Small multiples of parts, simple stacked bars, part-to-whole table | Exploded pie, stacked area with many layers |
 | Show geography | Map when geography explains the result; sorted table or dot plot otherwise | Choropleth for non-spatial ranking tasks |
 | Monitor KPIs | Dense table with current value, prior value, target, trend, exceptions | Gauges, dials, traffic lights, giant numbers without context |
@@ -80,6 +81,17 @@ Use slopegraphs for two-point or few-point comparisons where the gradient is the
 - Use box plots for compact comparisons, preferably with points or sample sizes.
 - Show important thresholds and practical ranges.
 
+## Estimates And Uncertainty
+
+- Name the central quantity and interval before selecting the mark.
+- Prefer dot-and-interval plots for comparable estimates on a common scale.
+- Use bands for continuous uncertainty only when overlap remains readable.
+- Show raw observations or distribution shape when a summary interval would
+  conceal skew, multimodality, sparse samples, or important outliers.
+- Do not rank estimates when plausible uncertainty makes the ordering unstable.
+- Read `uncertainty.md` before presenting model, forecast, sample, or causal
+  claims.
+
 ## Maps
 
 - Use maps when spatial arrangement is part of the argument.
@@ -97,3 +109,12 @@ Use slopegraphs for two-point or few-point comparisons where the gradient is the
 - Apply arrowheads, line styles, and emphasis per relationship when direction or meaning differs; inherited styling can create unintended claims.
 - Include citations or notes for contested links.
 - Do not let crisp nodes and generic arrows imply more knowledge than exists.
+
+## Responsive Translation
+
+- Preserve the analytical relationship rather than the desktop geometry.
+- Convert crowded line-end labels to small multiples or a visual table instead
+  of hiding series on narrow screens.
+- Reorder panels and annotations to keep the reading path explicit.
+- Keep units, uncertainty, caveats, and source notes in every required sibling
+  composition.

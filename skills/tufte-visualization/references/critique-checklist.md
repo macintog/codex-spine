@@ -2,11 +2,22 @@
 
 Use this checklist when reviewing an existing visualization or doing final QA before delivery.
 
+## Reading Situation And House Style
+
+- Is the audience, medium, final size, viewing distance, and interaction model
+  known well enough to judge the artifact?
+- Does the design preserve the host publication or product's established visual
+  system where it remains truthful and accessible?
+- Was the genre selected from the use and medium, or inferred mechanically from
+  words such as "Tufte," "dashboard," or "scientific"?
+
 ## Truth And Integrity
 
 - Are visual differences proportional to data differences?
 - Are scales, transformations, filters, and smoothing disclosed?
 - Is uncertainty shown or explained when inference is involved?
+- Is the interval, distribution, sample, forecast, or model quantity named
+  rather than represented by generic error bars?
 - Are missing values or discontinuities visible?
 - Are denominators and units explicit?
 - Would a skeptical reader know where the data came from?
@@ -17,6 +28,8 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 
 - Does the chart answer a real thinking task?
 - Is the key comparison immediate?
+- Is there one dominant comparison with supporting evidence, rather than many
+  equally weighted claims?
 - Is the chart sorted, aligned, indexed, or faceted to reveal the comparison?
 - Are exact values available where needed?
 - Are annotations attached to evidence rather than floating as decoration?
@@ -32,6 +45,18 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Does the display have enough data density to reward attention?
 - Does color encode meaning rather than mood?
 
+## Anti-Reflex Taste
+
+- Could the typography, palette, and layout have been selected before the
+  evidence was inspected?
+- Does the artifact perform a stock "Tufte" or editorial lane through cream
+  paper, prestige serif, tiny mono labels, hairline rules, marginalia, or a
+  muted accent without an analytical or house-style reason?
+- Is distinctiveness coming from evidence structure and comparison rather than
+  novelty, brand theater, or decorative strangeness?
+- Are boxes, cards, arrows, and panel boundaries carrying information, or merely
+  making the artifact look designed?
+
 ## Craft
 
 - Is typography consistent and calm?
@@ -39,6 +64,8 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Do arrows, connectors, callouts, brackets, and leader lines attach to the intended evidence without overlaps, near-misses, or inherited styles that change meaning?
 - Are margins adequate?
 - Are small multiples aligned and scaled consistently?
+- Were materially different print, desktop, mobile, or presentation outputs
+  recomposed and inspected as sibling evidence displays?
 - For multi-panel or long-scrolling artifacts, has each panel or viewport section been inspected at final size?
 - Is the output format appropriate: vector for publication, high-resolution raster only when needed?
 - Are titles specific and factual?
@@ -61,6 +88,9 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Are labels readable at actual display size?
 - Are interactive controls keyboard-accessible with visible focus states?
 - Does motion have a static equivalent or pause/stop control when practical?
+- Is the core evidence visible before animation or interaction?
+- Does an adjacent text equivalent preserve the central comparison, key values,
+  exceptions, uncertainty, and source?
 
 ## Common Failure Modes
 
@@ -74,7 +104,14 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Red/yellow/green indicators that replace analysis with mood.
 - Overconfident annotations on noisy or cherry-picked data.
 - Default software settings accepted without editing.
+- Faux-book styling used as a substitute for evidence design.
+- Desktop figures mechanically shrunk until labels, notes, or uncertainty
+  disappear on smaller outputs.
 
 ## Final Standard
 
-A finished evidence display should let a thoughtful reader see what was measured, compare what matters, understand why the comparison is credible, notice exceptions, recover exact values where needed, and trust that the design has not exaggerated or concealed the evidence.
+A finished evidence display should let a thoughtful reader see what was
+measured, compare what matters, understand uncertainty and why the comparison
+is credible, notice exceptions, recover exact values where needed, and trust
+that neither the styling nor the interaction has exaggerated or concealed the
+evidence.

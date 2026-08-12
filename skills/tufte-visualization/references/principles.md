@@ -1,114 +1,215 @@
 # Tufte Visualization Principles
 
-Use this reference when the active skill needs more depth on style, evidence integrity, dashboards, tables, maps, or slide figures.
+Use this reference for deeper judgment about taste, composition, typography,
+color, tables, dashboards, maps, and explanatory diagrams.
 
 ## Overall Character
 
-- Classical, calm, precise, and durable.
-- More like a scientific figure, atlas, field guide, or well-made book table than a marketing dashboard.
-- Beauty should come from proportion, alignment, typography, data richness, and honest comparison.
-- Avoid theatrical metaphors such as cockpit, mission control, war room, performance gauge, or traffic light unless the user explicitly requires that domain convention.
+- Precise, calm, information-rich, and durable.
+- More like a scientific figure, atlas, field guide, or well-made analytical
+  table than a marketing dashboard or generic infographic.
+- Beautiful because proportion, comparison, annotation, and evidence have been
+  resolved—not because the artifact performs an aesthetic category.
+- Restrained without becoming timid, sparse, or context-poor.
 
-## Academic Plate Standard
+## Reading Situation And House Style
 
-Use this standard when the user asks for Tufte, beautiful evidence, publication quality, a hardback-book feel, or an artifact that should not feel cheap.
+Choose visual language only after naming the reading situation:
 
-- Design the page as editorial evidence, not as product UI. A clean card layout can still fail if it feels like software documentation rather than a serious printed figure.
-- Let the page breathe, but do not make it sparse. Use margins for local notes, source anchors, definitions, caveats, and small comparisons.
-- Prefer serif typography for titles, captions, and explanatory paragraphs when the output medium supports it. Pair it with a quiet sans or mono only for compact labels, axes, file paths, or code references.
-- Keep most of the page in black, gray, and paper. Add one muted accent for a focal path, exception, or comparison. Avoid pastel subsystem fills unless color carries a measured variable or necessary grouping.
-- Use hairline rules, brackets, alignment, labels, and whitespace before boxes. When boxes are necessary, keep them thin, sparse, and structural.
-- Prefer annotated cutaways, layered maps, visual tables, sequence strips, and small multiples over generic box-and-arrow architecture diagrams.
-- Use arrows only where direction cannot be inferred from order, numbering, or annotation. Repeated arrowheads often make the figure feel bureaucratic instead of analytical.
-- Include enough source evidence to audit the figure: file paths, commit/date, sample, unit, denominator, filter, transformation, or uncertainty.
-- Before delivery, ask whether the figure would look credible in an expensive academic reference. If not, revise typography, density, and spatial grammar before polishing colors.
+- Who is reading, and what decision or comparison are they making?
+- Is the artifact printed, projected, embedded, scrolled, monitored, or
+  explored?
+- What are the final dimensions, viewing distance, ambient light, expected
+  reading time, and interaction method?
+- Which publication, product, journal, or organizational conventions already
+  shape reader expectations?
+
+Preserve the host surface's established typography, palette, and chart grammar
+unless they impair truth, comparison, legibility, or accessibility. Tufte is an
+evidence-design overlay, not a competing brand identity.
+
+## Anti-Reflex Taste Standard
+
+Run two checks before polishing:
+
+1. **Category reflex**: Could the palette, typography, and layout have been
+   predicted from the words "Tufte chart," "executive dashboard," or
+   "scientific figure" without seeing the evidence? If yes, the design is being
+   generated from category habit.
+2. **Second-order reflex**: After rejecting obvious chartjunk, did the artifact
+   fall into another stock lane—cream paper, prestige serif, tiny mono labels,
+   hairline rules, editorial columns, and a muted red accent? If yes, it is
+   performing restraint rather than resolving the evidence.
+
+Do not ban a typeface, color, rule, or layout merely because it is familiar.
+Require it to earn its place through medium, house style, or analytical
+function. Distinctiveness should emerge from the structure of the evidence.
+
+## Genre Standards
+
+### Academic Plate
+
+- Design for sustained reading and local verification.
+- Use controlled measure, quiet scaffolding, direct annotation, source notes,
+  and enough local detail to audit the claim.
+- Serif typography, off-white stock, marginalia, and monochrome treatment are
+  options when the host publication supports them, never automatic signals of
+  seriousness.
+- Avoid turning every annotation into an editorial ornament. Notes must qualify
+  evidence, define a term, or explain a comparison.
+
+### Technical Atlas Or Field Guide
+
+- Prefer cutaways, layered maps, sequence strips, visual tables, small
+  multiples, and numbered motion paths over box-and-arrow posters.
+- Carry source paths, dates, identifiers, or state transitions in nearby notes
+  without forcing them into compact nodes.
+- Let adjacency, nesting, order, and alignment encode relationships before
+  adding connectors.
+
+### Operational Monitor
+
+- Optimize repeated scanning and action, not dashboard appearance.
+- Pair each important current value with an appropriate prior, target,
+  benchmark, trend, definition, and data-quality state.
+- Make exceptional conditions visible by label and position, not merely color.
+- Preserve the detail needed to decide whether an alert is real.
+
+### Presentation Figure
+
+- Make one comparison readable at viewing distance.
+- Use a sentence title that states the supported finding without overstating it.
+- Retain enough values, units, and source context for the audience to verify the
+  claim rather than reducing the slide to assertion plus decoration.
+
+### Interactive Analytical View
+
+- Make the central comparison complete before interaction.
+- Use interaction to reveal detail, change a legitimate analytical slice, or
+  compare scenarios—not to hide labels, definitions, caveats, or sources.
+- Preserve shareable and understandable state where filtering changes the
+  claim.
 
 ## Canvas And Layout
 
-- Use a white or near-white canvas unless the target medium requires dark mode.
-- Remove enclosing plot boxes by default. Keep axes and guides that carry meaning.
-- Leave margins for direct labels, especially at line ends.
-- Choose aspect ratio from the data task: time series often need horizontal room; ranked comparisons often need vertical room.
+- Choose the canvas from the reading situation. White or a neutral near-white
+  is a strong default for print and analytical work; dark or colored surfaces
+  are valid when the medium, host identity, or ambient conditions require them.
+- Avoid faux paper, sepia, grain, or warm tint used only to signal scholarship.
+- Leave margins for line-end labels, notes, and source context.
 - Align related charts on common baselines and scales.
-- In small multiples, use identical dimensions, axes, and scales by default. If scale differs, label it plainly and do not make cross-panel magnitude claims.
-- For diagrams, use layout to encode relationships: layers, adjacency, sequence, nesting, and margins should carry more meaning than decorative containers.
+- Give each figure one dominant comparison while retaining dense supporting
+  evidence. Density does not mean equal visual weight.
+- Use spacing rhythm—tight within a comparison, generous between analytical
+  groups—instead of enclosing every group in a card.
+- Use boxes only when a boundary is part of the evidence or interaction model.
 
 ## Typography
 
-- Use one restrained type family or a careful serif/sans-serif pairing.
-- Prefer sentence case. Avoid all caps except for short acronyms or tiny labels.
-- Use hierarchy through size, weight, and placement, not effects.
-- Put units in labels, subtitles, or captions near the evidence.
-- Align numeric labels by decimal place. Use thousands separators and meaningful precision.
-- For bookish figures, control line length and leading. Long unwrapped labels, default browser fonts, cramped node text, and over-bold headings are signs to rework the composition.
+- Follow the host publication or product when it has a coherent type system.
+- Otherwise choose one family or a deliberate contrasting pair based on the
+  reading situation, not on a generic "editorial" or "technical" association.
+- Prefer sentence case. Reserve capitals and monospace for short labels,
+  identifiers, code, or established domain notation.
+- Control line length, line height, numeric alignment, precision, and label
+  measure at the final size.
+- Align comparable numbers by decimal place and units. Use thousands separators
+  and only meaningful precision.
+- Do not shrink text to rescue an overfull mark. Shorten the label, enlarge the
+  mark, recompose the figure, or move detail to an external note.
 
-## Color
+## Semantic Color Roles
 
-- Start in grayscale. Add color only to encode, distinguish, or emphasize.
-- Prefer one quiet accent for a focal series and muted neutrals for context.
-- Use categorical color sparingly. For many categories, prefer small multiples or direct labels.
-- Do not rely on color alone. Pair color with position, label, line style, marker shape, ordering, or annotation.
-- Avoid rainbow scales, arbitrary red/yellow/green status, saturated palettes, and colors with moral connotations unless the domain convention is necessary and labeled.
+Name roles before choosing hues:
 
-## Lines, Marks, Grids, And Axes
+- **Ink**: primary text, axes, and marks needed to read the comparison.
+- **Context**: historical, baseline, or non-focal evidence.
+- **Focus**: the series, interval, or exception currently under discussion.
+- **Uncertainty**: interval, distribution, sensitivity, or confidence state.
+- **Exception**: missing, invalid, out-of-policy, or otherwise qualitatively
+  different data.
+- **Interaction state**: selected, filtered, disabled, or focused controls.
 
-- Make data marks visually stronger than scaffolding.
-- Use thin, quiet gridlines only when they improve value reading.
-- Prefer horizontal gridlines for value comparison and avoid full cages.
-- Use reference lines for meaningful thresholds, targets, medians, baselines, and policy changes.
-- Directly label series near line ends or relevant points. Legends are a fallback.
-- Use zero baselines for bar charts and other length encodings.
-- Non-zero y-axes can be acceptable for line charts when the aim is variation, but the range must be clear and not sensationalized.
+Start in grayscale when practical, then add the fewest roles the evidence
+requires. A single accent is a useful default, not a law. Multiple hues are
+appropriate when they encode distinct categories or states that cannot be
+compared clearly by position, line style, shape, or faceting alone.
 
-## Annotation
+Do not use color only for meaning. Avoid rainbow scales, arbitrary traffic-light
+status, and moralized hues unless the domain convention is necessary and
+labeled. Use perceptually ordered scales for ordered values.
 
-- Annotate data, not decoration.
-- Attach notes to the point, interval, or region they explain.
-- Annotate structural context: policy changes, outages, measurement revisions, recessions, product launches, clinical thresholds, confidence bands, or denominator changes.
-- If every point needs a label, consider a table or small multiples.
-- For architecture or system-operation figures, annotate motion with numbered steps, small verbs, and local evidence. Avoid letting arrows do all explanatory work.
+## Lines, Marks, Scales, And Grids
 
-## Integrity
+- Make data marks stronger than scaffolding.
+- Use grids only when they improve value reading; avoid full cages by reflex.
+- Use reference lines for meaningful thresholds, targets, medians, baselines,
+  or regime changes.
+- Use zero baselines for bars and other length encodings.
+- A non-zero line-chart axis can be valid when variation is the question, but
+  disclose the range and avoid sensational framing.
+- Treat area, volume, perspective, and animation with suspicion because they
+  are harder to compare precisely.
+- Directly label series near the relevant marks. Use legends when direct labels
+  would collide or create more decoding burden.
 
-- Visual magnitude should be proportional to data magnitude.
-- Treat area and volume encodings with suspicion because readers compare positions and lengths more accurately.
-- Use common scales for comparison. Label independent scales and avoid cross-panel magnitude claims.
-- Sort categories by a meaningful analytical quantity unless lookup is the task.
-- Normalize rates when populations differ. Show counts too when counts matter.
-- Show uncertainty for inference, prediction, experimental claims, measurement, or ranking from samples.
-- Mark missing intervals and excluded groups. Do not silently connect across gaps.
-- State if the figure shows top-N only, selected examples, or post hoc highlights.
+## Annotation And Documentation
+
+- Annotate evidence, not empty space.
+- Attach notes to the point, interval, region, or transition they explain.
+- Document structural context: policy changes, outages, measurement revisions,
+  denominator changes, thresholds, experimental conditions, and model changes.
+- Include source, data vintage, metric definition, denominator, filters,
+  transformations, and uncertainty when the figure informs a decision.
+- If every point needs a label, consider a table, small multiples, or a
+  different aggregation.
 
 ## Tables
 
-Tables are often the right answer when exact lookup, many values, or mixed units matter.
+Use a table when exact lookup, many values, or mixed units matter.
 
-- Sort rows by the key analytical variable.
-- Group related columns.
-- Align numbers by decimal and units.
-- Use light horizontal rules and whitespace instead of heavy cell borders.
-- Add sparklines or in-cell bars only when they improve pattern recognition without harming exact lookup.
-- Put totals, denominators, and definitions where readers need them.
+- Sort rows by the analytical variable unless stable lookup order is the task.
+- Group related columns and align comparable numbers.
+- Use light rules and whitespace instead of heavy cell borders.
+- Add sparklines or in-cell bars only when they improve pattern recognition
+  without weakening exact lookup.
+- Place totals, denominators, definitions, and missingness where readers need
+  them.
 
-## Dashboards
+## Maps And Explanatory Diagrams
 
-A Tuftean dashboard is a compact evidence display for recurring decisions, not a dashboard-shaped decoration.
+- Use a map only when spatial arrangement contributes to the explanation.
+- Pair a map with a ranked table or dot plot when ranking places is the real
+  task.
+- Treat every connector and arrow as a claim. Label relationship type,
+  direction, time, strength, or uncertainty when it matters.
+- Reserve connector lanes and endpoint air gaps. Do not let a line touch text,
+  enter an unrelated boundary, or imply attachment through a near-miss.
+- Prefer external notes for paths, identifiers, and audit detail that compact
+  shapes cannot hold with dignity.
 
-Default KPI module:
+## Responsive And Motion Principles
 
-- KPI name in plain language.
-- Current value with unit.
-- Prior comparable value.
-- Target or benchmark if meaningful.
-- Compact trend over an appropriate historical window.
-- Small note for data quality, missingness, or definition changes.
-- Exception highlighting by label or subtle emphasis, not only color.
+- Recompose for materially different output sizes. Do not shrink a desktop
+  figure until labels, context, and caveats become unreadable.
+- Preserve the same analytical claim, comparison, units, uncertainty, and
+  documentation across sibling compositions.
+- If small screens cannot hold the full figure, use ordered sections, small
+  multiples, a visual table, or a paired text equivalent rather than deleting
+  evidence silently.
+- Motion must clarify change, sequence, or causally supported flow. It must
+  enhance an already intelligible default and have a reduced-motion or static
+  equivalent.
 
-Avoid gauges, dials, traffic lights without context, giant numbers without history, decorative maps used as menus, and executive-summary screens that remove detail needed to judge the claim.
+## Integrity Standard
 
-## Slide Figures
-
-- Put the full evidence display on the slide when possible.
-- Use sentence titles that state the finding, but keep enough data for the reader to verify it.
-- Prefer handouts, appendices, or dense figure pages for serious technical evidence.
-- Avoid slide templates that weaken spatial reasoning with oversized titles, low-density bullets, gratuitous icons, and presenter-centric pacing.
+- Visual magnitude must track data magnitude.
+- Normalize rates when populations differ; show counts too when they matter.
+- Use common scales for comparison. Label independent scales and avoid
+  cross-panel magnitude claims when scales differ.
+- Show or explain uncertainty for estimation, prediction, measurement,
+  experimental, or model-based claims.
+- Mark missing intervals, imputed values, excluded groups, selected examples,
+  top-N filters, and post hoc highlights.
+- Never let polish imply more precision, causality, completeness, or confidence
+  than the evidence supports.

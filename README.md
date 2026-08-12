@@ -34,7 +34,7 @@ This project is aimed at new macOS Codex users who want a turnkey way around som
 
 Use this skill when a repo is long-lived enough that Codex needs durable product intent and a small current handoff instead of relying on chat memory alone. It defines the continuity packet shape: project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, `CHECKPOINT.md` for volatile handoff, and optional archive references when older context needs to move out of the startup path.
 
-The templates under `skills/project-continuity/templates/` create those files in the repo you are adopting. The shipped skill is the reusable pattern; the actual continuity files are still project-local working state.
+The artifacts under `skills/project-continuity/assets/` scaffold those files without replacing an existing instruction chain. The direct adoption procedure and read-only auditor live beside them under `references/` and `scripts/`. The shipped skill is the reusable pattern; actual continuity files remain project-local working state.
 
 Built-in Codex memories and app-managed files under `~/.codex/memories/` are separate. The base config enables them for every Codex conversation so new projects inherit memory without project-local setup. Treat them as complementary client-managed context, keep required rules in `AGENTS.md` or checked-in docs, use `/memories` and `codex/config/90-local.toml` only to inspect or intentionally narrow built-in memory settings, and use the `memory` MCP lane documented in `codex/TOOLING.md` for operator-facing bootstrap and transcript retrieval.
 
@@ -44,7 +44,7 @@ Use this skill for larger efforts that need a disk-backed queue and multiple nar
 
 ### `tufte-visualization`
 
-Use this skill when creating, revising, or critiquing evidence displays: charts, dashboards, analytical figures, visual tables, maps, KPI displays, and reports where truthful comparison matters. It gives a comparison-first workflow plus references for chart selection, accessibility, critique, captions, and alt text. It does not install a charting runtime or bring its own data source.
+Use this skill as an evidence-design overlay when creating, revising, or critiquing charts, dashboards, analytical figures, visual tables, maps, KPI displays, evidence-rich diagrams, and decision-grade reports. It combines comparison-first reasoning with explicit uncertainty, anti-reflex taste checks, host-style preservation, responsive sibling compositions, accessibility, source documentation, and rendered QA. Medium-specific skills still own implementation mechanics; it does not install a charting runtime or bring its own data source.
 
 ## What Install Changes
 

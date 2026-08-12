@@ -61,10 +61,14 @@ PUBLIC_SKILL_DIRS = frozenset({"multi-step", "project-continuity", "tufte-visual
 PUBLIC_REQUIRED_SKILL_SENTINELS = (
     ("multi-step", "SKILL.md"),
     ("project-continuity", "SKILL.md"),
-    ("project-continuity", "references/unseen-repo-adoption-prompt.md"),
+    ("project-continuity", "agents/openai.yaml"),
+    ("project-continuity", "references/adoption-procedure.md"),
+    ("project-continuity", "scripts/audit-continuity.py"),
     ("tufte-visualization", "SKILL.md"),
-    ("tufte-visualization", "CITATIONS.md"),
+    ("tufte-visualization", "agents/openai.yaml"),
     ("tufte-visualization", "references/chart-selection.md"),
+    ("tufte-visualization", "references/uncertainty.md"),
+    ("tufte-visualization", "references/citations.md"),
 )
 PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
     "README.md": (

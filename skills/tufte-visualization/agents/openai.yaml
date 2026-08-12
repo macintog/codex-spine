@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tufte Visualization"
+  short_description: "Truthful, dense evidence-display design"
+  default_prompt: "Use $tufte-visualization to critique and redesign this evidence display for truthful comparison and rendered clarity."

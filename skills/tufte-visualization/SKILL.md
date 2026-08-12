@@ -1,157 +1,205 @@
 ---
 name: tufte-visualization
-description: Use when creating, revising, or critiquing charts, dashboards, analytical figures, tables with visual encodings, KPI displays, maps, or evidence-heavy reports. Optimizes for truthful comparison, high information density, direct labeling, documented data, restrained visual design, accessibility, and rendered-output verification. Do not use for general frontend layout, marketing pages, decorative graphics, or non-data visuals unless evidence display is central.
-metadata:
-  short-description: Evidence-first visualization workflow for truthful, dense, restrained analytical displays
+description: Use as an evidence-design overlay to create, revise, or critique charts, dashboards, analytical figures, visual tables, maps, KPI displays, evidence-rich diagrams, and decision-grade reports. Governs truthful comparison, uncertainty, documentation, restraint, accessibility, and rendered QA while medium-specific skills own implementation mechanics. Do not use for generic frontend or marketing design, decorative graphics, analysis without visual output, or diagrams without an evidentiary claim.
 ---
 
 # Tufte Visualization
 
-Use this skill to make evidence displays clear, precise, information-rich, and honest. The goal is not fashionable minimalism. The goal is disciplined richness: enough data and context for a capable reader to compare, question, verify, and think.
+Design evidence displays that help a capable reader compare, question, verify,
+and think. Preserve data resolution and useful context; remove decoration that
+competes with them. This is a Tufte-inspired reasoning standard, not a recipe
+for imitating a recognizable Tufte aesthetic.
 
-This is a Tufte-inspired operating guide. Derive principles; do not copy protected book pages, proprietary examples, or another designer's finished visual artifact.
+Derive principles. Do not copy protected book pages, proprietary examples, or
+another designer's finished visual artifact.
 
-## When To Use This Skill
+## Evidence Contract
 
-- The user asks to make, revise, or critique a chart, dashboard, analytical figure, KPI display, visual table, map, slide figure, report figure, or evidence-heavy data display.
-- The task calls for "Tufte," "high information density," "clean but rich," "publication-ready," "executive dashboard," "analytical memo," "data story," or "beautiful evidence."
-- A visualization is being generated through Python, R, JavaScript, spreadsheet software, slides, PDFs, notebooks, or a frontend app.
-- A chart needs diagnosis for misleading scales, missing context, weak comparison, chartjunk, accessibility, or overconfident inference.
-
-## When Not To Use This Skill
-
-- The task is general frontend layout, marketing design, illustration, branding, or decorative graphics and evidence display is not central.
-- The user only needs data cleaning, statistical modeling, or spreadsheet manipulation with no visual output or figure critique.
-- A narrower medium-specific skill fully owns the task and the data display is incidental.
-
-## Core Doctrine
-
-- Show the data. Preserve measures, units, grain, uncertainty, and source context.
-- Support comparison. Most analytical seeing is comparative: before/after, part/whole, observed/expected, group/group, local/global, signal/noise.
-- Avoid distortion. Visual change must track data change. Declare filtering, smoothing, transformations, missing values, and selection.
-- Increase data resolution. Remove decoration, not evidence. Keep useful detail when it helps the reader think.
-- Integrate words, numbers, and graphics. Put labels, units, annotations, captions, and source notes close to the evidence.
-- Respect the reader. Do not hide essential meaning in hover states, legends, filters, ornament, or presenter narration.
-- Match the promised finish. If the user asks for Tufte, beautiful evidence, publication quality, or an academic-book feeling, the artifact should look like serious editorial evidence, not a product dashboard, generic architecture poster, or UI card layout.
-
-## Visual Genre And Finish Bar
-
-Choose the display's genre before drawing. The genre controls typography, density, spatial grammar, and acceptable ornament.
-
-- **Academic plate / hardback figure**: Default here when the user asks for Tufte, beautiful evidence, a serious printed-book feel, or an expensive academic reference. Use a near-white page, quiet black/gray ink, one restrained accent only when it earns its place, fine rules, direct labels, marginal notes, source notes, and carefully controlled typography. The result should feel at home in an $80 academic hardback.
-- **Technical atlas / field guide**: Use when explaining how a system operates. Prefer annotated cutaways, layered maps, visual tables, small multiples, and numbered motion paths. Carry dense source evidence in margins or side notes.
-- **Dashboard / operational monitor**: Use only when repeated live scanning or decision support is the real task. Compact modules are allowed, but they still need definitions, priors, benchmarks, and data-quality notes.
-- **Slide / executive figure**: Use when the artifact must be read at presentation distance. Keep fewer marks, stronger hierarchy, and one central comparison.
-- **Interactive web view**: Use when exploration matters. The default viewport still needs the central comparison, labels, units, caveats, and source without hover.
-
-For academic plates and technical atlas figures:
-
-- Prefer serif typography for titles, captions, and explanatory text when the medium supports it. Use a quiet sans or small caps only for compact labels, axes, or file/path metadata. Avoid default system-UI typography when the user asked for a bookish result.
-- Build hierarchy through scale, measure, leading, rules, alignment, and annotation density before using color, boxes, or weight.
-- Avoid card-heavy or panel-heavy composition. Boxes are not forbidden, but they must be structural evidence containers, not decorative UI cards.
-- Favor alignment, brackets, hairline rules, leader lines, callouts, bands, and whitespace over filled rounded rectangles.
-- Use arrows sparingly. Too many arrowheads make explanatory figures feel like enterprise architecture. Prefer numbered flowlines, annotated transitions, or before/after spatial ordering unless direction would otherwise be ambiguous.
-- Treat connector routing and bounded text as layout constraints. Keep clear channels, endpoint air gaps, and conservative text safe zones; load `references/critique-checklist.md` for the geometry and repair catalog.
-- Keep color almost monochrome by default. Use one muted accent for emphasis, exception, or path tracing. Do not use pastel categorical fills just to make subsystems look different.
-- Include enough local evidence that the reader can audit the claim: source files, commit/date, sample size, units, filters, denominators, or uncertainty as appropriate.
-- Apply a dignity check before delivery: would a capable reader feel cheated if this figure appeared in a serious printed reference book? If yes, revise the visual language, not just the content.
+- Show what was measured. Preserve metric definitions, units, grain,
+  denominators, time windows, source context, missingness, and transformations.
+- Support a named comparison. Use position on common scales, meaningful order,
+  direct labels, small multiples, and visual tables before novelty.
+- Make uncertainty proportional to the claim. Distinguish observation,
+  estimate, model output, forecast, and causal inference.
+- Integrate words, numbers, and graphics. Put definitions, annotations, source
+  notes, and caveats beside the evidence they qualify.
+- Increase information density without flattening hierarchy. Give each figure
+  one dominant comparison, then retain the detail needed to audit it.
+- Keep the default view complete. Do not hide essential labels, units, caveats,
+  denominators, or sources in hover, filters, legends, or presenter narration.
+- Prove the rendered result. Source validity and successful export are inputs to
+  QA, not substitutes for inspecting the final artifact.
 
 ## Workflow
 
-1. Identify the thinking task.
-   - Name the comparison or decision the display should support.
-   - Identify the unit of analysis: what one mark, row, point, or line represents.
-   - State the assumed audience and use when the user has not specified them.
-   - Name the visual genre and finish bar. If the user requests Tufte-like, hardback, publication-quality, or beautiful evidence and no competing medium is specified, choose academic plate / hardback figure.
+### 1. Frame The Reading Situation
 
-2. Audit the data before drawing.
-   - Check column meanings, units, date ranges, denominators, source, filters, missingness, outliers, duplicates, and category definitions.
-   - Distinguish counts, rates, percentages, indexed values, ranks, estimates, residuals, and modeled values.
-   - Decide whether uncertainty, sample size, missing data, or sensitivity needs to be visible.
+- Name the question, comparison, or decision the display must support.
+- Identify the unit of analysis: what one point, row, line, area, or node means.
+- Record the audience, medium, final dimensions, viewing distance, ambient
+  conditions, interaction model, and expected reading time when they matter.
+- Inspect the host publication, product, or report. Preserve its established
+  typography, palette, and chart conventions unless they compromise integrity,
+  comparison, legibility, or accessibility.
+- Select a visual genre and finish bar: academic plate, technical atlas,
+  operational monitor, presentation figure, or interactive analytical view.
+  The medium and use decide the genre; the word "Tufte" does not.
 
-3. Choose a comparison architecture.
-   - Prefer position on a common scale, sorted order, direct labels, small multiples, and visual tables over novelty.
-   - Read `references/chart-selection.md` when choosing among chart types or converting a weak chart.
-   - Use the smallest number of encodings that answer the thinking task.
-   - For architecture or system-operation diagrams, prefer annotated cutaways, layered maps, sequence strips, visual tables, small multiples, and evidence-rich marginalia over box-and-arrow posters.
+### 2. Audit The Evidence
 
-4. Compose from data outward.
-   - Build in this order: data marks, scales and units, reference values, direct labels, annotations, documentation note, title, final polish.
-   - Make data marks stronger than scaffolding.
-   - Prefer white or near-white canvas unless the target medium requires dark mode.
-   - Start in grayscale, then add quiet color only to distinguish, encode, or emphasize.
-   - For academic plates, start with typography, page margins, rule weights, and annotation structure before adding boxes or color.
-   - For diagrams, reserve text, boundary, and connector channels before drawing. Prefer detached leaders, brackets, numbering, or spatial ordering when a clear route does not exist.
-   - Remove UI styling that signals software cards, dashboards, marketing pages, or generic architecture posters unless that genre was chosen explicitly.
+- Check source, column meanings, category definitions, units, date range,
+  denominators, filters, missing values, duplicates, outliers, joins, and
+  transformations before drawing.
+- Distinguish counts, rates, percentages, indexed values, ranks, residuals,
+  estimates, predictions, and modeled values.
+- Decide what sample size, uncertainty, sensitivity, exclusions, or imputation
+  must remain visible. Read `references/uncertainty.md` for inferential or
+  decision-grade claims.
+- Do not fabricate production data. If data is unavailable, provide the needed
+  schema and comparison architecture; use clearly labeled synthetic data only
+  when the user explicitly asks for a mockup.
 
-5. Verify the rendered artifact.
-   - Render or export at the intended size before finalizing. Source validity, successful export, linting, or XML/HTML syntax checks are not visual QA.
-   - Inspect the actual rendered pixels or pages for label collisions, text overflow, clipping, unreadable text, weak contrast, misleading scales, missing units, hidden caveats, broken small multiples, and hover-only essential meaning.
-   - For multi-panel figures, inspect every panel or viewport section at final size; a clean overview can still hide local failures.
-   - Load `references/critique-checklist.md` and inspect geometry and bounded text at native rendered resolution. A discovered defect blocks delivery until repaired and re-inspected across the same mark class.
-   - Check the genre promise. If the user asked for a Tufte-like or academic-hardback result and the render reads as a dashboard, card UI, generic infographic, or commodity architecture diagram, treat that as a QA failure.
-   - If the rendered artifact has visible layout defects, do not present it as complete. Revise, re-render, and inspect again.
-   - Revise until the rendered output passes, or state why rendering was not possible and perform the next best static check.
+### 3. Choose The Comparison Architecture
 
-## Rendered QA Gate
+- Read `references/chart-selection.md` when selecting a chart form or replacing
+  a weak one.
+- Use the smallest set of encodings that answers the thinking task. Prefer
+  position and length over area, volume, angle, or decorative metaphor.
+- When the form is ambiguous or the stakes are high, sketch two or three
+  materially different comparison architectures before styling. Compare what
+  each reveals, hides, and asks the reader to decode.
+- Choose a table when exact lookup, mixed units, or many values matter more than
+  shape. Choose no visualization when prose or a few numbers answer the task
+  more honestly.
 
-Treat rendered QA as a hard gate, not a polish pass.
+### 4. Compose From Evidence Outward
 
-- Before presenting any created or revised visualization, render the deliverable form and inspect that exact artifact.
-- Do not claim validation from build success, parser success, snapshot generation, file existence, or a quick source skim. Those checks can support QA; they cannot replace rendered inspection.
-- For static artifacts, open or view the final PNG, PDF, SVG render, slide page, notebook output, spreadsheet chart, or document page at final size. For responsive or interactive views, inspect every required viewport or state.
-- Apply `references/critique-checklist.md` at final size, including native-resolution crops for compact marks and connector relationships.
-- Bounded-text overflow, connector-text contact, or connector-boundary contact is a QA failure even when the source is valid or technically legible.
-- Check visual dignity against the selected genre. For academic plates, look for bookish typography, restrained color, high evidence density, direct annotation, and absence of product-card styling.
-- When a defect is found after presentation, acknowledge the failed QA plainly, repair the artifact, re-render it, and report the new rendered inspection. Do not defend the earlier artifact with source-level checks.
+Build in this order: data marks, scales and units, reference values, direct
+labels, uncertainty, annotations, documentation note, title, then polish.
 
-## Coordination
+- Make data marks stronger than scaffolding.
+- Define color roles before choosing hues: ink, context, focus, uncertainty,
+  exception, and interaction state. Start with the fewest roles the evidence
+  needs; add color only when it encodes, distinguishes, or emphasizes.
+- Build hierarchy through position, scale, measure, spacing, annotation, and
+  rule weight before boxes, shadows, or ornament.
+- Treat compact marks, connector lanes, labels, and boundaries as occupied
+  geometry. Reserve safe zones before drawing.
+- Design print, desktop, mobile, and presentation outputs as sibling
+  compositions when their constraints differ. Preserve the same comparison
+  and documentation contract instead of mechanically shrinking one layout.
+- For interactive views, make motion and disclosure enhance an already
+  intelligible default. Provide a reduced-motion path and never gate evidence
+  on animation completion.
 
-This skill owns evidence design. Medium-specific skills own mechanics.
+### 5. Apply The Anti-Reflex Taste Check
 
-- For web apps, use frontend or web testing skills for layout and interaction, while this skill keeps charts evidence-first, legible, directly labeled, and complete in the default view.
-- For spreadsheets, use spreadsheet-native formulas, tables, charts, and provenance while preserving exact lookup and recalculation.
-- For presentations, keep the figure self-sufficient on the slide; do not reduce serious evidence to bullets.
-- For PDFs and documents, verify the rendered page, not only the source file.
-- For dashboards, prefer compact evidence modules: current value, prior comparable value, target or benchmark, trend, definition, and data quality note.
+- If typography, palette, or composition could have been chosen from the word
+  "Tufte" before inspecting the evidence, restart the styling pass.
+- Do not simulate seriousness with cream paper, prestige serif typography,
+  hairline rules, marginalia, tiny mono labels, or a muted red accent by reflex.
+  Use any of them only when the reading situation, host identity, and evidence
+  structure earn them.
+- Do not substitute novelty, strangeness, maximalism, or brand theater for
+  analytical distinctiveness. A figure should be memorable because the
+  evidence became unusually clear.
+- Avoid card grids and generic box-and-arrow posters when alignment, grouping,
+  sequence, brackets, small multiples, or direct annotation carry the
+  relationship more precisely.
+- Check the promised genre. A publication figure should not read as product UI;
+  an operational monitor should not be forced into faux-book styling.
+
+Read `references/principles.md` for the full taste and composition standard.
+
+### 6. Verify The Rendered Artifact
+
+Treat rendered QA as a hard gate.
+
+- Render or export the exact deliverable at its intended size. Inspect pixels,
+  pages, or required interactive states rather than only source or build output.
+- Apply `references/critique-checklist.md` at final size. Inspect every panel,
+  viewport, and repeated mark class, including native-resolution crops for
+  compact labels, connectors, and boundaries.
+- Check scales, units, missing intervals, uncertainty, contrast, reading order,
+  clipping, overflow, label collisions, connector contact, small-multiple
+  consistency, hover-only meaning, and source-note placement.
+- A visible defect blocks completion. Repair it, re-render, and re-inspect the
+  same mark class. Do not defend a defect with z-order, masks, source validity,
+  or technical legibility.
+- If rendered inspection is impossible, state that before presenting the
+  artifact, perform the best available static check, and do not call the result
+  publication-grade or complete.
+
+## Genre Guidance
+
+- **Academic plate**: Editorial evidence at reading distance. Use controlled
+  typography, local annotation, quiet scaffolding, and enough detail to audit
+  the claim. Serif type and off-white paper are options, not requirements.
+- **Technical atlas**: Explain operation or structure with layered maps,
+  cutaways, sequence strips, visual tables, and evidence-rich marginalia.
+- **Operational monitor**: Optimize repeated scanning and decisions. Show
+  current value, comparable prior, target or benchmark, trend, definition, and
+  data-quality state without status theater.
+- **Presentation figure**: Preserve one central comparison at viewing distance,
+  with enough evidence to verify the statement title.
+- **Interactive analytical view**: Support exploration while keeping the core
+  comparison, labels, units, caveats, and source available without interaction.
+
+## Coordination And Authority
+
+This skill owns evidence design. Medium-specific skills own implementation
+mechanics, runtime behavior, and format-specific validation.
+
+- For web interfaces, frontend skills own layout, controls, responsive UI, and
+  interaction polish. This skill retains authority over truthful encoding,
+  default-view completeness, uncertainty, and evidence documentation.
+- For analytical work, data skills own computation, statistical methods, and
+  source retrieval. This skill must not invent or silently reinterpret their
+  outputs.
+- For spreadsheets, slides, documents, and PDFs, use the medium-native skill and
+  inspect the rendered sheet, slide, or page.
+- When brand guidance conflicts with evidence integrity or accessibility,
+  integrity and accessibility win. Otherwise preserve the host identity rather
+  than imposing a separate Tufte house style.
 
 ## Reference Map
 
-- Read `CITATIONS.md` for the public sources consulted for the original draft.
-- Read `references/principles.md` for deeper visual style, integrity, and dashboard guidance.
-- Read `references/chart-selection.md` when selecting chart architecture or redesigning a weak chart.
-- Read `references/critique-checklist.md` when reviewing an existing display or doing final QA.
-- Read `references/accessibility.md` for digital, public, or interactive artifacts.
-- Read `references/captions-alt-text.md` before delivering public-facing captions, notes, or alt text.
+- Read `references/principles.md` for taste, genre, composition, color, tables,
+  dashboards, and anti-reflex guidance.
+- Read `references/chart-selection.md` when choosing or redesigning the visual
+  architecture.
+- Read `references/uncertainty.md` for estimates, intervals, forecasts,
+  sensitivity, missingness, and inferential claims.
+- Read `references/critique-checklist.md` when reviewing an existing display or
+  performing final rendered QA.
+- Read `references/accessibility.md` for digital, interactive, responsive,
+  print, and semantic-access requirements.
+- Read `references/captions-alt-text.md` before delivering captions,
+  documentation notes, alt text, or text equivalents.
+- Read `references/citations.md` for the public source and provenance map.
 
 ## Stop Rules
 
-- Do not fabricate production data. If no data is available, provide the needed schema, chart architecture, and reproducible template unless the user explicitly asks for a mockup.
-- Do not ask for clarification unless missing information would change the chart fundamentally. State assumptions when you can proceed safely.
-- Do not imply causality with arrows, trend lines, sequencing, color, or annotation unless causal evidence is part of the data or user-provided context.
-- Do not silently connect across missing time intervals or hide excluded groups.
-- Do not call an artifact Tufte-like or publication-grade merely because it is clean, muted, or source-grounded. If it looks like product documentation rather than serious evidence design, say so and revise.
-
-## Implementation Defaults
-
-- Create a reproducible figure pipeline: load data, validate data, compute derived measures explicitly, plot data marks first, style with restraint, add direct labels and documentation, export, inspect.
-- Prefer one excellent chart over many mediocre charts. Use a coherent figure set only when the task needs overview, comparison, detail, and documentation.
-- Prefer vector output such as SVG or PDF for publication and web. Use high-resolution raster output only when the target medium requires it.
-- For hand-authored vectors, use explicit anchors and per-element connector styling, account for marker geometry, and measure or conservatively budget bounded text. The critique checklist owns detailed repair patterns.
-- Keep titles factual and specific: subject, metric, population or geography, and time period when space allows.
-- Include source, data vintage or access date, metric definition, denominator, filters, transformations, smoothing, interpolation, and model assumptions when the display informs decisions.
-- For interactive charts, the default view must show the central comparison. Hover may add exact values, but must not be the only place for labels, units, caveats, or source.
-- For architecture or codebase-operation illustrations, ground the figure in inspected source evidence, then design it as an editorial explanatory plate: fewer boxes, more precise spatial grouping, direct annotations, file-path marginalia, and restrained motion cues.
+- Do not imply causality with arrows, sequencing, fitted lines, color, or
+  annotation unless the evidence supports a causal claim.
+- Do not silently connect across missing intervals, hide excluded groups, or
+  present selected examples or top-N subsets as the whole population.
+- Do not call a display Tufte-like, accessible, decision-grade, or
+  publication-grade because it is clean, muted, or source-grounded. The
+  evidence, rendering, and medium-specific checks must support the claim.
+- Stop and change the form when the chosen visual cannot preserve the required
+  comparison, uncertainty, documentation, or legibility.
 
 ## Output Contract
 
 When creating or revising a visualization, return:
 
 - the artifact path or exact changed file
-- the key assumptions about data, units, filters, scale, and audience
-- the selected visual genre and finish bar
-- the comparison architecture chosen and why
-- the validation performed, including the rendered artifact inspected and any viewport/page size used; if rendered inspection was impossible, say that clearly before presenting caveats
-- any remaining caveat about source data, uncertainty, or interpretation
+- the reading situation, audience, medium, and selected genre
+- the data assumptions, units, filters, scale, and uncertainty treatment
+- the comparison architecture and semantic color roles
+- the rendered artifact, pages, dimensions, viewports, or states inspected
+- any remaining caveat about source data, accessibility, or interpretation
 
-When critiquing a visualization, lead with the highest-risk integrity or comprehension issues, then give focused redesign moves.
+When critiquing a visualization, lead with integrity and comprehension risks,
+then give focused redesign moves in descending order of consequence.

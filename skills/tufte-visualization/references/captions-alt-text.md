@@ -1,42 +1,78 @@
-# Captions And Alt Text
+# Captions, Documentation Notes, And Text Equivalents
 
-Use captions and alt text to keep evidence interpretable outside the immediate code or notebook context.
+Use captions and text alternatives to keep evidence interpretable outside the
+immediate chart, notebook, slide, or application context.
 
 ## Caption Pattern
 
 ```text
 [Finding or subject]. [Metric definition and unit], [population/geography], [time range].
-Source: [source name/link], [data vintage/access date]. Notes: [filters, exclusions, transformation, uncertainty, or caveat].
+Source: [source/link], [data vintage/access date]. Notes: [filters, exclusions, transformation, missingness, interval/model definition, or caveat].
 ```
+
+Keep the finding proportional to the evidence. Use "observed," "estimated,"
+"associated," or "projected" when a causal verb would overstate the design.
 
 Example:
 
 ```text
-Revenue growth slowed after Q3 while churn continued rising. Monthly recurring revenue and logo churn, North America enterprise accounts, Jan 2023-Dec 2025.
-Source: Internal billing table v2026-01-15. Notes: Excludes accounts acquired through reseller channel; churn is logo churn, not revenue churn.
+Revenue growth slowed after Q3 while observed logo churn continued rising. Monthly recurring revenue and logo churn, North America enterprise accounts, Jan 2023-Dec 2025.
+Source: Internal billing table v2026-01-15. Notes: Excludes reseller-acquired accounts; churn is logo churn, not revenue churn; values are descriptive, not a causal estimate.
 ```
 
 ## Documentation Note Checklist
 
-For decision-grade displays, include a compact note near the figure or in a footnote:
+For decision-grade displays, keep these items near the figure or in a linked
+note:
 
-- Data source and URL or citation.
-- Date accessed or data vintage.
-- Metric definition and denominator.
-- Sample size or population.
-- Key filters, exclusions, transformations, smoothing, interpolation, and model assumptions.
-- Responsible analyst or code/notebook reference when applicable.
+- data source and stable URL, citation, file, or dataset identifier
+- data vintage or access date
+- metric definition, unit, population, and denominator
+- sample size when it changes interpretation
+- filters, exclusions, top-N selection, suppression, and missingness
+- transformation, normalization, smoothing, interpolation, or imputation
+- interval, model, forecast, or sensitivity definition
+- responsible analysis code, notebook, query, or commit when appropriate
 
-## Alt Text Pattern
+## Short Alt Text Pattern
 
 ```text
-Chart showing [chart type] of [metric] for [population] over [period]. The main pattern is [primary finding]. Notable exceptions are [exceptions]. Values are [range or key values].
+[Display type] comparing [metric and unit] for [population] over [period]. [Central comparison]. [Most important exception or uncertainty].
 ```
 
-Alt text should communicate the conclusion and evidence, not only the visual form.
+Alt text should communicate the evidence, not merely inventory shapes and
+colors. Avoid phrases such as "image of a chart" when the platform already
+announces the image role.
 
-## Delivery Notes
+## Complex Figure Pattern
 
-- If exact values are essential, include them in the caption, adjacent table, or accessible text.
-- If uncertainty changes the interpretation, mention it in the caption or notes.
-- If missing data or excluded groups affect interpretation, say so plainly.
+Use two layers when the figure carries more detail than concise alt text can
+hold:
+
+1. A short alt text summary naming the comparison and conclusion.
+2. A nearby long description, accessible table, or structured explanation that
+   preserves key values, exceptions, uncertainty, and source context.
+
+Do not paste an entire dataset into one alt attribute. Do not make a downloadable
+CSV the only explanation of the visual claim.
+
+## Text Equivalent Checklist
+
+- Name the metric, unit, population, and period.
+- State the central comparison before secondary observations.
+- Include the key values or range needed to verify it.
+- Name missing data, exclusions, and unstable or uncertain conclusions.
+- Preserve reading order for multi-panel figures.
+- Explain encodings only when the reader needs them to interpret the evidence.
+- Link or identify the source and data vintage.
+
+## Delivery Rules
+
+- If exact values are essential, include them in the caption, adjacent table,
+  or accessible text.
+- If uncertainty changes the conclusion, include it in both the visible note
+  and text equivalent.
+- Keep captions and alternatives synchronized with the final filtered or
+  exported state.
+- Verify the delivered SVG, HTML, PDF, slide, document, or image accessibility
+  surface rather than assuming authoring metadata survived export.
