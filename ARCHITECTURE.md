@@ -34,7 +34,7 @@ codex-spine/
 │   └── config/                 # Managed config fragments rendered into ~/.codex/config.toml
 ├── skills/
 │   ├── project-continuity/     # Reusable continuity skill, starter templates, and adoption reference
-│   ├── multi-step/             # Reusable serial-pass workflow skill and packet templates
+│   ├── multi-step/             # Finite subject-bound serial workflow; recursive templates prohibited
 │   └── tufte-visualization/    # Evidence-first visualization skill and references
 ├── bin/                        # Durable wrappers and managed launcher entrypoints
 ├── shell/
@@ -155,14 +155,15 @@ This skill is reusable scaffolding. It does not mean `codex-spine` itself owns t
 
 ### `skills/multi-step/`
 
-This tree ships a reusable serial-pass workflow for larger, drift-prone efforts:
+This tree ships a finite serial workflow for one explicitly user-selected task:
 
-- `SKILL.md` defines the pass model, queue truth, pass types, and authority-order discipline.
-- `templates/serial-program/` is the fuller packet for open-ended or multi-surface programs, including `SPINE.md`, `CHECKPOINT.md`, `STATUS.toml`, `QUESTION_BANK.md`, `SURFACE_MAP.md`, and pass templates.
-- `templates/finite-findings/` is the lighter packet for bounded issue-retirement work such as scoped findings sweeps or narrow follow-on cleanup.
-- `templates/README.md` is the index for choosing between the two packet styles.
+- `SKILL.md` binds the current task to exact authority and subject identity,
+  executes a known finite step set, and makes completion terminal.
+- The former `templates/` tree is deleted because it encoded recursive queue,
+  reopen, and successor-task control. The public verifier requires it to remain
+  absent; version-control history is evidence only and restores no authority.
 
-Like `project-continuity`, this skill is meant to be copied into the repo being worked in as needed. The shipped tree in `codex-spine` is the reusable source payload, not active state for every downstream project.
+Like `project-continuity`, the shipped skill is reusable guidance rather than active downstream state. Its current user request and verified subject binding always outrank historical packets or indexed text.
 
 ### `skills/tufte-visualization/`
 
@@ -178,7 +179,7 @@ This skill is guidance for producing or reviewing evidence displays. It does not
 
 - [@tobi/qmd](https://github.com/tobi/qmd) and memory are part of the default public core.
 - Public skills ship under `skills/` as reusable scaffolding and guidance; the actual continuity packet files still live in the repo being worked in.
-- The public skill payload is intentionally narrow: `project-continuity`, `multi-step`, and `tufte-visualization`, plus their shipped templates and references.
+- The public skill payload is intentionally narrow: `project-continuity`, `multi-step`, and `tufte-visualization`, plus only the templates and references still declared by the export manifest. Recursive `multi-step` templates are prohibited.
 - `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
 - Built-in Codex memories remain an optional complementary surface, not a replacement for the `memory` MCP lane; required rules stay in shipped docs, and durable built-in-memory defaults belong in `codex/config/90-local.toml` rather than generated state under `~/.codex/memories/`.
 - The optional jGravelle Munch MCP suite is optional but first-class.

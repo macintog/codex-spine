@@ -17,6 +17,15 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.11+ supplies tomllib
 
 
 PACKET_FILES = ("AGENTS.md", "PROJECT_CONTINUITY.md", "CHECKPOINT.md")
+RESERVED_CONTINUATION_NAMES = {"checkpoint.md", "queue.md", "next_prompt.md", "rubric.md"}
+RESERVED_CONTINUATION_STEMS = {"checkpoint", "queue", "next_prompt", "next-prompt", "rubric"}
+CONTINUATION_TEXT_SUFFIXES = {"", ".md", ".markdown", ".txt", ".toml", ".yaml", ".yml", ".json"}
+SKIP_TREE_PARTS = {".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "__pycache__"}
+SKILL_RESOURCE_PARTS = {"assets", "templates", "references"}
+HISTORICAL_PATH_PARTS = {"archive", "archives", "archived", "history", "historical"}
+CURRENT_CONTROL_HEADING = re.compile(r"^(?:(?:current|active)\s+(?:state|status|focus|task|queue|pass|work)|status)\b", re.IGNORECASE)
+NEXT_CONTROL_HEADING = re.compile(r"^(?:next\s+(?:safe\s+)?(?:step|action|task|pass|prompt)|queue|work\s+order|reopen)\b", re.IGNORECASE)
+DIRECTIVE_CONTROL_TEXT = re.compile(r"\b(?:resume|queue|execute|start|launch|run|next\s+thread|fresh\s+thread)\b", re.IGNORECASE)
 REQUIRED_HEADINGS = {
     "PROJECT_CONTINUITY.md": (
         "Purpose",
@@ -91,10 +100,13 @@ def finding(code: str, severity: str, path: str, message: str) -> dict[str, str]
 
 
 def heading_names(text: str) -> set[str]:
-    return {
+    headings = {
         match.group(1).strip()
         for match in re.finditer(r"^##\s+(.+?)\s*$", text, flags=re.MULTILINE)
     }
+    for match in re.finditer(r"^\s*[\"']?([A-Za-z][A-Za-z0-9 _-]{1,80})[\"']?\s*[:=]", text, flags=re.MULTILINE):
+        headings.add(match.group(1).replace("_", " ").replace("-", " ").strip())
+    return headings
 
 
 def frontmatter_value(text: str, key: str) -> str:
@@ -110,6 +122,152 @@ def frontmatter_value(text: str, key: str) -> str:
 def checkpoint_field(text: str, label: str) -> str:
     match = re.search(rf"^-\s+{re.escape(label)}:\s*(.+?)\s*$", text, flags=re.MULTILINE | re.IGNORECASE)
     return match.group(1).strip() if match else ""
+
+
+def is_skipped_tree_path(path: Path, root: Path) -> bool:
+    parts = path.relative_to(root).parts
+    if any(part in SKIP_TREE_PARTS for part in parts):
+        return True
+    for index, part in enumerate(parts):
+        if part == "skills" and any(resource in SKILL_RESOURCE_PARTS for resource in parts[index + 1 :]):
+            return True
+    return False
+
+
+def leading_metadata_text(text: str) -> str:
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end >= 0:
+            return text[4:end]
+    lines: list[str] = []
+    body_started = False
+    for line in text[:4000].splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if body_started and lines:
+                break
+            continue
+        if stripped.startswith("#") and not re.match(r"^#\s*(?:status|authority)\s*[:=]", stripped, re.IGNORECASE):
+            if body_started and lines:
+                break
+            continue
+        body_started = True
+        if len(lines) >= 20:
+            break
+        lines.append(stripped.lstrip("#> -\t"))
+    return "\n".join(lines)
+
+
+def has_historical_declaration(text: str) -> bool:
+    metadata = leading_metadata_text(text)
+    status = re.search(r"(?:^|[.;]\s*)status\s*[:=]\s*[\"']?([^\n.;\"']+)", metadata, re.MULTILINE | re.IGNORECASE)
+    authority = re.search(r"(?:^|[.;]\s*)authority\s*[:=]\s*[\"']?([^\n.;\"']+)", metadata, re.MULTILINE | re.IGNORECASE)
+    if not status or not authority:
+        return False
+    status_value = status.group(1).strip().lower().replace("_", "-")
+    authority_value = authority.group(1).strip().lower().replace("_", "-")
+    historical_statuses = {"historical", "historical-only", "archived", "retired", "superseded"}
+    no_authorities = {"none", "non-authoritative", "historical-only", "retired"}
+    return status_value in historical_statuses and authority_value in no_authorities
+
+
+def is_explicitly_historical(text: str, path: Path, root: Path) -> bool:
+    relative_parts = tuple(part.lower() for part in path.relative_to(root).parts)
+    if any(part in HISTORICAL_PATH_PARTS for part in relative_parts[:-1]):
+        return True
+    if has_historical_declaration(text):
+        return True
+    for parent in path.parents:
+        if parent == root:
+            break
+        checkpoint_path = parent / "CHECKPOINT.md"
+        if not checkpoint_path.is_file():
+            continue
+        try:
+            checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if has_historical_declaration(checkpoint_text):
+            return True
+    return False
+
+
+def continuation_text_paths(root: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in CONTINUATION_TEXT_SUFFIXES
+        and not is_skipped_tree_path(path, root)
+        and (is_reserved_continuation_path(path) or not bool(path.stat().st_mode & 0o111))
+    )
+
+
+def is_reserved_continuation_path(path: Path) -> bool:
+    return path.name.lower() in RESERVED_CONTINUATION_NAMES or path.stem.lower() in RESERVED_CONTINUATION_STEMS
+
+
+def complete_nested_packet(path: Path, root: Path) -> bool:
+    parent = path.parent
+    return parent != root and all((parent / name).is_file() for name in PACKET_FILES)
+
+
+def registered_adjacent_packet(path: Path, root: Path, root_authority_text: str) -> bool:
+    parent = path.parent
+    if parent == root or not (parent / "PROJECT_CONTINUITY.md").is_file() or not (parent / "CHECKPOINT.md").is_file():
+        return False
+    project_relative = (parent / "PROJECT_CONTINUITY.md").relative_to(root).as_posix()
+    checkpoint_relative = (parent / "CHECKPOINT.md").relative_to(root).as_posix()
+    return project_relative in root_authority_text and checkpoint_relative in root_authority_text
+
+
+def inspect_continuation_topology(root: Path) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    try:
+        root_authority_text = (root / "PROJECT_CONTINUITY.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        root_authority_text = ""
+
+    nested_scope_roots: set[Path] = set()
+    text_paths = continuation_text_paths(root)
+    for path in text_paths:
+        if path == root / "CHECKPOINT.md":
+            continue
+        if not is_reserved_continuation_path(path):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            text = ""
+        if is_explicitly_historical(text, path, root):
+            continue
+        if path.name.lower() == "checkpoint.md" and complete_nested_packet(path, root):
+            nested_scope_roots.add(path.parent)
+            continue
+        if path.name.lower() == "checkpoint.md" and registered_adjacent_packet(path, root, root_authority_text):
+            nested_scope_roots.add(path.parent)
+            continue
+        relative = path.relative_to(root).as_posix()
+        findings.append(finding("recursive-continuation-control", "error", relative, "Reserved continuation file is outside the one root handoff, a complete separately adopted nested project, or an explicitly historical non-authoritative scope."))
+
+    for path in text_paths:
+        if path == root / "CHECKPOINT.md" or is_reserved_continuation_path(path):
+            continue
+        if any(scope == path.parent or scope in path.parents for scope in nested_scope_roots):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if is_explicitly_historical(text, path, root):
+            continue
+        headings = heading_names(text)
+        has_current = any(CURRENT_CONTROL_HEADING.search(name) for name in headings)
+        has_next = any(NEXT_CONTROL_HEADING.search(name) for name in headings)
+        if has_current and has_next and DIRECTIVE_CONTROL_TEXT.search(text):
+            relative = path.relative_to(root).as_posix()
+            findings.append(finding("renamed-continuation-control", "error", relative, "Text resource claims both current-state and successor-action authority outside the root handoff; preserve it as non-directive evidence or a separately adopted project instead."))
+    return findings
 
 
 def ownership_posture(root: Path) -> str:
@@ -244,15 +402,10 @@ def inspect_packet_file(root: Path, path: Path, visibility: str) -> list[dict[st
 
 def inspect_state_anchor(root: Path, checkpoint_text: str) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    anchor = " ".join(
-        value
-        for value in (
-            frontmatter_value(checkpoint_text, "state_anchor"),
-            checkpoint_field(checkpoint_text, "Worktree / branch / ref"),
-            checkpoint_field(checkpoint_text, "Last verified"),
-        )
-        if value
-    )
+    state_anchor = frontmatter_value(checkpoint_text, "state_anchor")
+    subject_field = checkpoint_field(checkpoint_text, "Worktree / branch / ref")
+    last_verified = checkpoint_field(checkpoint_text, "Last verified")
+    anchor = " ".join(value for value in (state_anchor, subject_field, last_verified) if value)
     working_state = (
         frontmatter_value(checkpoint_text, "working_state")
         or checkpoint_field(checkpoint_text, "Working state")
@@ -262,17 +415,73 @@ def inspect_state_anchor(root: Path, checkpoint_text: str) -> list[dict[str, str
         return findings
 
     if not anchor:
-        findings.append(finding("missing-state-anchor", "warning", "CHECKPOINT.md", "Checkpoint has no stable repository, build, dataset, deployed-version, or artifact identity to reconcile."))
+        findings.append(finding("missing-state-anchor", "stale", "CHECKPOINT.md", "Checkpoint has no stable repository, ref, build, dataset, deployed-version, or artifact identity to reconcile."))
+        return findings
 
-    head = head_result.stdout.strip().lower()
-    sha_match = re.search(r"\b[0-9a-fA-F]{7,40}\b", anchor)
-    if sha_match and not head.startswith(sha_match.group(0).lower()):
-        findings.append(finding("state-anchor-mismatch", "warning", "CHECKPOINT.md", "Checkpoint commit anchor does not match current HEAD; reconcile it before resuming."))
+    head = head_result.stdout.strip()
+
+    def resolve_commit(candidate: str) -> str:
+        result = git(root, "rev-parse", "--verify", f"{candidate}^{{commit}}")
+        return result.stdout.strip() if result.returncode == 0 else ""
+
+    def is_ancestor(candidate: str) -> bool:
+        return git(root, "merge-base", "--is-ancestor", candidate, head).returncode == 0
+
+    subject_identity_found = False
+    absolute_paths = re.findall(r"(?<![\w.-])(/[A-Za-z0-9_./-]+)", subject_field)
+    for raw_path in absolute_paths:
+        candidate_path = Path(raw_path).expanduser().resolve()
+        if candidate_path.exists() and candidate_path.is_dir():
+            subject_identity_found = True
+            if candidate_path != root:
+                findings.append(finding("worktree-anchor-mismatch", "stale", "CHECKPOINT.md", f"Checkpoint names worktree {candidate_path}, but the audited root is {root}."))
+
+    ref_text = " ".join((state_anchor, subject_field))
+    ref_candidates = set(re.findall(r"\brefs/(?:heads|remotes)/[A-Za-z0-9._/-]+\b", ref_text))
+    ref_candidates.update(re.findall(r"\b(?:origin|upstream)/[A-Za-z0-9._/-]+\b", ref_text))
+    for token in re.findall(r"[A-Za-z0-9._/-]+", ref_text):
+        if "/" in token or token in {"main", "master"}:
+            if resolve_commit(token):
+                ref_candidates.add(token)
+
+    current_branch_result = git(root, "branch", "--show-current")
+    current_branch = current_branch_result.stdout.strip() if current_branch_result.returncode == 0 else ""
+    allowed_refs = {current_branch, f"refs/heads/{current_branch}"} if current_branch else set()
+    for authority_name in ("main", "master"):
+        if resolve_commit(f"refs/heads/{authority_name}"):
+            allowed_refs.update({authority_name, f"refs/heads/{authority_name}"})
+        if resolve_commit(f"refs/remotes/origin/{authority_name}"):
+            allowed_refs.update({f"origin/{authority_name}", f"refs/remotes/origin/{authority_name}"})
+
+    for ref in sorted(ref_candidates):
+        commit = resolve_commit(ref)
+        if not commit:
+            findings.append(finding("unresolved-ref-anchor", "stale", "CHECKPOINT.md", f"Checkpoint ref does not resolve in the audited repository: {ref}"))
+            continue
+        subject_identity_found = True
+        if ref not in allowed_refs:
+            findings.append(finding("noncurrent-ref-anchor", "stale", "CHECKPOINT.md", f"Checkpoint names non-current, non-authoritative ref {ref}; it cannot select this task."))
+        if not is_ancestor(commit):
+            findings.append(finding("ref-anchor-mismatch", "stale", "CHECKPOINT.md", f"Checkpoint ref {ref} at {commit} is not an ancestor of current HEAD {head}."))
+
+    sha_candidates = set(re.findall(r"\b[0-9a-fA-F]{7,40}\b", " ".join((state_anchor, last_verified))))
+    for sha in sorted(sha_candidates):
+        commit = resolve_commit(sha)
+        if not commit:
+            if len(sha) == 40:
+                findings.append(finding("unresolved-state-anchor", "stale", "CHECKPOINT.md", f"Checkpoint commit identity does not resolve in the audited repository: {sha}"))
+            continue
+        subject_identity_found = True
+        if not is_ancestor(commit):
+            findings.append(finding("state-anchor-mismatch", "stale", "CHECKPOINT.md", f"Checkpoint commit {commit} is not an ancestor of current HEAD {head}; reconcile it before resuming."))
+
+    if not subject_identity_found:
+        findings.append(finding("missing-state-anchor", "stale", "CHECKPOINT.md", "Checkpoint does not contain a resolvable worktree, authoritative ref, or commit identity."))
 
     if working_state == "clean":
         status = git(root, "status", "--porcelain=v1")
         if status.returncode == 0 and status.stdout:
-            findings.append(finding("working-state-mismatch", "warning", "CHECKPOINT.md", "Checkpoint claims a clean working state but the current Git worktree is dirty."))
+            findings.append(finding("working-state-mismatch", "stale", "CHECKPOINT.md", "Checkpoint claims a clean working state but the current Git worktree is dirty."))
     return findings
 
 
@@ -310,6 +519,8 @@ def audit(root: Path) -> dict[str, object]:
             findings.extend(inspect_packet_file(root, root / name, visibility))
     if checkpoint_text:
         findings.extend(inspect_state_anchor(root, checkpoint_text))
+    if adopted:
+        findings.extend(inspect_continuation_topology(root))
     findings.extend(inspect_custom_declarations(root))
     findings.extend(inspect_packet_economy(root, existing))
     findings.extend(inspect_duplicate_current_state(root, existing))
@@ -320,7 +531,12 @@ def audit(root: Path) -> dict[str, object]:
         if (root / name).exists()
     ]
     scope = "repository" if git(root, "rev-parse", "--is-inside-work-tree").returncode == 0 else "workspace"
-    result = "fail" if any(item["severity"] == "error" for item in findings) else "pass"
+    if any(item["severity"] == "error" for item in findings):
+        result = "fail"
+    elif any(item["severity"] == "stale" for item in findings):
+        result = "stale"
+    else:
+        result = "pass"
     return {"result": result, "scope": scope, "posture": posture, "instruction_files": instruction_files, "packet": existing, "findings": findings}
 
 
@@ -341,7 +557,7 @@ def main() -> int:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     else:
         print_human(report)
-    return 1 if report["result"] == "fail" else 0
+    return 1 if report["result"] in {"fail", "stale"} else 0
 
 
 if __name__ == "__main__":

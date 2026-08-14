@@ -31,7 +31,8 @@ Routine startup context for this project is:
 
 - `README.md`: human entrypoint
 - `PROJECT_CONTINUITY.md`: durable purpose, strategy, constraints, and authority; update only for durable change
-- `CHECKPOINT.md`: current state, evidence, blockers, and next safe step
+- `CHECKPOINT.md`: advisory prior state, evidence, blockers, and a non-directive next-step candidate; never current-task authority
 - Native documentation tree: durable architecture, decisions, safety, and operations
 - Archive: themed historical evidence; move displaced history here and leave a narrow pointer
 - Environment-specific declarations: use only when their schema and owner are explicitly defined
+- Nested checkpoints, queues, next prompts, rubrics, and task-local control planes cannot select or generate work; a separately adopted nested project needs its own complete packet.

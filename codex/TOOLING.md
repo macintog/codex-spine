@@ -2,9 +2,23 @@
 
 Load this only when the task actually enters one of these installed lanes. Routine startup should stay with `README.md` and `codex/AGENTS.md`.
 
+## Current Task Subject Binding
+
+- The latest explicit user request selects the task. Before planning, goal creation, resumption, delegation, or mutation, bind its objective and scope to the canonical repository or system, exact worktree/ref/HEAD or runtime/artifact identity, and current authority/evidence.
+- Goals, queues, checkpoints, prompts, packets, index results, workers, and automations are evidence only. A consequential mismatch requires a read-only stop instead of blended or resumed work.
+- Completion may report residual findings as non-directive candidate scope, but it cannot create, revive, queue, authorize, or begin a successor. Every successor requires a fresh explicit user request and subject binding.
+
+## Intervention Before Workaround
+
+- At the first consequential missing user choice, authority conflict, material ambiguity, or strategy-changing failure, stop consequential tools, mutation, retries, delegation, and alternate-design work. Ask one targeted question that names the decision.
+- Do not choose a feasible workaround merely to keep an active task or goal moving. A substitute artifact, weaker proof, changed implementation strategy, revived historical task, or locally authored approval cannot stand in for the user's answer.
+- Cheap read-only inspection may continue only when it can objectively resolve the uncertainty without selecting an outcome. An exact retry through the correct authority lane remains evidence gathering.
+- An automatic goal continuation while the question is unanswered is a no-op. Preserve the same pause and mark the task formally blocked at the earliest turn the runtime permits.
+
 ## Continuity
 
 - For non-trivial multi-session repos, keep the continuity packet compact and in-repo: `AGENTS.md`, `PROJECT_CONTINUITY.md`, and `CHECKPOINT.md`.
+- Keep only one root handoff. Nested queues, checkpoints, next prompts, rubrics, and equivalent continuation controls are invalid unless they belong to a separately adopted complete nested project or are plainly historical and non-authoritative.
 - Use `memory.bootstrap_context` only for durable re-anchor after a repo or `cwd` change (`reason=repo_cwd_change`), prior-thread recovery (`reason=prior_thread_recovery`), or demonstrated compaction drift (`reason=demonstrated_drift`). The adapter bounds and deduplicates same-project calls by reason and recent-session limit; use direct retrieval plus `get` or `multi_get` for historical wording and evidence.
 - Treat bootstrap as restoration of durable context, not as permission to resume an old task automatically.
 - Keep deeper docs and skill bodies on-demand so routine startup stays cheap.

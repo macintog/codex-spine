@@ -87,6 +87,9 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("Default to silent execution",),
         ("repo-declared closeout mode",),
         ("configured integration task classes",),
+        ("ask one targeted question",),
+        ("unanswered automatic goal continuation is a no-op",),
+        ("do not create action queues",),
         ("memory.bootstrap_context",),
         ("jcodemunch",),
         ("jdocmunch",),
@@ -109,6 +112,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("client-managed context", "complementary client-managed context"),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
         ("`/memories`", "/memories"),
+        ("Intervention Before Workaround",),
+        ("automatic goal continuation",),
         ("`memories.disable_on_external_context`", "memories.disable_on_external_context"),
         ("jcodemunch",),
         ("jdocmunch",),
@@ -170,6 +175,46 @@ def validate_public_skill_surface_contract() -> list[str]:
     unexpected_skill_dirs = sorted(shipped_skill_dirs - PUBLIC_SKILL_DIRS)
     for skill_dir in unexpected_skill_dirs:
         errors.append(f"public repo ships an undeclared skill directory: {skills_root / skill_dir}")
+
+    required_control_anchors = {
+        skills_root / "multi-step/SKILL.md": (
+            "## Admission Gate",
+            "## Forbidden Recursive Surfaces",
+            "Completion is terminal for the selected task",
+        ),
+        skills_root / "project-continuity/SKILL.md": (
+            "Bind the latest explicit user-selected task subject",
+            "Only the adopted scope's root `CHECKPOINT.md`",
+            "cannot create, queue, authorize, or select follow-on work",
+        ),
+        skills_root / "project-continuity/scripts/audit-continuity.py": (
+            "RESERVED_CONTINUATION_NAMES",
+            "CONTINUATION_TEXT_SUFFIXES",
+            "has_historical_declaration",
+            "recursive-continuation-control",
+            'result = "stale"',
+        ),
+        REPO_ROOT / "codex/TOOLING.md": (
+            "## Current Task Subject Binding",
+            "Completion may report residual findings",
+        ),
+        REPO_ROOT / "codex/AGENTS.md": (
+            "bind the latest explicit user request",
+            "Completion is terminal",
+            "fresh explicit user request and subject binding",
+        ),
+    }
+    for path, anchors in required_control_anchors.items():
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for anchor in anchors:
+            if anchor not in text:
+                errors.append(f"public control-plane guard is missing an anchor: {path}: {anchor}")
+
+    multi_step_templates = skills_root / "multi-step/templates"
+    if multi_step_templates.exists():
+        errors.append(f"public multi-step recursive template tree must remain absent: {multi_step_templates}")
 
     for path in (
         REPO_ROOT / "README.md",

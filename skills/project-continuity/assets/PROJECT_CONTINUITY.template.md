@@ -52,5 +52,5 @@
 | Active task | Current user instruction | Supersedes prior handoff scope subject to durable safety constraints. |
 | Current implementation state | Repository and current validation evidence | A checkpoint is a pointer, not proof. |
 | Repo working rules | Applicable `AGENTS.md` and `AGENTS.override.md` chain | Preserve directory-scoped precedence for the current working directory. |
-| Current focus and next step | `CHECKPOINT.md` | Reconcile its state anchor before acting. |
+| Prior focus and advisory next-step candidate | `CHECKPOINT.md` | Never selects the task; reconcile its full subject and state anchor against the latest user request and primary evidence before use. |
 | Architecture, release, or production procedure | `<specific accepted reference>` | Do not reconstruct current procedure from archived history. |

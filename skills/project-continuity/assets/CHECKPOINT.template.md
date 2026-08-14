@@ -1,6 +1,6 @@
 # Checkpoint
 
-<!-- Replace every angle-bracket instruction, remove unused bullets, and delete this comment when instantiating. This handoff is evidence about prior state, not executable authority. Reconcile its identities before resuming. -->
+<!-- Replace every angle-bracket instruction, remove unused bullets, and delete this comment when instantiating. This root handoff is evidence about prior state, not executable authority. It cannot select, queue, authorize, or generate work. Reconcile its full task subject and identities before use. -->
 
 ## Scope And Freshness
 
@@ -18,7 +18,7 @@
 - Reported or inferred: <claims not yet independently proven>
 - Explicitly not done: <work or publication state that must not be implied>
 - Current focus and why it matters: <one resumable subproblem tied to project purpose>
-- Active plan or task handoff: <canonical pointer or none; do not copy the full plan here>
+- Evidence or bounded task artifact: <canonical pointer or none; it cannot select or extend the current task>
 
 ## Decisions And Unknowns
 
@@ -35,11 +35,11 @@
 
 ## Next Safe Step
 
-- Action: <one concrete resumable move>
+- Advisory candidate only: <one concrete move that may be selected by a future explicit user request; this is not a queue or instruction>
 - Prerequisite: <required authority, input, or state>
 - Stop if: <evidence that invalidates the next move>
 
 ## References And Sensitivity
 
-- <Active plan, scoped task handoff, queue, themed archive, or evidence pointer.>
+- <Bounded evidence artifact or themed historical pointer; no active queue or successor prompt.>
 - Publication or redaction constraint: <what must stay local, private, or sanitized; never put the secret itself here>

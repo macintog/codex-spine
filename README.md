@@ -40,7 +40,7 @@ Built-in Codex memories and app-managed files under `~/.codex/memories/` are sep
 
 ### `multi-step`
 
-Use this skill for larger efforts that need a disk-backed queue and multiple narrow passes. It helps split open-ended work into serial pass notes, status files, question banks, surface maps, and finite findings templates so progress survives between sessions without turning one README or checkpoint into a pile of history.
+Use this skill only when one current, explicitly user-selected task has a known finite set of dependent steps. It binds the task to the canonical repo or system and exact subject identity, executes the steps serially, and ends without generating a queue, successor prompt, checkpoint, rubric, or follow-on task. The former recursive template tree is absent by policy; version-control history is evidence only and must not be reconstructed as task authority.
 
 ### `tufte-visualization`
 
@@ -174,7 +174,7 @@ After a successful first run:
 - `codex/AGENTS.md`: compact Codex startup and operating guidance for this installed environment
 - `codex/TOOLING.md`: on-demand guidance for the continuity packet, memory retrieval, and code navigation lanes
 - `skills/project-continuity/`: reusable continuity contract plus starter templates
-- `skills/multi-step/`: reusable serial-pass workflow skill plus packet templates
+- `skills/multi-step/`: finite subject-bound serial workflow with recursive template scaffolding prohibited
 - `skills/tufte-visualization/`: evidence-first visualization workflow plus chart, accessibility, critique, and caption references
 
 This repo ships the docs needed to install, operate, and maintain `codex-spine`.
