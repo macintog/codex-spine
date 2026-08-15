@@ -5,18 +5,6 @@ hooks = true
 multi_agent = true
 memories = true
 
-[agents]
-max_depth = 1
-max_threads = 4
-
-[agents.explorer]
-description = "Read-only explorer for evidence gathering."
-config_file = "~/.codex/agents/explorer.toml"
-
-[agents.implementer]
-description = "Scoped implementing worker for an explicitly assigned change and focused proof."
-config_file = "~/.codex/agents/implementer.toml"
-
 [memories]
 generate_memories = true
 use_memories = true

@@ -344,6 +344,26 @@ def validate_memory_public_surface() -> list[str]:
     return errors
 
 
+def validate_agent_platform_defaults() -> list[str]:
+    errors: list[str] = []
+    config = tomllib.loads(render_config_text())
+    if "agents" in config:
+        errors.append("agent defaults must remain platform-owned: remove the repo-managed [agents] config")
+
+    agents_root = REPO_ROOT / "codex/agents"
+    if agents_root.exists():
+        errors.append(f"agent defaults must remain platform-owned: remove custom profiles under {agents_root}")
+
+    policy_text = (REPO_ROOT / "codex/AGENTS.md").read_text(encoding="utf-8")
+    for phrase in (
+        "Delegate through the named profiles",
+        "Terra at medium reasoning",
+    ):
+        if phrase in policy_text:
+            errors.append(f"agent defaults must remain platform-owned: remove legacy policy prose: {phrase}")
+    return errors
+
+
 def validate_managed_link_adoption_policy() -> list[str]:
     errors: list[str] = []
     agents_links = [link for link in managed_links() if link.live_path == HOME / ".codex/AGENTS.md"]
@@ -429,6 +449,7 @@ def main() -> int:
     errors.extend(tag_verifier_messages("shipped-surface-check", validate_public_skill_surface_contract()))
     errors.extend(tag_verifier_messages("stable-routing-anchor", validate_public_agents_policy()))
     errors.extend(tag_verifier_messages("boundary-and-leak-check", validate_memory_public_surface()))
+    errors.extend(tag_verifier_messages("behavior-contract", validate_agent_platform_defaults()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_component_cli_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_optional_munch_runner_probes()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_managed_link_adoption_policy()))
