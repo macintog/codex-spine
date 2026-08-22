@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import sys
+import os
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -20,7 +21,16 @@ PACKET_FILES = ("AGENTS.md", "PROJECT_CONTINUITY.md", "CHECKPOINT.md")
 RESERVED_CONTINUATION_NAMES = {"checkpoint.md", "queue.md", "next_prompt.md", "rubric.md"}
 RESERVED_CONTINUATION_STEMS = {"checkpoint", "queue", "next_prompt", "next-prompt", "rubric"}
 CONTINUATION_TEXT_SUFFIXES = {"", ".md", ".markdown", ".txt", ".toml", ".yaml", ".yml", ".json"}
-SKIP_TREE_PARTS = {".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "__pycache__"}
+SKIP_TREE_PARTS = {
+    ".codex-artifacts",
+    ".git",
+    ".hg",
+    ".svn",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "vendor",
+}
 SKILL_RESOURCE_PARTS = {"assets", "templates", "references"}
 HISTORICAL_PATH_PARTS = {"archive", "archives", "archived", "history", "historical"}
 CURRENT_CONTROL_HEADING = re.compile(r"^(?:(?:current|active)\s+(?:state|status|focus|task|queue|pass|work)|status)\b", re.IGNORECASE)
@@ -77,6 +87,37 @@ ADVISORY_WORD_LIMITS = {
     "PROJECT_CONTINUITY.md": 900,
     "CHECKPOINT.md": 500,
 }
+
+
+def external_checkpoint_registration(root: Path) -> Path | None:
+    result = git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if result.returncode != 0:
+        return None
+    candidate = Path(result.stdout.strip()).resolve() / "codex-project-checkpoint" / "registration.json"
+    return candidate if candidate.exists() else None
+
+
+def resolve_external_checkpoint(root: Path) -> tuple[dict[str, object] | None, str]:
+    cli = os.environ.get("CODEX_PROJECT_CHECKPOINT_BIN")
+    candidates = [Path(cli).expanduser()] if cli else []
+    candidates.extend([Path.home() / ".local/bin/codex-project-checkpoint", Path(__file__).resolve().parents[3] / "bin/codex-project-checkpoint"])
+    executable = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if executable is None:
+        return None, "resolver_unavailable"
+    result = subprocess.run(
+        [sys.executable, "-B", str(executable), "doctor", "--repo", str(root), "--json"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    raw = result.stdout if result.returncode == 0 else result.stderr
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, "resolver_output_invalid"
+    if result.returncode != 0:
+        return payload if isinstance(payload, dict) else None, str(payload.get("reason", "resolver_failed")) if isinstance(payload, dict) else "resolver_failed"
+    return payload if isinstance(payload, dict) else None, ""
 
 
 def git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -495,6 +536,16 @@ def audit(root: Path) -> dict[str, object]:
         posture = "repo-native-only"
 
     findings: list[dict[str, str]] = []
+    external_registration = external_checkpoint_registration(root)
+    checkpoint_resolution: dict[str, object] | None = None
+    external_adopted = external_registration is not None
+    if external_adopted:
+        checkpoint_resolution, resolver_error = resolve_external_checkpoint(root)
+        if checkpoint_resolution is None or checkpoint_resolution.get("ok") is not True:
+            state = str((checkpoint_resolution or {}).get("state", "unreadable"))
+            findings.append(finding("external-checkpoint-resolution", "error", "CHECKPOINT.md", f"Adopted external checkpoint cannot resolve: {state}/{resolver_error}. No tracked fallback is allowed."))
+        elif checkpoint_resolution.get("state") not in {"current", "empty"}:
+            findings.append(finding("external-checkpoint-state", "error", "CHECKPOINT.md", f"Adopted external checkpoint has unexpected state {checkpoint_resolution.get('state')}."))
     if adopted:
         for name, present in existing.items():
             if not present:
@@ -516,8 +567,9 @@ def audit(root: Path) -> dict[str, object]:
 
     for name, present in existing.items():
         if present:
-            findings.extend(inspect_packet_file(root, root / name, visibility))
-    if checkpoint_text:
+            if name != "CHECKPOINT.md" or not external_adopted:
+                findings.extend(inspect_packet_file(root, root / name, visibility))
+    if checkpoint_text and not external_adopted:
         findings.extend(inspect_state_anchor(root, checkpoint_text))
     if adopted:
         findings.extend(inspect_continuation_topology(root))
@@ -537,7 +589,10 @@ def audit(root: Path) -> dict[str, object]:
         result = "stale"
     else:
         result = "pass"
-    return {"result": result, "scope": scope, "posture": posture, "instruction_files": instruction_files, "packet": existing, "findings": findings}
+    report = {"result": result, "scope": scope, "posture": posture, "instruction_files": instruction_files, "packet": existing, "findings": findings}
+    if checkpoint_resolution is not None:
+        report["checkpoint_resolver"] = checkpoint_resolution
+    return report
 
 
 def print_human(report: dict[str, object]) -> None:

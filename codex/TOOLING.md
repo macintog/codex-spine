@@ -17,7 +17,8 @@ Load this only when the task actually enters one of these installed lanes. Routi
 
 ## Continuity
 
-- For non-trivial multi-session repos, keep the continuity packet compact and in-repo: `AGENTS.md`, `PROJECT_CONTINUITY.md`, and `CHECKPOINT.md`.
+- For non-trivial multi-session repos, keep `AGENTS.md` and `PROJECT_CONTINUITY.md` in-repo and resolve handoff state through `codex-project-checkpoint`. Adopted repos keep root `CHECKPOINT.md` tracked only as a discovery stub; `not_adopted` retains the legacy tracked handoff.
+- After final remote-tip or keeper proof and before reporting completion for a confirmed `end`, including `end -yes`, the coordinator re-reads the resolver-selected adopted handoff, reconciles the final disposition, and writes it with `codex-project-checkpoint update --expected-generation ...`. Re-read and reconcile a stale generation; never overwrite it, directly edit the external board, or let a worker write it.
 - Keep only one root handoff. Nested queues, checkpoints, next prompts, rubrics, and equivalent continuation controls are invalid unless they belong to a separately adopted complete nested project or are plainly historical and non-authoritative.
 - Use `memory.bootstrap_context` only for durable re-anchor after a repo or `cwd` change (`reason=repo_cwd_change`), prior-thread recovery (`reason=prior_thread_recovery`), or demonstrated compaction drift (`reason=demonstrated_drift`). The adapter bounds and deduplicates same-project calls by reason and recent-session limit; use direct retrieval plus `get` or `multi_get` for historical wording and evidence.
 - Treat bootstrap as restoration of durable context, not as permission to resume an old task automatically.

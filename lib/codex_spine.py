@@ -164,6 +164,7 @@ def managed_links() -> list[ManagedLink]:
         ManagedLink(LIVE_UV_CONFIG_PATH, REPO_ROOT / "uv" / "uv.toml"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),
+        ManagedLink(HOME / ".local/bin/codex-project-checkpoint", REPO_ROOT / "bin/codex-project-checkpoint"),
         ManagedLink(HOME / "Library/pnpm/node", REPO_ROOT / "bin/pnpm-node"),
         ManagedLink(HOME / ".local/bin/qmd-codex", REPO_ROOT / "bin/qmd-codex"),
         ManagedLink(HOME / ".local/bin/qmd-codex-health.sh", REPO_ROOT / "bin/qmd-codex-health.sh"),

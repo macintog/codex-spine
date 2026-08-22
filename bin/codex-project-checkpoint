@@ -1,0 +1,847 @@
+#!/usr/bin/env python3
+"""Worktree-independent project checkpoint resolver and coordinator writer."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import fcntl
+import hashlib
+import json
+import os
+import re
+import secrets
+import subprocess
+import sys
+import tempfile
+import time
+import unicodedata
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any, Iterator
+from urllib.parse import unquote, urlsplit
+
+
+SCHEMA_VERSION = 1
+BOARD_KIND = "codex_project_checkpoint"
+STUB_KIND = "codex_project_checkpoint_stub"
+REGISTRATION_KIND = "codex_project_checkpoint_registration"
+MAX_BOARD_BYTES = 64 * 1024
+MAX_RECOVERY_FILES = 10
+MAX_RECOVERY_AGE = timedelta(days=14)
+MAX_IN_FLIGHT = 7
+MAX_LEARNINGS = 5
+MAX_BLOCKERS = 5
+MAX_BOUNDARIES = 5
+PROJECT_ID_PATTERN = re.compile(r"cp1_[a-z2-7]{26}")
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+RFC3339_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+FRONT_MATTER_KEYS = (
+    "kind",
+    "schema_version",
+    "project_id",
+    "repository_identity_sha256",
+    "generation",
+    "updated_at",
+    "body_sha256",
+)
+STUB_KEYS = ("kind", "schema_version", "project_id")
+REGISTRATION_KEYS = (
+    "kind",
+    "schema_version",
+    "project_id",
+    "repository_identity_sha256",
+    "remote_name",
+)
+BODY_HEADINGS = (
+    "## Freshness",
+    "## In Flight",
+    "## Just Learned",
+    "## Blocked Or Awaiting Decision",
+    "## Current Boundaries",
+    "## References",
+)
+
+
+class CheckpointError(RuntimeError):
+    def __init__(self, state: str, reason: str, *, exit_code: int = 2, data: dict[str, Any] | None = None) -> None:
+        super().__init__(reason)
+        self.state = state
+        self.reason = reason
+        self.exit_code = exit_code
+        self.data = data or {}
+
+
+@dataclass(frozen=True)
+class RepoIdentity:
+    repo_root: Path
+    common_dir: Path
+    remote_name: str
+    digest: str
+
+
+@dataclass(frozen=True)
+class Registration:
+    project_id: str
+    repository_identity_sha256: str
+    remote_name: str
+
+
+@dataclass(frozen=True)
+class Resolution:
+    state: str
+    repo: RepoIdentity
+    adopted: bool
+    project_id: str | None = None
+    generation: int | None = None
+    board_path: Path | None = None
+    checkpoint_path: Path | None = None
+    attention: tuple[str, ...] = ()
+    content: str | None = None
+
+
+def utc_now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def compact_json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def run_git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise CheckpointError("identity_mismatch", "git_repository_unavailable")
+    return completed.stdout.strip()
+
+
+def reject_unsafe_text(value: str, reason: str) -> str:
+    value = unicodedata.normalize("NFC", value.strip())
+    if not value or any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise CheckpointError("identity_mismatch", reason)
+    return value
+
+
+def normalize_remote(raw: str) -> str:
+    raw = reject_unsafe_text(raw, "remote_url_invalid")
+    if "?" in raw or "#" in raw:
+        raise CheckpointError("identity_mismatch", "remote_url_invalid")
+
+    scp_match = None if "://" in raw else re.fullmatch(r"(?:[^@/:]+@)?([^/:]+):(.+)", raw)
+    if scp_match and not re.match(r"^[A-Za-z]:[/\\]", raw):
+        host = scp_match.group(1).encode("idna").decode("ascii").lower()
+        path = unicodedata.normalize("NFC", scp_match.group(2))
+        normalized = f"ssh://{host}/{path.lstrip('/')}"
+    else:
+        parsed = urlsplit(raw)
+        if parsed.scheme in {"http", "https", "ssh"}:
+            if not parsed.hostname:
+                raise CheckpointError("identity_mismatch", "remote_url_invalid")
+            host = parsed.hostname.encode("idna").decode("ascii").lower()
+            try:
+                port = parsed.port
+            except ValueError as exc:
+                raise CheckpointError("identity_mismatch", "remote_url_invalid") from exc
+            if (parsed.scheme == "http" and port == 80) or (parsed.scheme == "https" and port == 443) or (parsed.scheme == "ssh" and port == 22):
+                port = None
+            authority = host if port is None else f"{host}:{port}"
+            path = unicodedata.normalize("NFC", unquote(parsed.path))
+            normalized = f"{parsed.scheme.lower()}://{authority}/{path.lstrip('/')}"
+        elif parsed.scheme == "file":
+            normalized = f"file://{Path(unquote(parsed.path)).expanduser().resolve(strict=False)}"
+        elif parsed.scheme:
+            raise CheckpointError("identity_mismatch", "remote_scheme_unsupported")
+        else:
+            normalized = f"file://{Path(raw).expanduser().resolve(strict=False)}"
+
+    normalized = normalized.rstrip("/")
+    if normalized.endswith(".git"):
+        normalized = normalized[:-4]
+    return normalized
+
+
+def length_delimited(parts: list[str]) -> bytes:
+    payload = bytearray()
+    for part in parts:
+        encoded = part.encode("utf-8")
+        payload.extend(len(encoded).to_bytes(8, "big"))
+        payload.extend(encoded)
+    return bytes(payload)
+
+
+def resolve_repo_layout(repo: Path) -> tuple[Path, Path]:
+    repo_root = Path(run_git(repo, "rev-parse", "--show-toplevel")).resolve(strict=True)
+    bare = run_git(repo_root, "rev-parse", "--is-bare-repository")
+    if bare != "false":
+        raise CheckpointError("identity_mismatch", "bare_repository_unsupported")
+    common_raw = run_git(repo_root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    common_dir = Path(common_raw).resolve(strict=True)
+    return repo_root, common_dir
+
+
+def resolve_repo_identity(repo: Path, remote_name: str = "origin") -> RepoIdentity:
+    repo_root, common_dir = resolve_repo_layout(repo)
+    remote_name = reject_unsafe_text(remote_name, "remote_name_invalid")
+    remote_values = subprocess.run(
+        ["git", "-C", str(repo_root), "config", "--get-all", f"remote.{remote_name}.url"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    urls = [line for line in remote_values.stdout.splitlines() if line.strip()]
+    if remote_values.returncode != 0 or len(urls) != 1:
+        raise CheckpointError("identity_mismatch", "private_remote_not_unique")
+    normalized_remote = normalize_remote(urls[0])
+    digest = hashlib.sha256(
+        length_delimited(["codex-project-checkpoint-repo-v1", str(common_dir), normalized_remote])
+    ).hexdigest()
+    return RepoIdentity(repo_root=repo_root, common_dir=common_dir, remote_name=remote_name, digest=digest)
+
+
+def control_root() -> Path:
+    override = os.environ.get("CODEX_PROJECT_CHECKPOINT_ROOT")
+    root = Path(override).expanduser() if override else Path.home() / ".codex" / "project-checkpoints"
+    return root.resolve(strict=False)
+
+
+def registration_path(common_dir: Path) -> Path:
+    return common_dir / "codex-project-checkpoint" / "registration.json"
+
+
+def board_dir(project_id: str) -> Path:
+    return control_root() / project_id
+
+
+def board_path(project_id: str) -> Path:
+    return board_dir(project_id) / "CHECKPOINT.md"
+
+
+def ensure_private_directory(path: Path) -> None:
+    current = path
+    missing: list[Path] = []
+    while not current.exists():
+        missing.append(current)
+        if current == current.parent:
+            break
+        current = current.parent
+    probe = current
+    while probe != probe.parent:
+        if probe.is_symlink():
+            raise CheckpointError("identity_mismatch", "symlink_control_path")
+        probe = probe.parent
+    for candidate in reversed(missing):
+        candidate.mkdir(mode=0o700)
+    if path.exists() and path.is_symlink():
+        raise CheckpointError("identity_mismatch", "symlink_control_path")
+    os.chmod(path, 0o700)
+
+
+def fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def failpoint(name: str) -> None:
+    if os.environ.get("CODEX_PROJECT_CHECKPOINT_FAILPOINT") == name:
+        os._exit(70)
+
+
+def atomic_write(path: Path, data: bytes, *, mode: int = 0o600, private_parent: bool = True) -> None:
+    if private_parent:
+        ensure_private_directory(path.parent)
+    elif not path.parent.is_dir() or path.parent.is_symlink():
+        raise CheckpointError("identity_mismatch", "write_parent_invalid")
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".checkpoint-tmp-", dir=str(path.parent))
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, mode)
+        with os.fdopen(descriptor, "wb", closefd=True) as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        failpoint("after_temp_fsync")
+        failpoint("before_replace")
+        os.replace(temporary, path)
+        failpoint("after_replace")
+        fsync_directory(path.parent)
+        failpoint("after_directory_fsync")
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def parse_flat_front_matter(text: str, allowed_keys: tuple[str, ...]) -> tuple[dict[str, str], str]:
+    if "\x00" in text or "\r" in text:
+        raise CheckpointError("corrupt", "invalid_text_encoding")
+    if not text.startswith("---\n"):
+        raise CheckpointError("corrupt", "front_matter_missing")
+    marker = text.find("\n---\n", 4)
+    if marker < 0:
+        raise CheckpointError("corrupt", "front_matter_unterminated")
+    header_text = text[4:marker]
+    body = text[marker + 5 :]
+    if body.startswith("\n"):
+        body = body[1:]
+    values: dict[str, str] = {}
+    for line in header_text.splitlines():
+        if ":" not in line:
+            raise CheckpointError("corrupt", "front_matter_invalid")
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if key in values or key not in allowed_keys:
+            raise CheckpointError("corrupt", "front_matter_invalid")
+        values[key] = value
+    if set(values) != set(allowed_keys):
+        raise CheckpointError("corrupt", "front_matter_incomplete")
+    return values, body
+
+
+def parse_registration(path: Path) -> Registration:
+    if path.is_symlink():
+        raise CheckpointError("identity_mismatch", "symlink_registration_path")
+    try:
+        raw = path.read_bytes()
+    except PermissionError as exc:
+        raise CheckpointError("unreadable", "registration_unreadable") from exc
+    except OSError as exc:
+        raise CheckpointError("unreadable", "registration_unreadable") from exc
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CheckpointError("corrupt", "registration_corrupt") from exc
+    if not isinstance(payload, dict) or set(payload) != set(REGISTRATION_KEYS):
+        raise CheckpointError("corrupt", "registration_corrupt")
+    if payload.get("kind") != REGISTRATION_KIND or payload.get("schema_version") != SCHEMA_VERSION:
+        raise CheckpointError("corrupt", "registration_schema_unsupported")
+    project_id = str(payload.get("project_id", ""))
+    digest = str(payload.get("repository_identity_sha256", ""))
+    remote_name = str(payload.get("remote_name", ""))
+    if not PROJECT_ID_PATTERN.fullmatch(project_id) or not SHA256_PATTERN.fullmatch(digest) or not remote_name:
+        raise CheckpointError("corrupt", "registration_corrupt")
+    return Registration(project_id=project_id, repository_identity_sha256=digest, remote_name=remote_name)
+
+
+def read_stub(path: Path) -> tuple[str, int] | None:
+    if path.is_symlink():
+        raise CheckpointError("identity_mismatch", "symlink_stub_path")
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return None
+    if f"kind: {STUB_KIND}" not in text:
+        return None
+    values, body = parse_flat_front_matter(text, STUB_KEYS)
+    if values["kind"] != STUB_KIND or values["schema_version"] != str(SCHEMA_VERSION):
+        raise CheckpointError("corrupt", "stub_schema_unsupported")
+    project_id = values["project_id"]
+    if not PROJECT_ID_PATTERN.fullmatch(project_id):
+        raise CheckpointError("corrupt", "stub_project_id_invalid")
+    expected = (
+        "# Project Checkpoint Discovery\n\n"
+        "Current coordination state is external. Resolve it with "
+        "`codex-project-checkpoint show --repo .`.\n\n"
+        "This tracked file is never current state and must not be used as fallback.\n"
+    )
+    if body != expected:
+        raise CheckpointError("corrupt", "stub_body_invalid")
+    return project_id, int(values["schema_version"])
+
+
+def render_stub(project_id: str) -> str:
+    return (
+        "---\n"
+        f"kind: {STUB_KIND}\n"
+        f"schema_version: {SCHEMA_VERSION}\n"
+        f"project_id: {project_id}\n"
+        "---\n\n"
+        "# Project Checkpoint Discovery\n\n"
+        "Current coordination state is external. Resolve it with "
+        "`codex-project-checkpoint show --repo .`.\n\n"
+        "This tracked file is never current state and must not be used as fallback.\n"
+    )
+
+
+def require_string(value: Any, field: str) -> str:
+    if not isinstance(value, str) or not value.strip() or "\n" in value or "\r" in value or "|" in value:
+        raise CheckpointError("corrupt", f"model_{field}_invalid", exit_code=5)
+    return value.strip()
+
+
+def require_timestamp(value: Any, field: str) -> str:
+    text = require_string(value, field)
+    if not RFC3339_PATTERN.fullmatch(text):
+        raise CheckpointError("corrupt", f"model_{field}_invalid", exit_code=5)
+    return text
+
+
+def validate_entry(entry: Any, fields: tuple[str, ...], timestamp_fields: tuple[str, ...]) -> dict[str, str]:
+    if not isinstance(entry, dict) or set(entry) != set(fields):
+        raise CheckpointError("corrupt", "model_entry_invalid", exit_code=5)
+    normalized: dict[str, str] = {}
+    for field in fields:
+        normalized[field] = require_timestamp(entry[field], field) if field in timestamp_fields else require_string(entry[field], field)
+    return normalized
+
+
+def validate_model(payload: Any) -> tuple[dict[str, Any], list[str]]:
+    expected = {
+        "freshness",
+        "in_flight",
+        "just_learned",
+        "blocked_or_awaiting_decision",
+        "current_boundaries",
+        "references",
+    }
+    if not isinstance(payload, dict) or set(payload) != expected:
+        raise CheckpointError("corrupt", "model_shape_invalid", exit_code=5)
+    freshness = payload["freshness"]
+    if not isinstance(freshness, dict) or set(freshness) != {"coordinator", "last_verified_project_identity"}:
+        raise CheckpointError("corrupt", "model_freshness_invalid", exit_code=5)
+    normalized: dict[str, Any] = {
+        "freshness": {
+            "coordinator": require_string(freshness["coordinator"], "coordinator"),
+            "last_verified_project_identity": require_string(
+                freshness["last_verified_project_identity"], "last_verified_project_identity"
+            ),
+        }
+    }
+    specs = {
+        "in_flight": (
+            ("id", "owner_binding", "state", "task_subject", "evidence_status", "evidence_pointer", "last_confirmed_at", "clears_when"),
+            ("last_confirmed_at",),
+        ),
+        "just_learned": (
+            ("id", "finding", "evidence_status", "evidence_pointer", "impact", "last_confirmed_at", "expires_or_promote_by"),
+            ("last_confirmed_at", "expires_or_promote_by"),
+        ),
+        "blocked_or_awaiting_decision": (
+            ("id", "decision", "resolver", "safe_state", "last_confirmed_at", "clears_when"),
+            ("last_confirmed_at",),
+        ),
+        "current_boundaries": (
+            ("id", "boundary", "last_confirmed_at", "clears_when"),
+            ("last_confirmed_at",),
+        ),
+    }
+    seen_ids: set[str] = set()
+    for section, (fields, timestamp_fields) in specs.items():
+        rows = payload[section]
+        if not isinstance(rows, list):
+            raise CheckpointError("corrupt", f"model_{section}_invalid", exit_code=5)
+        normalized_rows = [validate_entry(row, fields, timestamp_fields) for row in rows]
+        for row in normalized_rows:
+            if row["id"] in seen_ids:
+                raise CheckpointError("corrupt", "model_duplicate_id", exit_code=5)
+            seen_ids.add(row["id"])
+        normalized[section] = normalized_rows
+    references = payload["references"]
+    if not isinstance(references, list):
+        raise CheckpointError("corrupt", "model_references_invalid", exit_code=5)
+    normalized["references"] = [require_string(item, "reference") for item in references]
+    attention: list[str] = []
+    if len(normalized["in_flight"]) > MAX_IN_FLIGHT:
+        attention.append("over_capacity_in_flight")
+    if len(normalized["just_learned"]) > MAX_LEARNINGS:
+        attention.append("over_capacity_just_learned")
+    if len(normalized["blocked_or_awaiting_decision"]) > MAX_BLOCKERS:
+        attention.append("over_capacity_blocked")
+    if len(normalized["current_boundaries"]) > MAX_BOUNDARIES:
+        attention.append("over_capacity_boundaries")
+    return normalized, attention
+
+
+def markdown_table(headers: tuple[str, ...], rows: list[dict[str, str]], fields: tuple[str, ...]) -> str:
+    if not rows:
+        return "_None._\n"
+    lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
+    for row in rows:
+        lines.append("| " + " | ".join(row[field] for field in fields) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def render_body(model: dict[str, Any]) -> str:
+    return (
+        "# Project Checkpoint\n\n"
+        "## Freshness\n\n"
+        f"- Coordinator: {model['freshness']['coordinator']}\n"
+        f"- Last verified project identity: {model['freshness']['last_verified_project_identity']}\n\n"
+        "## In Flight\n\n"
+        + markdown_table(
+            ("ID", "Owner binding", "State", "Task subject", "Evidence status", "Evidence pointer", "Last confirmed", "Clears when"),
+            model["in_flight"],
+            ("id", "owner_binding", "state", "task_subject", "evidence_status", "evidence_pointer", "last_confirmed_at", "clears_when"),
+        )
+        + "\n## Just Learned\n\n"
+        + markdown_table(
+            ("ID", "Finding", "Evidence status", "Evidence pointer", "Impact", "Last confirmed", "Expires or promote by"),
+            model["just_learned"],
+            ("id", "finding", "evidence_status", "evidence_pointer", "impact", "last_confirmed_at", "expires_or_promote_by"),
+        )
+        + "\n## Blocked Or Awaiting Decision\n\n"
+        + markdown_table(
+            ("ID", "Decision", "Resolver", "Safe state", "Last confirmed", "Clears when"),
+            model["blocked_or_awaiting_decision"],
+            ("id", "decision", "resolver", "safe_state", "last_confirmed_at", "clears_when"),
+        )
+        + "\n## Current Boundaries\n\n"
+        + markdown_table(
+            ("ID", "Boundary", "Last confirmed", "Clears when"),
+            model["current_boundaries"],
+            ("id", "boundary", "last_confirmed_at", "clears_when"),
+        )
+        + "\n## References\n\n"
+        + ("".join(f"- {item}\n" for item in model["references"]) if model["references"] else "_None._\n")
+    )
+
+
+def render_board(project_id: str, digest: str, generation: int, model: dict[str, Any]) -> str:
+    body = render_body(model)
+    body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    text = (
+        "---\n"
+        f"kind: {BOARD_KIND}\n"
+        f"schema_version: {SCHEMA_VERSION}\n"
+        f"project_id: {project_id}\n"
+        f"repository_identity_sha256: {digest}\n"
+        f"generation: {generation}\n"
+        f"updated_at: {utc_now()}\n"
+        f"body_sha256: {body_hash}\n"
+        "---\n\n"
+        f"{body}"
+    )
+    if len(text.encode("utf-8")) > MAX_BOARD_BYTES:
+        raise CheckpointError("corrupt", "board_too_large", exit_code=5)
+    return text
+
+
+def parse_board(text: str, registration: Registration, repo: RepoIdentity) -> tuple[int, str]:
+    if len(text.encode("utf-8")) > MAX_BOARD_BYTES or not text.endswith("\n"):
+        raise CheckpointError("corrupt", "board_size_or_newline_invalid")
+    values, body = parse_flat_front_matter(text, FRONT_MATTER_KEYS)
+    if values["kind"] != BOARD_KIND or values["schema_version"] != str(SCHEMA_VERSION):
+        raise CheckpointError("corrupt", "board_schema_unsupported")
+    if values["project_id"] != registration.project_id:
+        raise CheckpointError("identity_mismatch", "board_project_id_mismatch")
+    digest = values["repository_identity_sha256"]
+    if digest != registration.repository_identity_sha256 or digest != repo.digest:
+        raise CheckpointError("identity_mismatch", "board_repository_identity_mismatch")
+    try:
+        generation = int(values["generation"])
+    except ValueError as exc:
+        raise CheckpointError("corrupt", "board_generation_invalid") from exc
+    if generation < 1 or not RFC3339_PATTERN.fullmatch(values["updated_at"]):
+        raise CheckpointError("corrupt", "board_metadata_invalid")
+    if hashlib.sha256(body.encode("utf-8")).hexdigest() != values["body_sha256"]:
+        raise CheckpointError("corrupt", "board_checksum_mismatch")
+    if not body.startswith("# Project Checkpoint\n\n") or [line for line in body.splitlines() if line.startswith("## ")] != list(BODY_HEADINGS):
+        raise CheckpointError("corrupt", "board_shape_invalid")
+    return generation, body
+
+
+def read_board(path: Path, registration: Registration, repo: RepoIdentity) -> tuple[int, str, str]:
+    if path.is_symlink():
+        raise CheckpointError("identity_mismatch", "symlink_board_path")
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError as exc:
+        raise CheckpointError("missing", "board_missing") from exc
+    except PermissionError as exc:
+        raise CheckpointError("unreadable", "board_unreadable") from exc
+    except OSError as exc:
+        raise CheckpointError("unreadable", "board_unreadable") from exc
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CheckpointError("corrupt", "board_encoding_invalid") from exc
+    generation, body = parse_board(text, registration, repo)
+    return generation, body, text
+
+
+def body_has_entries(body: str) -> bool:
+    return any(line.startswith("| ") and not line.startswith("| ---") and not line.startswith("| ID ") for line in body.splitlines())
+
+
+def resolve(repo_path: Path) -> Resolution:
+    repo_root, common_dir = resolve_repo_layout(repo_path)
+    reg_path = registration_path(common_dir)
+    stub_path = repo_root / "CHECKPOINT.md"
+    stub = read_stub(stub_path)
+    if not reg_path.exists():
+        preliminary = RepoIdentity(repo_root=repo_root, common_dir=common_dir, remote_name="", digest="")
+        if stub is not None:
+            raise CheckpointError("identity_mismatch", "registration_missing")
+        content = None
+        if stub_path.is_file():
+            try:
+                content = stub_path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                content = None
+        return Resolution(
+            state="not_adopted",
+            repo=preliminary,
+            adopted=False,
+            checkpoint_path=stub_path,
+            content=content,
+        )
+    registration = parse_registration(reg_path)
+    repo = resolve_repo_identity(repo_path, registration.remote_name)
+    if registration.repository_identity_sha256 != repo.digest:
+        raise CheckpointError("identity_mismatch", "registration_repository_identity_mismatch")
+    attention: list[str] = []
+    if stub is None:
+        attention.append("stub_absent_at_ref")
+    elif stub[0] != registration.project_id:
+        raise CheckpointError("identity_mismatch", "stub_project_id_mismatch")
+    path = board_path(registration.project_id)
+    generation, body, text = read_board(path, registration, repo)
+    state = "current" if body_has_entries(body) else "empty"
+    return Resolution(
+        state=state,
+        repo=repo,
+        adopted=True,
+        project_id=registration.project_id,
+        generation=generation,
+        board_path=path,
+        checkpoint_path=stub_path,
+        attention=tuple(attention),
+        content=text,
+    )
+
+
+def resolution_payload(resolution: Resolution) -> dict[str, Any]:
+    payload: dict[str, Any] = {"adopted": resolution.adopted, "ok": True, "state": resolution.state}
+    if resolution.project_id:
+        payload["project_id"] = resolution.project_id
+    if resolution.generation is not None:
+        payload["generation"] = resolution.generation
+    if resolution.attention:
+        payload["attention"] = list(resolution.attention)
+    return payload
+
+
+@contextmanager
+def project_lock(project_id: str, timeout: float) -> Iterator[None]:
+    directory = board_dir(project_id)
+    ensure_private_directory(directory)
+    lock_path = directory / "LOCK"
+    if lock_path.is_symlink():
+        raise CheckpointError("identity_mismatch", "symlink_lock_path")
+    lock_file = lock_path.open("a+", encoding="utf-8")
+    os.chmod(lock_path, 0o600)
+    deadline = time.monotonic() + timeout
+    acquired = False
+    try:
+        while not acquired:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise CheckpointError("busy", "lock_timeout", exit_code=4)
+                time.sleep(0.05)
+        yield
+    finally:
+        if acquired:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        lock_file.close()
+
+
+def preserve_recovery(path: Path, generation: int, text: str) -> None:
+    recovery = path.parent / "recovery"
+    ensure_private_directory(recovery)
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    target = recovery / f"{timestamp}-g{generation:020d}-{digest}.md"
+    atomic_write(target, text.encode("utf-8"))
+    failpoint("after_recovery")
+
+
+def prune_recovery(path: Path) -> list[str]:
+    recovery = path.parent / "recovery"
+    if not recovery.is_dir():
+        return []
+    attention: list[str] = []
+    cutoff = datetime.now(UTC) - MAX_RECOVERY_AGE
+    candidates = sorted((item for item in recovery.iterdir() if item.is_file()), key=lambda item: item.name, reverse=True)
+    for index, item in enumerate(candidates):
+        try:
+            modified = datetime.fromtimestamp(item.stat().st_mtime, UTC)
+            if index >= MAX_RECOVERY_FILES or modified < cutoff:
+                item.unlink()
+        except OSError:
+            attention.append("recovery_prune_failed")
+    if recovery.exists():
+        fsync_directory(recovery)
+    failpoint("during_prune")
+    return sorted(set(attention))
+
+
+def cleanup_stale_temps(directory: Path) -> list[str]:
+    attention: list[str] = []
+    cutoff = time.time() - 24 * 60 * 60
+    for item in directory.glob(".checkpoint-tmp-*"):
+        try:
+            if item.is_file() and not item.is_symlink() and item.stat().st_mtime < cutoff:
+                item.unlink()
+        except OSError:
+            attention.append("stale_temp_cleanup_failed")
+    return sorted(set(attention))
+
+
+def load_model(path: Path) -> tuple[dict[str, Any], list[str]]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CheckpointError("corrupt", "model_file_invalid", exit_code=5) from exc
+    return validate_model(payload)
+
+
+def registration_payload(project_id: str, repo: RepoIdentity) -> dict[str, Any]:
+    return {
+        "kind": REGISTRATION_KIND,
+        "schema_version": SCHEMA_VERSION,
+        "project_id": project_id,
+        "repository_identity_sha256": repo.digest,
+        "remote_name": repo.remote_name,
+    }
+
+
+def new_project_id() -> str:
+    token = base64.b32encode(secrets.token_bytes(16)).decode("ascii").lower().rstrip("=")
+    return f"cp1_{token}"
+
+
+def command_adopt(args: argparse.Namespace) -> Resolution:
+    repo = resolve_repo_identity(Path(args.repo), args.remote)
+    reg_path = registration_path(repo.common_dir)
+    if reg_path.exists():
+        raise CheckpointError("identity_mismatch", "already_adopted", exit_code=5)
+    checkpoint = repo.repo_root / "CHECKPOINT.md"
+    if read_stub(checkpoint) is not None:
+        raise CheckpointError("identity_mismatch", "stub_without_registration", exit_code=5)
+    model, attention = load_model(Path(args.file))
+    project_id = new_project_id()
+    external = board_path(project_id)
+    with project_lock(project_id, args.lock_timeout):
+        if external.exists():
+            raise CheckpointError("identity_mismatch", "project_id_collision", exit_code=5)
+        board = render_board(project_id, repo.digest, 1, model)
+        atomic_write(external, board.encode("utf-8"))
+        registration = compact_json(registration_payload(project_id, repo)) + "\n"
+        atomic_write(reg_path, registration.encode("utf-8"))
+        atomic_write(
+            checkpoint,
+            render_stub(project_id).encode("utf-8"),
+            mode=0o644,
+            private_parent=False,
+        )
+    resolution = resolve(repo.repo_root)
+    if attention:
+        resolution = Resolution(**{**resolution.__dict__, "attention": tuple(sorted(set((*resolution.attention, *attention))))})
+    return resolution
+
+
+def command_update(args: argparse.Namespace) -> Resolution:
+    current = resolve(Path(args.repo))
+    if not current.adopted or current.project_id is None or current.generation is None or current.board_path is None:
+        raise CheckpointError("not_adopted", "project_not_adopted", exit_code=5)
+    model, model_attention = load_model(Path(args.file))
+    attention = list(model_attention)
+    with project_lock(current.project_id, args.lock_timeout):
+        locked = resolve(Path(args.repo))
+        if locked.generation != args.expected_generation:
+            raise CheckpointError(
+                "stale_generation",
+                "expected_generation_mismatch",
+                exit_code=3,
+                data={"current_generation": locked.generation},
+            )
+        registration = parse_registration(registration_path(locked.repo.common_dir))
+        _, _, old_text = read_board(locked.board_path, registration, locked.repo)
+        new_text = render_board(locked.project_id, locked.repo.digest, locked.generation + 1, model)
+        attention.extend(cleanup_stale_temps(locked.board_path.parent))
+        attention.extend(prune_recovery(locked.board_path))
+        preserve_recovery(locked.board_path, locked.generation, old_text)
+        atomic_write(locked.board_path, new_text.encode("utf-8"))
+        attention.extend(prune_recovery(locked.board_path))
+    updated = resolve(Path(args.repo))
+    if attention:
+        updated = Resolution(**{**updated.__dict__, "attention": tuple(sorted(set((*updated.attention, *attention))))})
+    return updated
+
+
+def print_resolution(resolution: Resolution, *, as_json: bool, show_content: bool) -> None:
+    if as_json:
+        print(compact_json(resolution_payload(resolution)))
+    elif show_content and resolution.content is not None:
+        sys.stdout.write(resolution.content)
+    else:
+        payload = resolution_payload(resolution)
+        print(" ".join(f"{key}={value}" for key, value in payload.items()))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Resolve and update one worktree-independent project checkpoint.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for name in ("show", "doctor"):
+        command = subparsers.add_parser(name)
+        command.add_argument("--repo", default=".")
+        command.add_argument("--json", action="store_true")
+    adopt = subparsers.add_parser("adopt")
+    adopt.add_argument("--repo", default=".")
+    adopt.add_argument("--remote", default="origin")
+    adopt.add_argument("--file", required=True)
+    adopt.add_argument("--lock-timeout", type=float, default=5.0)
+    adopt.add_argument("--json", action="store_true")
+    update = subparsers.add_parser("update")
+    update.add_argument("--repo", default=".")
+    update.add_argument("--expected-generation", required=True, type=int)
+    update.add_argument("--file", required=True)
+    update.add_argument("--lock-timeout", type=float, default=5.0)
+    update.add_argument("--json", action="store_true")
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    try:
+        if args.command in {"show", "doctor"}:
+            resolution = resolve(Path(args.repo))
+            print_resolution(resolution, as_json=args.json, show_content=args.command == "show")
+        elif args.command == "adopt":
+            resolution = command_adopt(args)
+            print_resolution(resolution, as_json=args.json, show_content=False)
+        else:
+            resolution = command_update(args)
+            print_resolution(resolution, as_json=args.json, show_content=False)
+        return 0
+    except CheckpointError as exc:
+        payload: dict[str, Any] = {"ok": False, "reason": exc.reason, "state": exc.state}
+        try:
+            _, common_dir = resolve_repo_layout(Path(getattr(args, "repo", ".")))
+            if registration_path(common_dir).exists():
+                payload["adopted"] = True
+        except CheckpointError:
+            pass
+        payload.update({key: value for key, value in exc.data.items() if value is not None})
+        print(compact_json(payload), file=sys.stderr)
+        return exc.exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

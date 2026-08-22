@@ -87,6 +87,9 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("Default to silent execution",),
         ("repo-declared closeout mode",),
         ("configured integration task classes",),
+        ("generation-check and update the resolver-selected adopted checkpoint",),
+        ("before reporting completion",),
+        ("workers never write it",),
         ("ask one targeted question",),
         ("unanswered automatic goal continuation is a no-op",),
         ("do not create action queues",),
@@ -102,6 +105,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("`AGENTS.md`",),
         ("`PROJECT_CONTINUITY.md`",),
         ("`CHECKPOINT.md`",),
+        ("codex-project-checkpoint update --expected-generation",),
+        ("before reporting completion for a confirmed `end`",),
         ("memory.bootstrap_context",),
         ("search",),
         ("deep_search",),
@@ -184,7 +189,7 @@ def validate_public_skill_surface_contract() -> list[str]:
         ),
         skills_root / "project-continuity/SKILL.md": (
             "Bind the latest explicit user-selected task subject",
-            "Only the adopted scope's root `CHECKPOINT.md`",
+            "Only the adopted scope's resolved external project checkpoint",
             "cannot create, queue, authorize, or select follow-on work",
         ),
         skills_root / "project-continuity/scripts/audit-continuity.py": (

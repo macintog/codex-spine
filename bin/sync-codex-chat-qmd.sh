@@ -5,6 +5,7 @@ SOURCE="${SOURCE:-${HOME}/.codex/sessions}"
 TARGET="${TARGET:-${HOME}/.cache/qmd/codex_chat}"
 QMD="${QMD_CLI:-${HOME}/.local/bin/qmd-codex}"
 JQ="${JQ_BIN:-$(command -v jq || true)}"
+PROJECT_CHECKPOINT_CLI="${PROJECT_CHECKPOINT_CLI:-$(cd "$(dirname "$0")" && pwd)/codex-project-checkpoint}"
 INDEX_NAME="codex_chat"
 COLLECTION_NAME="codex-chat"
 LOCK_DIR="${MEMORY_SYNC_LOCK_DIR:-${CODEX_CHAT_QMD_LOCK_DIR:-${HOME}/.cache/qmd/codex-chat-qmd-sync.lock}}"
@@ -270,6 +271,31 @@ project_key_for_path() {
     printf '%s-%s\n' "$slug" "$hash"
 }
 
+project_checkpoint_resolution_json() {
+    local project_path="$1"
+    local output
+    local rc
+    if [[ ! -f "$PROJECT_CHECKPOINT_CLI" ]]; then
+        printf '%s\n' '{"adopted":false,"ok":false,"reason":"resolver_unavailable","state":"unavailable"}'
+        return 0
+    fi
+    set +e
+    output="$(python3 "$PROJECT_CHECKPOINT_CLI" doctor --repo "$project_path" --json 2>&1)"
+    rc=$?
+    set -e
+    if printf '%s\n' "$output" | "$JQ" -e 'type == "object" and (.state | type == "string")' >/dev/null 2>&1; then
+        if [[ "$rc" -ne 0 ]] \
+          && [[ "$(printf '%s\n' "$output" | "$JQ" -r '.reason // ""')" == "git_repository_unavailable" ]] \
+          && ! grep -q '^kind: codex_project_checkpoint_stub$' "$project_path/CHECKPOINT.md" 2>/dev/null; then
+            printf '%s\n' '{"adopted":false,"ok":true,"state":"not_adopted"}'
+            return 0
+        fi
+        printf '%s\n' "$output"
+        return 0
+    fi
+    printf '%s\n' '{"adopted":false,"ok":false,"reason":"resolver_invalid_output","state":"unavailable"}'
+}
+
 extract_role_lines() {
     local src="$1"
     local role="$2"
@@ -435,6 +461,7 @@ build_project_state() {
     local decision_json
     local recent_sessions_json
     local evidence_json
+    local checkpoint_resolution_json
     local summary
     local project_record
     local project_doc_path
@@ -560,6 +587,7 @@ build_project_state() {
         latest_projected_src="$("$JQ" -cs -r '[.[] | select(.projected == true and (.delegated // false) != true)][0].source_abs // ""' "$sorted_file")"
         latest_project_started_utc="$("$JQ" -cs -r '[.[] | select(.projected == true and (.delegated // false) != true)][0].started_utc // ""' "$sorted_file")"
         project_path_value="$("$JQ" -cs -r '.[0].project_path // ""' "$sorted_file")"
+        checkpoint_resolution_json="$(project_checkpoint_resolution_json "$project_path_value")"
 
         user_lines_file="$tmp_root/$project_key.user_lines.txt"
         assistant_lines_file="$tmp_root/$project_key.assistant_lines.txt"
@@ -675,6 +703,7 @@ build_project_state() {
             --argjson recent_decisions "$decision_json" \
             --argjson recent_sessions "$recent_sessions_json" \
             --argjson evidence_paths "$evidence_json" \
+            --argjson checkpoint_resolver "$checkpoint_resolution_json" \
             '{
                 bootstrap_version: $bootstrap_version,
                 project_key: $project_key,
@@ -686,7 +715,8 @@ build_project_state() {
                 open_loops: $open_loops,
                 recent_decisions: $recent_decisions,
                 recent_sessions: $recent_sessions,
-                evidence_paths: $evidence_paths
+                evidence_paths: $evidence_paths,
+                checkpoint_resolver: $checkpoint_resolver
             }' > "$project_dir/bootstrap.json"
 
         "$JQ" -n \
@@ -730,6 +760,11 @@ build_project_state() {
             echo
             echo "- project_key: \`$project_key\`"
             echo "- project_path: \`$project_path_value\`"
+            printf '%s\n' "$checkpoint_resolution_json" | "$JQ" -r '
+                "- checkpoint_resolver_state: `" + (.state // "unavailable") + "`",
+                (if .project_id then "- checkpoint_project_id: `" + .project_id + "`" else empty end),
+                (if .generation then "- checkpoint_generation: `" + (.generation | tostring) + "`" else empty end)
+            '
             if [[ -n "$latest_project_started_utc" ]]; then
                 echo "- latest_session_utc: \`$latest_project_started_utc\`"
             fi

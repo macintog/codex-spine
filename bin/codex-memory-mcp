@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const { spawn, spawnSync } = require("child_process");
 
 const HOME = process.env.HOME || os.homedir();
+const SCRIPT_DIR = path.dirname(fs.realpathSync(__filename));
 const STATE_ROOT = path.join(HOME, ".cache", "qmd", "codex_chat", ".state");
 const PROJECTS_DIR = path.join(STATE_ROOT, "projects");
 const LATEST_PROJECT_KEY_FILE = path.join(STATE_ROOT, "latest_project_key.txt");
@@ -16,6 +17,10 @@ const SYNC_LOCK_DIR = "/tmp/codex-chat-qmd-sync.lock";
 const SYNC_LOCK_STALE_SECONDS = Number(process.env.MEMORY_SYNC_LOCK_STALE_SECONDS || process.env.LOCK_STALE_SECONDS || "300");
 const SYNC_LOCK_OWNER_FILE = "owner.json";
 const QMD_CLI = process.env.QMD_CLI || path.join(HOME, ".local", "bin", "qmd-codex");
+const MANAGED_PROJECT_CHECKPOINT_BIN = path.join(HOME, ".local", "bin", "codex-project-checkpoint");
+const REPO_PROJECT_CHECKPOINT_BIN = path.join(SCRIPT_DIR, "codex-project-checkpoint");
+const PROJECT_CHECKPOINT_BIN = process.env.CODEX_PROJECT_CHECKPOINT_BIN
+  || (fs.existsSync(MANAGED_PROJECT_CHECKPOINT_BIN) ? MANAGED_PROJECT_CHECKPOINT_BIN : REPO_PROJECT_CHECKPOINT_BIN);
 const SQLITE3_BIN = process.env.SQLITE3_BIN || "sqlite3";
 const DEFAULT_INDEX = process.env.QMD_DEFAULT_INDEX || "codex_chat";
 const PROJECT_CACHE_ROOT = path.join(HOME, ".cache", "qmd", DEFAULT_INDEX);
@@ -69,6 +74,32 @@ function runCommand(command, args, options = {}) {
     encoding: "utf8",
     env: process.env,
     ...options,
+  });
+}
+
+function checkpointResolution(projectPath) {
+  const result = runCommand(PROJECT_CHECKPOINT_BIN, ["doctor", "--repo", projectPath, "--json"]);
+  const raw = result.status === 0 ? result.stdout : result.stderr;
+  try {
+    const parsed = JSON.parse(String(raw || "").trim());
+    if (parsed?.reason === "git_repository_unavailable") {
+      const tracked = readTextIfExists(path.join(projectPath, "CHECKPOINT.md")) || "";
+      if (!/^kind: codex_project_checkpoint_stub$/m.test(tracked)) return { ok: true, adopted: false, state: "not_adopted" };
+    }
+    return parsed && typeof parsed === "object" ? parsed : { ok: false, state: "unreadable", reason: "resolver_output_invalid" };
+  } catch {
+    return { ok: false, state: "unreadable", reason: "resolver_unavailable" };
+  }
+}
+
+function checkpointSignature(resolution) {
+  return JSON.stringify({
+    ok: resolution?.ok === true,
+    adopted: resolution?.adopted === true,
+    state: String(resolution?.state || "unreadable"),
+    project_id: String(resolution?.project_id || ""),
+    generation: Number.isInteger(resolution?.generation) ? resolution.generation : 0,
+    reason: String(resolution?.reason || ""),
   });
 }
 
@@ -650,7 +681,7 @@ function callMultiGet(args) {
   return { pattern, text: runQmd(cliArgs) };
 }
 
-function buildColdStart(projectPath, projectKey) {
+function buildColdStart(projectPath, projectKey, checkpointResolver = {}) {
   const lastSync = new Date(0).toISOString();
   const projectFrame = "Use the current working directory and its durable local docs as the continuity anchor.";
   const summary = [
@@ -676,6 +707,7 @@ function buildColdStart(projectPath, projectKey) {
     open_loops: [],
     recent_sessions: [],
     evidence_paths: [],
+    checkpoint_resolver: checkpointResolver,
   };
 }
 
@@ -714,6 +746,9 @@ function buildSummaryFromBootstrap(bootstrap, maxRecent) {
     open_loops: Array.isArray(bootstrap.open_loops) ? bootstrap.open_loops.slice(0, 20) : [],
     recent_sessions: coerceRecentSessions(bootstrap.recent_sessions, maxRecent),
     evidence_paths: coerceEvidencePaths(bootstrap.evidence_paths),
+    checkpoint_resolver: bootstrap.checkpoint_resolver && typeof bootstrap.checkpoint_resolver === "object"
+      ? bootstrap.checkpoint_resolver
+      : {},
   };
 
   if (!result.summary) {
@@ -855,7 +890,9 @@ function bootstrapContext(args) {
   const projectPath = canonicalProjectPath(cwd);
   const inferredProjectKey = projectKeyForPath(projectPath);
   const reason = bootstrapReason(args);
-  const cacheKey = `${inferredProjectKey}:${reason}:${maxRecent}`;
+  const currentCheckpoint = checkpointResolution(projectPath);
+  const currentCheckpointSignature = checkpointSignature(currentCheckpoint);
+  const cacheKey = `${inferredProjectKey}:${reason}:${maxRecent}:${currentCheckpointSignature}`;
   const cached = bootstrapCache.get(cacheKey);
   if (cached && Date.now() - cached.at < STALE_SECONDS * 1000) {
     const summary = `Bootstrap already supplied for ${inferredProjectKey}; use search then get/multi_get for history.`;
@@ -868,13 +905,18 @@ function bootstrapContext(args) {
   const exactBootstrap = readBootstrapForKey(inferredProjectKey);
   const lastSyncSeconds = unixSecondsFromIso(exactBootstrap?.last_sync_utc || "");
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const isStale = exactBootstrap ? nowSeconds - lastSyncSeconds > STALE_SECONDS : true;
+  const resolverChanged = exactBootstrap
+    ? checkpointSignature(exactBootstrap.checkpoint_resolver || {}) !== currentCheckpointSignature
+    : false;
+  const isStale = exactBootstrap ? resolverChanged || nowSeconds - lastSyncSeconds > STALE_SECONDS : true;
 
   if (refreshIfStale && isStale) {
     startBackgroundRefresh(projectPath);
   }
 
-  const result = exactBootstrap ? buildSummaryFromBootstrap(exactBootstrap, maxRecent) : buildColdStart(projectPath, inferredProjectKey);
+  const result = exactBootstrap ? buildSummaryFromBootstrap(exactBootstrap, maxRecent) : buildColdStart(projectPath, inferredProjectKey, currentCheckpoint);
+  result.checkpoint_resolver = currentCheckpoint;
+  if (currentCheckpoint.state !== "not_adopted" && currentCheckpoint.ok !== true) result.open_loops = [];
   result.project_key = inferredProjectKey;
   const payloadBytes = finalizeBootstrap(result, { reason, source: exactBootstrap ? "project_bootstrap" : "cold_start", summary_bytes: Buffer.byteLength(result.summary, "utf8"), max_bytes: BOOTSTRAP_MAX_BYTES, max_recent_sessions: maxRecent, deduplicated: false });
   bootstrapCache.set(cacheKey, { at: Date.now(), result });

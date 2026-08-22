@@ -32,7 +32,7 @@ This project is aimed at new macOS Codex users who want a turnkey way around som
 
 ### `project-continuity`
 
-Use this skill when a repo is long-lived enough that Codex needs durable product intent and a small current handoff instead of relying on chat memory alone. It defines the continuity packet shape: project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, `CHECKPOINT.md` for volatile handoff, and optional archive references when older context needs to move out of the startup path.
+Use this skill when a repo is long-lived enough that Codex needs durable product intent and a small current handoff instead of relying on chat memory alone. It defines project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, and `codex-project-checkpoint` for worktree-independent handoff state. Adopted repositories keep tracked `CHECKPOINT.md` only as a discovery stub; `not_adopted` retains the legacy tracked handoff.
 
 The artifacts under `skills/project-continuity/assets/` scaffold those files without replacing an existing instruction chain. The direct adoption procedure and read-only auditor live beside them under `references/` and `scripts/`. The shipped skill is the reusable pattern; actual continuity files remain project-local working state.
 

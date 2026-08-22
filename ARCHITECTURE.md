@@ -147,7 +147,7 @@ The shipped `skills/` tree is part of the public product surface, not incidental
 This tree ships a reusable continuity workflow for long-lived repos:
 
 - `SKILL.md` defines the continuity model itself: durable project authority, volatile handoff, startup packet shape, and self-hosting rules.
-- `assets/PROJECT_CONTINUITY.template.md`, `assets/CHECKPOINT.template.md`, `assets/AGENTS.fragment.md`, and `assets/ARCHIVE_NOTE.template.md` provide merge-preserving starter artifacts for repositories that adopt that continuity structure.
+- `assets/PROJECT_CONTINUITY.template.md`, the legacy and adopted checkpoint templates/model, `assets/AGENTS.fragment.md`, and `assets/ARCHIVE_NOTE.template.md` provide merge-preserving starter artifacts for repositories that adopt that continuity structure.
 - `references/adoption-procedure.md` is the direct procedure for deciding whether a repository should remain `repo-native-only`, use a local overlay, or adopt the packet in-tree.
 - `scripts/audit-continuity.py` is a read-only structural, state-anchor, redaction, and pointer audit; `agents/openai.yaml` owns UI metadata and implicit invocation policy.
 
