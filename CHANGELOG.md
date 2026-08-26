@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Replace the retired `multi-step` skill with native Codex planning guidance.
+- Ship `yeet` plus the managed `codex-git-safe` terminal-closeout runtime for both direct-integration and pull-request closeout modes.
+- Add the public `change-impact`, `causal-explanation`,
+  `improve-codebase-architecture`, and `skill-authoring-quality` skills.
+- Add pinned upstream project links and self-contained MIT notices for adapted
+  pstack and Matt Pocock skill packets.
+
 All notable user-visible changes to `codex-spine` should be tracked here.
 
 ## 0.5.4

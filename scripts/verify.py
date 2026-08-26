@@ -37,6 +37,7 @@ from codex_spine import (  # noqa: E402
     managed_links,
     render_config_text,
     render_launch_agent_text,
+    RETIRED_MANAGED_SKILL_PATHS,
     runtime_env,
     serialize_toml,
     shell_source_targets,
@@ -57,18 +58,37 @@ def tag_verifier_messages(category: str, messages: list[str]) -> list[str]:
     return [f"[{category}] {message}" for message in messages]
 
 
-PUBLIC_SKILL_DIRS = frozenset({"multi-step", "project-continuity", "tufte-visualization"})
+PUBLIC_SKILL_DIRS = frozenset(
+    {
+        "causal-explanation",
+        "change-impact",
+        "improve-codebase-architecture",
+        "project-continuity",
+        "skill-authoring-quality",
+        "tufte-visualization",
+        "yeet",
+    }
+)
 PUBLIC_REQUIRED_SKILL_SENTINELS = (
-    ("multi-step", "SKILL.md"),
+    ("change-impact", "SKILL.md"),
+    ("change-impact", "LICENSE.txt"),
+    ("causal-explanation", "SKILL.md"),
+    ("causal-explanation", "LICENSE.txt"),
+    ("improve-codebase-architecture", "SKILL.md"),
+    ("improve-codebase-architecture", "LICENSE.txt"),
     ("project-continuity", "SKILL.md"),
     ("project-continuity", "agents/openai.yaml"),
     ("project-continuity", "references/adoption-procedure.md"),
     ("project-continuity", "scripts/audit-continuity.py"),
+    ("skill-authoring-quality", "SKILL.md"),
+    ("skill-authoring-quality", "LICENSE.txt"),
     ("tufte-visualization", "SKILL.md"),
     ("tufte-visualization", "agents/openai.yaml"),
     ("tufte-visualization", "references/chart-selection.md"),
     ("tufte-visualization", "references/uncertainty.md"),
     ("tufte-visualization", "references/citations.md"),
+    ("yeet", "SKILL.md"),
+    ("yeet", "agents/openai.yaml"),
 )
 PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
     "README.md": (
@@ -108,7 +128,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("`PROJECT_CONTINUITY.md`",),
         ("`CHECKPOINT.md`",),
         ("codex-project-checkpoint update --expected-generation",),
-        ("before reporting completion for a confirmed `end`",),
+        ("before reporting completion for `yeet`",),
+        ("codex-git-safe yeet --apply",),
         ("memory.bootstrap_context",),
         ("search",),
         ("deep_search",),
@@ -185,10 +206,10 @@ def validate_public_skill_surface_contract() -> list[str]:
         errors.append(f"public repo ships an undeclared skill directory: {skills_root / skill_dir}")
 
     required_control_anchors = {
-        skills_root / "multi-step/SKILL.md": (
-            "## Admission Gate",
-            "## Forbidden Recursive Surfaces",
-            "Completion is terminal for the selected task",
+        skills_root / "yeet/SKILL.md": (
+            "exact `yeet` instruction",
+            "codex-git-safe yeet --apply",
+            "is terminal; do not ask for or emit a second closeout phrase",
         ),
         skills_root / "project-continuity/SKILL.md": (
             "Bind the latest explicit user-selected task subject",
@@ -220,9 +241,51 @@ def validate_public_skill_surface_contract() -> list[str]:
             if anchor not in text:
                 errors.append(f"public control-plane guard is missing an anchor: {path}: {anchor}")
 
-    multi_step_templates = skills_root / "multi-step/templates"
-    if multi_step_templates.exists():
-        errors.append(f"public multi-step recursive template tree must remain absent: {multi_step_templates}")
+    retired_multi_step = skills_root / "multi-step"
+    if retired_multi_step.exists():
+        errors.append(f"retired public multi-step skill must remain absent: {retired_multi_step}")
+
+    notice_path = REPO_ROOT / "THIRD_PARTY_NOTICES.md"
+    if not notice_path.is_file():
+        errors.append(f"public repo is missing third-party notices: {notice_path}")
+    else:
+        notice = notice_path.read_text(encoding="utf-8")
+        for anchor in (
+            "https://github.com/cursor/plugins",
+            "https://github.com/cursor/plugins/tree/60c641e4fad674784b30abcf9f8915dea39df38d/pstack",
+            "https://github.com/cursor/plugins/blob/60c641e4fad674784b30abcf9f8915dea39df38d/pstack/LICENSE",
+            "https://github.com/mattpocock/skills",
+            "https://github.com/mattpocock/skills/blob/885e2ca4d842d139e9aef4e48d366c63cb1b8013/LICENSE",
+        ):
+            if anchor not in notice:
+                errors.append(f"third-party notices are missing an upstream anchor: {notice_path}: {anchor}")
+
+    runtime_paths = (
+        REPO_ROOT / "bin/codex-git-safe",
+        REPO_ROOT / "bin/codex-gitea-common.sh",
+        REPO_ROOT / "bin/codex-gitea-push.sh",
+        REPO_ROOT / "bin/codex-gitea-pr.sh",
+        REPO_ROOT / "bin/codex-gitea-pr-finalize.sh",
+        REPO_ROOT / "lib/codex_git_environment.py",
+        REPO_ROOT / "lib/codex_git_safe.py",
+        REPO_ROOT / "lib/codex_git_scratch.py",
+        REPO_ROOT / ".githooks/pre-commit",
+    )
+    for runtime_path in runtime_paths:
+        if not runtime_path.is_file():
+            errors.append(f"public yeet runtime is missing: {runtime_path}")
+    helper = REPO_ROOT / "bin/codex-git-safe"
+    if helper.is_file():
+        result = subprocess.run(
+            [sys.executable, str(helper), "--help"],
+            cwd=str(REPO_ROOT),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0 or "yeet" not in result.stdout:
+            detail = (result.stderr or result.stdout or f"exit {result.returncode}").strip()
+            errors.append(f"public yeet runtime help failed: {detail}")
 
     for path in (
         REPO_ROOT / "README.md",
@@ -503,6 +566,10 @@ def main() -> int:
             continue
         if link.live_path.resolve(strict=False) != link.repo_path.resolve():
             errors.append(f"[behavior-contract] managed symlink points to the wrong target: {link.live_path}")
+
+    for retired_path in RETIRED_MANAGED_SKILL_PATHS:
+        if retired_path.is_symlink():
+            errors.append(f"[behavior-contract] retired managed skill link still exists; rerun make install: {retired_path}")
 
     shell_plan = detect_shell_integration_plan()
     if shell_plan.warning:

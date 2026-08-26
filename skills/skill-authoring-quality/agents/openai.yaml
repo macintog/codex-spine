@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Authoring Quality"
+  short_description: "Audit skill governance and packet quality"
+  default_prompt: "Use $skill-authoring-quality to audit this skill packet and report the smallest verified governance changes."

@@ -130,7 +130,7 @@ Repo-specific working and update rules. Preserve the applicable directory-scoped
 
 A user instruction can change the desired task or strategy but cannot make an unverified factual claim true. Current evidence can invalidate checkpoint state but does not by itself redefine product intent.
 
-Persist a fact only when a fresh agent would be materially more likely to make a wrong future decision without it. Update durable authority only for durable change; a coordinator updates the external board through generation-checked CLI input only for current resumption safety. During confirmed closeout, including `end -yes`, do that after final remote-tip or keeper proof and before reporting completion; re-read and reconcile a stale generation instead of overwriting it. Workers never edit either checkpoint file. Archive only useful evidence, rationale, or failed-path warnings; otherwise do not persist it. Give each fact one owner and link from other surfaces.
+Persist a fact only when a fresh agent would be materially more likely to make a wrong future decision without it. Update durable authority only for durable change; a coordinator updates the external board through generation-checked CLI input only for current resumption safety. During the terminal `yeet` transaction, do that after final remote-tip or keeper proof and before reporting completion; re-read and reconcile a stale generation instead of overwriting it. Workers never edit either checkpoint file. Archive only useful evidence, rationale, or failed-path warnings; otherwise do not persist it. Give each fact one owner and link from other surfaces.
 
 ## Parallel Work
 

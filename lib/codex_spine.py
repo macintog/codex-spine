@@ -127,6 +127,10 @@ REQUIRED_PUBLIC_DOC_PATHS = [
     REPO_ROOT / "codex/TOOLING.md",
 ]
 
+RETIRED_MANAGED_SKILL_PATHS = (
+    HOME / ".codex/skills/multi-step",
+)
+
 @dataclass(frozen=True)
 class ManagedLink:
     live_path: Path
@@ -158,12 +162,21 @@ def managed_links() -> list[ManagedLink]:
             backup_unmanaged_file=True,
             replace_empty_unmanaged_file=True,
         ),
-        ManagedLink(HOME / ".codex/skills/multi-step", REPO_ROOT / "skills" / "multi-step"),
+        ManagedLink(HOME / ".codex/skills/change-impact", REPO_ROOT / "skills" / "change-impact"),
+        ManagedLink(HOME / ".codex/skills/causal-explanation", REPO_ROOT / "skills" / "causal-explanation"),
+        ManagedLink(HOME / ".codex/skills/improve-codebase-architecture", REPO_ROOT / "skills" / "improve-codebase-architecture"),
         ManagedLink(HOME / ".codex/skills/project-continuity", REPO_ROOT / "skills" / "project-continuity"),
+        ManagedLink(HOME / ".codex/skills/skill-authoring-quality", REPO_ROOT / "skills" / "skill-authoring-quality"),
         ManagedLink(HOME / ".codex/skills/tufte-visualization", REPO_ROOT / "skills" / "tufte-visualization"),
+        ManagedLink(HOME / ".codex/skills/yeet", REPO_ROOT / "skills" / "yeet"),
         ManagedLink(LIVE_UV_CONFIG_PATH, REPO_ROOT / "uv" / "uv.toml"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp", REPO_ROOT / "bin/codex-memory-mcp"),
         ManagedLink(HOME / ".local/bin/codex-memory-mcp-launcher", REPO_ROOT / "bin/codex-memory-mcp-launcher"),
+        ManagedLink(HOME / ".local/bin/codex-git-safe", REPO_ROOT / "bin/codex-git-safe"),
+        ManagedLink(HOME / ".local/bin/codex-gitea-common.sh", REPO_ROOT / "bin/codex-gitea-common.sh"),
+        ManagedLink(HOME / ".local/bin/codex-gitea-push.sh", REPO_ROOT / "bin/codex-gitea-push.sh"),
+        ManagedLink(HOME / ".local/bin/codex-gitea-pr.sh", REPO_ROOT / "bin/codex-gitea-pr.sh"),
+        ManagedLink(HOME / ".local/bin/codex-gitea-pr-finalize.sh", REPO_ROOT / "bin/codex-gitea-pr-finalize.sh"),
         ManagedLink(HOME / ".local/bin/codex-project-checkpoint", REPO_ROOT / "bin/codex-project-checkpoint"),
         ManagedLink(HOME / "Library/pnpm/node", REPO_ROOT / "bin/pnpm-node"),
         ManagedLink(HOME / ".local/bin/qmd-codex", REPO_ROOT / "bin/qmd-codex"),
@@ -621,6 +634,19 @@ def ensure_symlink(
         live_path.unlink()
     live_path.symlink_to(repo_path)
     return True, None
+
+
+def remove_retired_managed_skill_links() -> list[Path]:
+    removed: list[Path] = []
+    for live_path in RETIRED_MANAGED_SKILL_PATHS:
+        if not live_path.is_symlink():
+            continue
+        target = live_path.resolve(strict=False)
+        if target.name != live_path.name or "codex-spine" not in target.parts:
+            continue
+        live_path.unlink()
+        removed.append(live_path)
+    return removed
 
 
 def source_block(fragment_path: Path) -> str:

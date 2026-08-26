@@ -1,0 +1,35 @@
+#!/bin/bash
+set -euo pipefail
+
+# Successful app-worktree adoption installs this managed repo-local guard only
+# when the project has no custom hooksPath. Lifecycle registration remains the
+# authority; existing project hook configurations are preserved.
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+case "$repo_root" in
+  "$HOME"/.codex/worktrees/*) ;;
+  *) exit 0 ;;
+esac
+
+helper="${CODEX_GIT_SAFE:-$HOME/.local/bin/codex-git-safe}"
+if [[ ! -x "$helper" ]]; then
+  echo "refusing commit from an unregistered disposable Codex worktree: lifecycle helper unavailable" >&2
+  echo "register this exact checkout first: codex-git-safe adopt-current --topic <slug> --apply" >&2
+  exit 1
+fi
+
+if ! "$helper" status --json 2>/dev/null | python3 -c '
+import json
+import sys
+from pathlib import Path
+
+try:
+    payload = json.load(sys.stdin)
+    current = payload["current_change"]
+    registered = Path(current["checkout_path"]).resolve() == Path(sys.argv[1]).resolve()
+    worktree = current["mode"] == "worktree"
+except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+    raise SystemExit(1)
+raise SystemExit(0 if registered and worktree else 1)
+' "$repo_root"
+then

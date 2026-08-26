@@ -1,0 +1,4 @@
+interface:
+  display_name: "Causal Explanation"
+  short_description: "Evidence-calibrated causal explanations"
+  default_prompt: "Use $causal-explanation to explain the evidence behind this established behavior or finding, including alternatives and gaps."

@@ -40,6 +40,7 @@ from codex_spine import (  # noqa: E402
     replace_managed_block,
     render_config_text,
     render_launch_agent_text,
+    remove_retired_managed_skill_links,
     sanitize_zshenv,
     shell_source_targets,
     sync_jcodemunch_global_config,
@@ -390,6 +391,8 @@ def run_install(*, non_interactive: bool, ui=None) -> None:
     retired_memory_helper = HOME / ".local/bin/qmd-memory-latest.sh"
     if retired_memory_helper.is_symlink():
         retired_memory_helper.unlink()
+
+    remove_retired_managed_skill_links()
 
     for link in managed_links():
         _, backup_path = ensure_symlink(

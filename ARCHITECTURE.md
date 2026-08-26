@@ -7,6 +7,7 @@ This is the deep technical reference for `codex-spine`. Use it when the work req
 ```text
 codex-spine/
 ├── LICENSE
+├── THIRD_PARTY_NOTICES.md
 ├── README.md
 ├── ARCHITECTURE.md
 ├── SECURITY.md
@@ -16,6 +17,9 @@ codex-spine/
 ├── lib/
 │   ├── _vendor/tomllib/        # Vendored TOML parser fallback for older stock Python runtimes
 │   ├── codex_spine.py          # Shared bootstrap/verify/config helpers, managed-link logic, and path policy
+│   ├── codex_git_safe.py        # Managed worktree and terminal Git transaction engine
+│   ├── codex_git_scratch.py     # Durable task-worktree registry and cleanup support
+│   ├── codex_git_environment.py # Public adapter between Git lifecycle and installed codex-spine state
 │   ├── component_manager.py    # Managed acquisition, status, and optional-component gating
 │   ├── install_tui.py          # Fullscreen install UI shared by preflight and main bootstrap
 │   └── toml_compat.py          # TOML loader shim that prefers stdlib and falls back to vendored code
@@ -30,11 +34,15 @@ codex-spine/
 │   └── component-enable        # Enables optional third-party code-navigation integrations
 ├── codex/
 │   ├── AGENTS.md               # Compact shipped Codex startup and operating guidance
-│   ├── TOOLING.md              # On-demand public continuity, memory, and code-navigation guidance
+│   ├── TOOLING.md              # On-demand continuity, retrieval, navigation, and Git lifecycle guidance
 │   └── config/                 # Managed config fragments rendered into ~/.codex/config.toml
 ├── skills/
 │   ├── project-continuity/     # Reusable continuity skill, starter templates, and adoption reference
-│   ├── multi-step/             # Finite subject-bound serial workflow; recursive templates prohibited
+│   ├── yeet/                   # Explicit terminal Git transaction contract
+│   ├── change-impact/          # Affected-consumer and verification-obligation mapping
+│   ├── causal-explanation/     # Evidence-calibrated why/how explanations
+│   ├── improve-codebase-architecture/ # Architecture deepening and interface review
+│   ├── skill-authoring-quality/ # Portable skill governance and audit workflow
 │   └── tufte-visualization/    # Evidence-first visualization skill and references
 ├── bin/                        # Durable wrappers and managed launcher entrypoints
 ├── shell/
@@ -123,8 +131,9 @@ The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch
 
 - `README.md` and `Makefile` are the public operator entrypoints; common commands dispatch into `scripts/`.
 - `codex/AGENTS.md` is the compact startup and operating policy for installed public use.
-- `codex/TOOLING.md` is the public on-demand guide for continuity, memory retrieval, and code navigation only.
-- `skills/project-continuity/`, `skills/multi-step/`, and `skills/tufte-visualization/` are reusable public skill payloads.
+- `codex/TOOLING.md` is the public on-demand guide for continuity, memory retrieval, indexed navigation, and managed Git lifecycle.
+- The seven declared trees under `skills/` are reusable public skill payloads.
+- `bin/codex-git-safe`, its public library modules, and the bundled Gitea helpers implement the `yeet` terminal transaction. GitHub review mechanics remain connector-owned and can be recorded through `review-import`.
 - Repo-specific release, review, and local Git workflows stay outside the installed operating contract unless this repo documents them directly.
 
 That split is intentional. The public repo should explain installed product behavior and reusable workflow patterns without turning its docs into project-management history.
@@ -153,17 +162,34 @@ This tree ships a reusable continuity workflow for long-lived repos:
 
 This skill is reusable scaffolding. It does not mean `codex-spine` itself owns the downstream repo's continuity files.
 
-### `skills/multi-step/`
+### `skills/yeet/`
 
-This tree ships a finite serial workflow for one explicitly user-selected task:
+This explicit-only tree ships the terminal transaction contract for a validated registered task:
 
-- `SKILL.md` binds the current task to exact authority and subject identity,
-  executes a known finite step set, and makes completion terminal.
-- The former `templates/` tree is deleted because it encoded recursive queue,
-  reopen, and successor-task control. The public verifier requires it to remain
-  absent; version-control history is evidence only and restores no authority.
+- `SKILL.md` limits `yeet` to the operator's exact instruction and forbids it
+  from running product tests or broad gates.
+- `bin/codex-git-safe` and `lib/codex_git_safe.py` own the resumable managed
+  worktree, commit, review/integration, proof, checkpoint, and retirement flow.
+- The bundled Gitea helpers provide a direct hosted-review lane; GitHub review
+  creation remains with the installed connector and can be imported into the
+  lifecycle record.
 
-Like `project-continuity`, the shipped skill is reusable guidance rather than active downstream state. Its current user request and verified subject binding always outrank historical packets or indexed text.
+Finite ordered implementation work uses Codex's native plan surface. The
+retired `multi-step` controller and its recursive packet model do not ship.
+
+### Reasoning and authoring skills
+
+- `skills/change-impact/` maps crossed boundaries, consumers, load-bearing
+  assumptions, and finite verification obligations.
+- `skills/causal-explanation/` separates observations, causal inference,
+  alternatives, and gaps for established why/how questions.
+- `skills/improve-codebase-architecture/` finds or implements architecture
+  deepening, terminology, symmetry, and interface opportunities.
+- `skills/skill-authoring-quality/` audits skill routing, packet structure,
+  prompt economy, distribution, provenance, and collision safety.
+
+Adapted packets retain self-contained upstream notices and are indexed in
+`THIRD_PARTY_NOTICES.md`.
 
 ### `skills/tufte-visualization/`
 
@@ -179,11 +205,11 @@ This skill is guidance for producing or reviewing evidence displays. It does not
 
 - [@tobi/qmd](https://github.com/tobi/qmd) and memory are part of the default public core.
 - Public skills ship under `skills/` as reusable scaffolding and guidance; the actual continuity packet files still live in the repo being worked in.
-- The public skill payload is intentionally narrow: `project-continuity`, `multi-step`, and `tufte-visualization`, plus only the templates and references still declared by the export manifest. Recursive `multi-step` templates are prohibited.
+- The public skill payload is intentionally declared and verifier-owned: `project-continuity`, `yeet`, `change-impact`, `causal-explanation`, `improve-codebase-architecture`, `skill-authoring-quality`, and `tufte-visualization`, plus only their declared resources. The retired `multi-step` packet is prohibited.
 - `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
 - Built-in Codex memories remain disabled by default; retained generated state under `~/.codex/memories/` is historical evidence only, and an intentional user-owned opt-in belongs in `codex/config/90-local.toml` rather than project guidance.
 - The optional jGravelle Munch MCP suite is optional but first-class.
-- The shipped `codex/TOOLING.md` surface is intentionally limited to continuity, memory, and code navigation; release governance is out of scope for the installed operating contract.
+- The shipped `codex/TOOLING.md` surface covers continuity, memory, indexed navigation, and managed Git lifecycle; release governance remains out of scope for the installed operating contract.
 - Managed shell-dotfile mutation is only tested for `zsh`. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation, with the shipped shell fragments kept available for explicit manual wiring.
 - launchd, shell, and config surfaces must remain free of personal paths and machine-specific service assumptions.
 - `MAINTAINED_COMPONENTS.toml` owns shipped acquisition and update shape; public runtime behavior should not depend on export-control metadata.

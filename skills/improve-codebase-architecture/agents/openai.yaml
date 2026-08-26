@@ -1,0 +1,4 @@
+interface:
+  display_name: "Improve Codebase Architecture"
+  short_description: "Find deeper modules and semantic drift"
+  default_prompt: "Use $improve-codebase-architecture to find evidence-backed deepening, terminology, and semantic-symmetry opportunities without implementing unselected candidates."

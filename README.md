@@ -2,14 +2,14 @@
 
 `codex-spine` is a macOS-first public Codex environment spine for shareable retrieval, indexing, workflow, and maintenance tooling. It installs and maintains the core pieces for you instead of turning the setup into a README scavenger hunt. When everything is working, your token counts should go down while accuracy goes up.
 
-`codex-spine` v0.5.4 improves Codex in a few focused ways:
+The current `codex-spine` tree improves Codex in a few focused ways:
 
 - it adapts [@tobi/qmd](https://github.com/tobi/qmd) to the Codex workflow by:
   - converting Codex thread JSON into Markdown for ingestion
   - extracting only user and assistant conversation content for indexing
   - narrowing the practical `qmd` surface down to the retrieval calls that matter for recalling that material
 - it can optionally install the [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), [@jgravelle/jdocmunch-mcp](https://github.com/jgravelle/jdocmunch-mcp), and [@jgravelle/jdatamunch-mcp](https://github.com/jgravelle/jdatamunch-mcp) suite, which can substantially improve token efficiency when working through code, docs, and data
-- it ships the reusable `project-continuity`, `multi-step`, and `tufte-visualization` skills while keeping the installed Codex operating contract in shipped docs
+- it ships a focused public skill set for continuity, terminal closeout, change reasoning, architecture, skill authoring, and evidence-first visualization
 
 ## Audience
 
@@ -19,7 +19,7 @@ This project is aimed at new macOS Codex users who want a turnkey way around som
 
 - managed install, verify, update, and component status commands
 - manifest-driven component maintenance in `MAINTAINED_COMPONENTS.toml`, using compatibility ceilings instead of exact version pins
-- reusable `project-continuity`, `multi-step`, and `tufte-visualization` skill trees under `skills/`
+- reusable `project-continuity`, `yeet`, `change-impact`, `causal-explanation`, `improve-codebase-architecture`, `skill-authoring-quality`, and `tufte-visualization` trees under `skills/`
 - generated Codex config for the managed core environment
 - shell integration and launchd-backed transcript sync on macOS
 - a managed system-wide `uv` policy at `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` as the default quarantine plus package-specific overrides for the optional jGravelle Munch MCP suite so the optional runners remain installable
@@ -28,7 +28,7 @@ This project is aimed at new macOS Codex users who want a turnkey way around som
 
 ## Skills
 
-`codex-spine` ships three public skill trees and installs them under `~/.codex/skills/` during `make install`. Skills are reusable guidance and scaffolding for Codex sessions; they are not background services or MCP servers.
+`codex-spine` ships seven public skill trees and installs them under `~/.codex/skills/` during `make install`. Skills are reusable guidance and scaffolding for Codex sessions; they are not background services or MCP servers.
 
 ### `project-continuity`
 
@@ -38,9 +38,25 @@ The artifacts under `skills/project-continuity/assets/` scaffold those files wit
 
 Built-in Codex memories are disabled by the base config. Retained app-managed files under `~/.codex/memories/` are historical generated state and must not be read or routed into work unless the current user explicitly asks about those files. Keep required rules in `AGENTS.md` or checked-in docs, use the QMD-backed `memory` MCP lane documented in `codex/TOOLING.md` for historical retrieval, and use `/memories` or `codex/config/90-local.toml` only for an intentional user-owned opt-in.
 
-### `multi-step`
+### `yeet`
 
-Use this skill only when one current, explicitly user-selected task has a known finite set of dependent steps. It binds the task to the canonical repo or system and exact subject identity, executes the steps serially, and ends without generating a queue, successor prompt, checkpoint, rubric, or follow-on task. The former recursive template tree is absent by policy; version-control history is evidence only and must not be reconstructed as task authority.
+Use this explicit-only skill when the operator says `yeet` after a registered task's validation has passed. The bundled `codex-git-safe` runtime attempts the configured terminal commit/review or integration transaction, proves the remote result, reconciles an adopted checkpoint, and retires only task-owned state. It deliberately does not run product tests, broad verification, bootstrap, deployment, or release gates.
+
+### `change-impact`
+
+Use this skill before a change crosses interfaces, persisted schemas, permissions, deployment or release boundaries, or three or more downstream consumers. It produces an evidence-backed consumer map, the load-bearing assumptions, and a finite verification obligation list.
+
+### `causal-explanation`
+
+Use this skill to explain why or how an established consequential behavior, design choice, regression, threshold, or tradeoff exists. It keeps direct observations, causal inference, alternatives, and gaps distinct.
+
+### `improve-codebase-architecture`
+
+Use this skill to find architecture deepening, terminology, and semantic-symmetry opportunities, or to implement an architecture direction the user has already selected.
+
+### `skill-authoring-quality`
+
+Use this skill with the platform's skill-creation guidance to audit routing, placement, prompt economy, validation, distribution, provenance, and collision safety for skill packets.
 
 ### `tufte-visualization`
 
@@ -55,7 +71,7 @@ Use this skill as an evidence-design overlay when creating, revising, or critiqu
 - for interactive installs, asks early whether you want to include the optional jGravelle Munch MCP suite later in the same install when it is not already fully enabled; that prompt defaults to yes
 - installs Homebrew if needed and then installs any missing baseline runtime packages
 - creates example local overlay files when they do not exist yet
-- manages symlinks under `~/.codex/` and `~/.local/bin/`, including the shipped `project-continuity`, `multi-step`, and `tufte-visualization` skill trees under `~/.codex/skills/`
+- manages symlinks under `~/.codex/` and `~/.local/bin/`, including all shipped skill trees and the `codex-git-safe` terminal-closeout runtime
 - manages `~/.config/uv/uv.toml` from the tracked `uv/uv.toml` policy file
 - updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
 - renders `~/.codex/config.toml`
@@ -172,9 +188,14 @@ After a successful first run:
 - `CHANGELOG.md`: notable user-visible release history
 - `SECURITY.md`: security posture and reporting expectations
 - `codex/AGENTS.md`: compact Codex startup and operating guidance for this installed environment
-- `codex/TOOLING.md`: on-demand guidance for the continuity packet, memory retrieval, and code navigation lanes
+- `codex/TOOLING.md`: on-demand guidance for continuity, memory retrieval, indexed navigation, and managed Git lifecycle
+- `THIRD_PARTY_NOTICES.md`: upstream project, pinned-source, license, and derivative-work attribution
 - `skills/project-continuity/`: reusable continuity contract plus starter templates
-- `skills/multi-step/`: finite subject-bound serial workflow with recursive template scaffolding prohibited
+- `skills/yeet/`: explicit terminal Git transaction contract backed by `codex-git-safe`
+- `skills/change-impact/`: affected-consumer and verification-obligation mapping
+- `skills/causal-explanation/`: evidence-calibrated why/how explanations
+- `skills/improve-codebase-architecture/`: architecture deepening and interface review
+- `skills/skill-authoring-quality/`: portable skill governance and audit workflow
 - `skills/tufte-visualization/`: evidence-first visualization workflow plus chart, accessibility, critique, and caption references
 
 This repo ships the docs needed to install, operate, and maintain `codex-spine`.
@@ -183,6 +204,10 @@ The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
 ## Third-Party Components And Licensing
 
 `codex-spine` is licensed under MIT, which permits commercial use. Some managed integrations are optional and continue to be governed by their own upstream terms.
+
+Adapted public skill packets retain their upstream MIT notices and pinned
+project links in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and in each
+derivative skill's `LICENSE.txt`.
 
 The default retrieval foundation is built around [@tobi/qmd](https://github.com/tobi/qmd). `codex-spine` adds the public Codex-facing wrappers, transcript sync, config rendering, and operator flow around that upstream project while keeping the upstream package boundary explicit.
 

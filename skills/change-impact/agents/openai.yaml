@@ -1,0 +1,4 @@
+interface:
+  display_name: "Change Impact"
+  short_description: "Map cross-boundary change impact and proof"
+  default_prompt: "Use $change-impact to map affected consumers, load-bearing assumptions, and verification obligations before this change."
