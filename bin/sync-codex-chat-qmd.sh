@@ -275,6 +275,10 @@ project_checkpoint_resolution_json() {
     local project_path="$1"
     local output
     local rc
+    if is_protected_user_path "$project_path"; then
+        printf '%s\n' '{"adopted":false,"ok":true,"reason":"protected_path_skipped","state":"not_adopted"}'
+        return 0
+    fi
     if [[ ! -f "$PROJECT_CHECKPOINT_CLI" ]]; then
         printf '%s\n' '{"adopted":false,"ok":false,"reason":"resolver_unavailable","state":"unavailable"}'
         return 0

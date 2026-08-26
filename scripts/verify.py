@@ -276,16 +276,33 @@ def validate_public_skill_surface_contract() -> list[str]:
             errors.append(f"public yeet runtime is missing: {runtime_path}")
     helper = REPO_ROOT / "bin/codex-git-safe"
     if helper.is_file():
-        result = subprocess.run(
-            [sys.executable, str(helper), "--help"],
-            cwd=str(REPO_ROOT),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0 or "yeet" not in result.stdout:
-            detail = (result.stderr or result.stdout or f"exit {result.returncode}").strip()
-            errors.append(f"public yeet runtime help failed: {detail}")
+        runtime_pythons = [Path(sys.executable)]
+        minimum_python = Path(os.environ.get("CODEX_SPINE_MINIMUM_PYTHON", "/usr/bin/python3"))
+        if minimum_python.is_file():
+            version_probe = subprocess.run(
+                [str(minimum_python), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if version_probe.returncode == 0 and version_probe.stdout.strip() == "3.9":
+                runtime_pythons.append(minimum_python)
+        seen_pythons: set[Path] = set()
+        for runtime_python in runtime_pythons:
+            runtime_python = runtime_python.resolve()
+            if runtime_python in seen_pythons:
+                continue
+            seen_pythons.add(runtime_python)
+            result = subprocess.run(
+                [str(runtime_python), str(helper), "--help"],
+                cwd=str(REPO_ROOT),
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0 or "yeet" not in result.stdout:
+                detail = (result.stderr or result.stdout or f"exit {result.returncode}").strip()
+                errors.append(f"public yeet runtime help failed under {runtime_python}: {detail}")
 
     for path in (
         REPO_ROOT / "README.md",

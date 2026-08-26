@@ -17,11 +17,14 @@ except ModuleNotFoundError:  # pragma: no cover - stock Python 3.9 fallback
     from toml_compat import tomllib
 import unicodedata
 from contextlib import contextmanager, nullcontext
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+
+
+UTC = timezone.utc
 
 from codex_git_environment import BLOCK_END, BLOCK_START, active_managed_repo_root, managed_links, shared_git_hooks_path, shell_source_targets
 from codex_git_scratch import (
