@@ -390,16 +390,28 @@ def validate_maintenance_manifest(path: Path = MAINTAINED_COMPONENTS_PATH) -> li
                     "backend must not define pinned_version; use version_spec with a compatibility range or ceiling: "
                     f"components.{component_name}.backends.{backend_name}.pinned_version"
                 )
-            for optional_field in ("version_args", "health_args"):
+            for optional_field in ("version_args", "health_args", "allow_builds"):
                 optional_value = backend.get(optional_field)
                 if optional_value is not None and (
                     not isinstance(optional_value, list)
-                    or not all(isinstance(item, str) for item in optional_value)
+                    or not optional_value
+                    or not all(isinstance(item, str) and item.strip() for item in optional_value)
                 ):
                     errors.append(
-                        "backend optional field must be a list of strings: "
+                        "backend optional field must be a non-empty list of non-empty strings: "
                         f"components.{component_name}.backends.{backend_name}.{optional_field}"
                     )
+            allow_builds = backend.get("allow_builds")
+            if allow_builds is not None and kind != "pnpm_global":
+                errors.append(
+                    "backend allow_builds is supported only for pnpm_global backends: "
+                    f"components.{component_name}.backends.{backend_name}.allow_builds"
+                )
+            if isinstance(allow_builds, list) and len(allow_builds) != len(set(allow_builds)):
+                errors.append(
+                    "backend allow_builds must not contain duplicates: "
+                    f"components.{component_name}.backends.{backend_name}.allow_builds"
+                )
             tool_name = backend.get("tool_name")
             if tool_name is not None and (not isinstance(tool_name, str) or not tool_name.strip()):
                 errors.append(
@@ -627,6 +639,10 @@ def _status_pnpm(component: ResolvedComponent) -> dict:
         if health_result.returncode != 0:
             healthy = False
             health_detail = _first_nonempty_line(health_result.stderr, health_result.stdout) or "health check failed"
+    action = ["pnpm", "add", "-g"]
+    for package_name in component.backend.get("allow_builds", []):
+        action.append(f"--allow-build={package_name}")
+    action.append(_pnpm_requirement(component))
     return {
         "installed": installed,
         "healthy": healthy,
@@ -635,7 +651,7 @@ def _status_pnpm(component: ResolvedComponent) -> dict:
             if version and health_detail
             else version or health_detail or f"missing executable: {executable}; expected {_pnpm_requirement(component)}"
         ),
-        "action": ["pnpm", "add", "-g", _pnpm_requirement(component)],
+        "action": action,
     }
 
 

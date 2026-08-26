@@ -36,6 +36,7 @@ requests = [
                 "cwd": cwd,
                 "refresh_if_stale": False,
                 "max_recent_sessions": 1,
+                "reason": "repo_cwd_change",
             },
         },
     },

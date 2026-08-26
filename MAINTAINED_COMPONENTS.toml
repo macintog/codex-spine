@@ -13,6 +13,15 @@ version_spec = "<3.0"
 executable = "~/Library/pnpm/qmd"
 version_args = ["--version"]
 health_args = ["status"]
+allow_builds = [
+  "better-sqlite3",
+  "node-llama-cpp",
+  "tree-sitter-go",
+  "tree-sitter-javascript",
+  "tree-sitter-python",
+  "tree-sitter-rust",
+  "tree-sitter-typescript",
+]
 
 [components."jcodemunch-mcp"]
 summary = "jCodeMunch MCP command used for indexed code navigation through a managed uv runner invocation."

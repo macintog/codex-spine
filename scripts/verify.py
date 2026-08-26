@@ -335,6 +335,27 @@ def validate_public_agents_policy() -> list[str]:
 
 def validate_component_cli_surface() -> list[str]:
     errors: list[str] = []
+    components = {component.name: component for component in resolve_components()}
+    qmd = components.get("qmd")
+    expected_qmd_builds = [
+        "better-sqlite3",
+        "node-llama-cpp",
+        "tree-sitter-go",
+        "tree-sitter-javascript",
+        "tree-sitter-python",
+        "tree-sitter-rust",
+        "tree-sitter-typescript",
+    ]
+    if qmd is None:
+        errors.append("qmd is missing from the maintenance manifest")
+    elif qmd.backend.get("allow_builds") != expected_qmd_builds:
+        errors.append("qmd must keep the reviewed native dependency build allowlist")
+    else:
+        action = component_status(qmd)["action"]
+        expected_flags = [f"--allow-build={package_name}" for package_name in expected_qmd_builds]
+        if action[3:-1] != expected_flags:
+            errors.append("qmd pnpm install action does not pass the reviewed native dependency build allowlist")
+
     for script_name in ("component-enable.py", "update.py", "upgrade.py"):
         script_path = REPO_ROOT / "scripts" / script_name
         result = subprocess.run(
@@ -389,6 +410,10 @@ def validate_optional_munch_runner_probes() -> list[str]:
 
 def validate_memory_public_surface() -> list[str]:
     errors: list[str] = []
+
+    memory_health_text = (REPO_ROOT / "bin" / "codex-memory-health.sh").read_text(encoding="utf-8")
+    if '"reason": "repo_cwd_change"' not in memory_health_text:
+        errors.append("memory health probe must supply the required bootstrap_context reason")
 
     mcp_config_path = REPO_ROOT / "codex/config/20-codex-spine-mcps.toml"
     config_text = mcp_config_path.read_text(encoding="utf-8")
