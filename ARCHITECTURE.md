@@ -100,7 +100,7 @@ Codex transcripts + project-memory material
 
 This subsystem is the default public core. It is built around [@tobi/qmd](https://github.com/tobi/qmd) and exists to give Codex better startup context and retrieval without requiring manual transcript spelunking.
 
-Built-in Codex memories and app-managed files under `~/.codex/memories/` are complementary client-managed context in this design, not the operator-facing retrieval lane. The base config enables them for every Codex conversation so new projects inherit memory without project-local setup. The shipped public contract keeps required rules in `codex/AGENTS.md` or checked-in repo docs, uses the `memory` MCP surface for bootstrap and transcript retrieval, and treats `/memories` plus `codex/config/90-local.toml` as the right control points for intentionally narrowing or tuning built-in settings such as `features.memories`, `memories.use_memories`, `memories.generate_memories`, and `memories.disable_on_external_context`.
+Built-in Codex memories are disabled by the base config. Retained app-managed files under `~/.codex/memories/` are historical generated state, not an operator-facing retrieval lane or an implicit project input. The shipped public contract keeps required rules in `codex/AGENTS.md` or checked-in repo docs, uses the QMD-backed `memory` MCP surface for bootstrap and transcript retrieval, and treats `/memories` plus `codex/config/90-local.toml` as the explicit user-owned opt-in controls.
 
 When project framing files exist in a target repo, the transcript-sync path prefers `PROJECT_CONTINUITY.md` as the durable product frame before lower-level handoff details so startup context stays anchored on purpose instead of only the latest execution state.
 
@@ -181,7 +181,7 @@ This skill is guidance for producing or reviewing evidence displays. It does not
 - Public skills ship under `skills/` as reusable scaffolding and guidance; the actual continuity packet files still live in the repo being worked in.
 - The public skill payload is intentionally narrow: `project-continuity`, `multi-step`, and `tufte-visualization`, plus only the templates and references still declared by the export manifest. Recursive `multi-step` templates are prohibited.
 - `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
-- Built-in Codex memories remain an optional complementary surface, not a replacement for the `memory` MCP lane; required rules stay in shipped docs, and durable built-in-memory defaults belong in `codex/config/90-local.toml` rather than generated state under `~/.codex/memories/`.
+- Built-in Codex memories remain disabled by default; retained generated state under `~/.codex/memories/` is historical evidence only, and an intentional user-owned opt-in belongs in `codex/config/90-local.toml` rather than project guidance.
 - The optional jGravelle Munch MCP suite is optional but first-class.
 - The shipped `codex/TOOLING.md` surface is intentionally limited to continuity, memory, and code navigation; release governance is out of scope for the installed operating contract.
 - Managed shell-dotfile mutation is only tested for `zsh`. Non-`zsh` shells should receive a warning and a core-only install rather than silent best-effort mutation, with the shipped shell fragments kept available for explicit manual wiring.

@@ -36,7 +36,7 @@ Use this skill when a repo is long-lived enough that Codex needs durable product
 
 The artifacts under `skills/project-continuity/assets/` scaffold those files without replacing an existing instruction chain. The direct adoption procedure and read-only auditor live beside them under `references/` and `scripts/`. The shipped skill is the reusable pattern; actual continuity files remain project-local working state.
 
-Built-in Codex memories and app-managed files under `~/.codex/memories/` are separate. The base config enables them for every Codex conversation so new projects inherit memory without project-local setup. Treat them as complementary client-managed context, keep required rules in `AGENTS.md` or checked-in docs, use `/memories` and `codex/config/90-local.toml` only to inspect or intentionally narrow built-in memory settings, and use the `memory` MCP lane documented in `codex/TOOLING.md` for operator-facing bootstrap and transcript retrieval.
+Built-in Codex memories are disabled by the base config. Retained app-managed files under `~/.codex/memories/` are historical generated state and must not be read or routed into work unless the current user explicitly asks about those files. Keep required rules in `AGENTS.md` or checked-in docs, use the QMD-backed `memory` MCP lane documented in `codex/TOOLING.md` for historical retrieval, and use `/memories` or `codex/config/90-local.toml` only for an intentional user-owned opt-in.
 
 ### `multi-step`
 

@@ -76,8 +76,9 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("`memory` MCP", "memory` MCP", "memory MCP"),
         ("jdocmunch",),
         ("jdatamunch",),
-        ("~/.codex/memories/", "built-in Codex memories", "built-in memories"),
-        ("client-managed context", "complementary client-managed context"),
+        ("~/.codex/memories/",),
+        ("disabled by the base config",),
+        ("unless the current user explicitly asks",),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
         ("`/memories`", "/memories"),
     ),
@@ -97,8 +98,9 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("jcodemunch",),
         ("jdocmunch",),
         ("jdatamunch",),
-        ("~/.codex/memories/", "built-in Codex memories", "built-in memories"),
-        ("client-managed context", "complementary client-managed context"),
+        ("~/.codex/memories/",),
+        ("disabled by the base config",),
+        ("unless the current user explicitly asks",),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
     ),
     "codex/TOOLING.md": (
@@ -113,8 +115,9 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("vector_search",),
         ("get",),
         ("multi_get",),
-        ("~/.codex/memories/", "built-in Codex memories", "built-in memories"),
-        ("client-managed context", "complementary client-managed context"),
+        ("~/.codex/memories/",),
+        ("disabled by the base config",),
+        ("unless the current user explicitly asks",),
         ("`codex/config/90-local.toml`", "codex/config/90-local.toml"),
         ("`/memories`", "/memories"),
         ("Intervention Before Workaround",),
@@ -340,11 +343,25 @@ def validate_memory_public_surface() -> list[str]:
         if "qmd_codex" in text:
             errors.append(f"public doc still describes qmd_codex as a shipped public surface: {doc_path}")
 
+    base_config_path = REPO_ROOT / "codex/config/00-base.toml"
+    base_config = tomllib.loads(base_config_path.read_text(encoding="utf-8"))
+    expected_disabled = (
+        (("features", "memories"), False),
+        (("memories", "generate_memories"), False),
+        (("memories", "use_memories"), False),
+    )
+    for path, expected in expected_disabled:
+        value = base_config
+        for key in path:
+            value = value.get(key) if isinstance(value, dict) else None
+        if value is not expected:
+            errors.append(f"public base config must disable built-in memory: {base_config_path}: {'.'.join(path)}")
+
     config_example_path = REPO_ROOT / "codex/config/90-local.toml.example"
     config_example_text = config_example_path.read_text(encoding="utf-8")
-    for anchor in ("[features]", "memories = true", "disable_on_external_context = true"):
+    for anchor in ("[features]", "memories = true", "generate_memories = true", "use_memories = true"):
         if anchor not in config_example_text:
-            errors.append(f"public local config example is missing a built-in memory anchor: {config_example_path}: {anchor}")
+            errors.append(f"public local config example is missing an explicit built-in memory opt-in anchor: {config_example_path}: {anchor}")
 
     return errors
 
