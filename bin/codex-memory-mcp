@@ -47,11 +47,11 @@ const bootstrapCache = new Map();
 let transportStyle = "framed";
 
 const MEMORY_MCP_INSTRUCTIONS = [
-  "Use recent_session only for an explicit topicless last-conversation question such as what we were just discussing. If historical retrieval is needed and the prompt names a failure, decision, task, or subject, use query instead; a named current-state subject does not by itself require memory.",
-  "Use query for historical recall with a concise intent and one to three typed searches: lex for a few discriminative exact terms or one exact phrase, vec for same-idea recall, and hyde only for nuanced concepts; then use get or multi_get for source evidence.",
+  "Use recent_session only for an explicit topicless last-conversation question such as what we were just discussing. When the prompt explicitly asks about a named past project, decision, method, or discussion and the current thread does not answer it, use query before broad checkout scans or broad documentation reads; a different current checkout is not evidence that history is absent. A named current-state subject does not by itself require memory.",
+  "Start named-history lookup with one lex search containing only the one or two most distinctive literal terms and rerank=false; quote a phrase only when its exact recorded wording is known. Then use get or multi_get for source evidence. Broaden once with vec or hyde and reranking only if that source misses.",
   "For ordinary recall, make one query and one bounded get or multi_get, starting transcript retrieval near the hit's returned line instead of line 1. Stop when that source answers the question; do not search for redundant corroboration. Broaden once only when it does not answer. After broadening, batch multiple selected sources in one multi_get instead of serial get calls; follow one same-source continuation only when nextFromLine is needed to finish the decision.",
   "For a final-decision lookup, do not treat a source window ending in a proposal, question, or confirmation request as final; follow its nextFromLine continuation.",
-  "Do not call memory when the current thread or current checkout already contains the needed evidence. For current Git landing, containment, or ref-existence questions, inspect current refs first; memory may resolve an approximate historical label but current Git remains authority for current state. Call this server sequentially.",
+  "Do not call memory when the current thread or current checkout already contains the needed current evidence. Do not open live historical paths merely to corroborate an answer already supported by retrieved history. For current Git landing, containment, or ref-existence questions, inspect current refs first; memory may resolve an approximate historical label but current Git remains authority for current state. Call this server sequentially.",
   "Treat tools/list as the canonical client surface; unadvertised compatibility aliases exist only for cached clients and are not peer tools to recommend.",
 ].join(" ");
 
@@ -703,10 +703,13 @@ function callUnifiedQuery(args) {
     if (!["lex", "vec", "hyde"].includes(type) || !query || query.includes("\n")) throw new Error("each typed search requires type lex, vec, or hyde and a single-line query");
     normalized.push({ type, query });
   }
-  if (normalized.length === 1 && args.rerank === false && normalized[0].type === "lex") return callSearch("search", { ...args, query: normalized[0].query, searches: undefined, intent: undefined, rerank: undefined });
-  if (normalized.length === 1 && args.rerank === false && normalized[0].type === "vec") return callSearch("vsearch", { ...args, query: normalized[0].query, searches: undefined, intent: undefined, rerank: undefined });
+  const rerank = typeof args.rerank === "boolean"
+    ? args.rerank
+    : !(normalized.length === 1 && normalized[0].type === "lex");
+  if (normalized.length === 1 && !rerank && normalized[0].type === "lex") return callSearch("search", { ...args, query: normalized[0].query, searches: undefined, intent: undefined, rerank: undefined });
+  if (normalized.length === 1 && !rerank && normalized[0].type === "vec") return callSearch("vsearch", { ...args, query: normalized[0].query, searches: undefined, intent: undefined, rerank: undefined });
   const lines = [`intent: ${intent}`, ...normalized.map((search) => `${search.type}: ${search.query}`)];
-  return callSearch("query", { ...args, query: lines.join("\n"), searches: undefined, intent: undefined });
+  return callSearch("query", { ...args, query: lines.join("\n"), searches: undefined, intent: undefined, rerank });
 }
 
 function isPublicQmdUri(value) {
@@ -1274,7 +1277,7 @@ function toolListResult() {
       {
         name: "query",
         description:
-          "Search historical memory with QMD's unified typed retrieval. Supply a concise disambiguating intent and one to three searches: lex for a few discriminative exact terms or one exact phrase, vec for same-idea recall, and hyde for a nuanced hypothetical passage. Avoid overconstraining lex with terms that may not co-occur, and retrieve selected results with get or multi_get. Do not use query merely to determine current Git state when refs and ancestry suffice; it may resolve an approximate historical label, but current Git is authority for current landing state.",
+          "Search historical memory with QMD's unified typed retrieval. Start named-history lookup with one lex search containing only the one or two most distinctive literal terms and rerank=false before broad checkout scans; quote a phrase only when its exact recorded wording is known. Retrieve the selected source with get or multi_get and stop when it answers. Broaden once with vec or hyde and reranking only if lexical evidence misses. Do not open live historical paths merely to corroborate retrieved history. Do not use query merely to determine current Git state when refs and ancestry suffice; it may resolve an approximate historical label, but current Git is authority for current landing state.",
         inputSchema: {
           type: "object",
           properties: {
@@ -1301,7 +1304,7 @@ function toolListResult() {
             parent_thread_id: { type: "string", description: "Exact delegated parent-thread filter." },
             own_thread_id: { type: "string", description: "Restrict to this thread and its delegated children." },
             intent: { type: "string", description: "Concise purpose that disambiguates overloaded terms. It does not search on its own." },
-            rerank: { type: "boolean", default: true },
+            rerank: { type: "boolean", description: "Set false for an exact-name or identifier lex lookup. When omitted, a single lex search is fast and semantic or multi-search retrieval is reranked." },
             limit: { type: "integer", minimum: 1, maximum: QUERY_MAX_LIMIT, default: QUERY_DEFAULT_LIMIT },
             minScore: { type: "number" },
           },

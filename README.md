@@ -26,7 +26,7 @@ This project is aimed at new macOS Codex users who want a turnkey way around som
 - a `memory` MCP lane backed by [@tobi/qmd](https://github.com/tobi/qmd): bounded bootstrap for durable re-anchors, `recent_session` for explicit topicless last-conversation recall, and one unified typed `query` followed by bounded source retrieval for named history
 - optional jGravelle Munch MCP suite integration through a managed enablement flow
 
-The memory lane is intentionally selective. Codex should use the current thread and checkout for current facts, reach for `recent_session` when you explicitly ask what the last conversation was about, and query indexed history when a named past decision or method is missing from current evidence. This keeps ordinary repository work local while making long-range lookbacks possible without scanning raw transcript files. QMD retrieval is bounded; the model's later synthesis may still be the larger time and token cost for complex questions.
+The memory lane is intentionally selective. Codex should use the current thread and checkout for current facts, reach for `recent_session` when you explicitly ask what the last conversation was about, and query indexed history when a named past decision or method is missing from the current thread. Exact names and identifiers start with fast lexical retrieval and only broaden to semantic search when needed. This keeps ordinary repository work local while avoiding broad scans of an unrelated checkout or live historical paths during lookback. QMD retrieval is bounded; the model's later synthesis may still be the larger time and token cost for complex questions.
 
 ## Skills
 

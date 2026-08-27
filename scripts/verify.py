@@ -500,7 +500,7 @@ def validate_memory_public_surface() -> list[str]:
         try:
             initialize = rpc("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "verify", "version": "1"}})
             instructions = str(initialize.get("result", {}).get("instructions", ""))
-            if "recent_session" not in instructions or "current thread or current checkout" not in instructions:
+            if "recent_session" not in instructions or "before broad checkout scans" not in instructions or "rerank=false" not in instructions:
                 errors.append("public memory MCP initialize response lacks compact activation and non-activation guidance")
 
             listed = rpc("tools/list", {})
@@ -511,6 +511,8 @@ def validate_memory_public_surface() -> list[str]:
             for alias in ("deep_search", "search", "vector_search"):
                 if alias in tools:
                     errors.append(f"public memory MCP still advertises hidden compatibility alias {alias}")
+            if "default" in tools.get("query", {}).get("inputSchema", {}).get("properties", {}).get("rerank", {}):
+                errors.append("public query schema exposes an unconditional rerank default instead of the contextual runtime default")
             expected_annotations = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
             for name, tool in tools.items():
                 if name != "bootstrap_context" and tool.get("annotations") != expected_annotations:
@@ -525,7 +527,7 @@ def validate_memory_public_surface() -> list[str]:
             if len(json.dumps(recent_payload).encode()) > 8000 or len(recent_payload.get("messages", [])) > 8:
                 errors.append("public recent_session did not clamp harmless upper-bound overshoot")
 
-            query = rpc("tools/call", {"name": "query", "arguments": {"intent": "Find the exact public fixture", "searches": [{"type": "lex", "query": "bounded public memory contract"}], "rerank": False}})
+            query = rpc("tools/call", {"name": "query", "arguments": {"intent": "Find the exact public fixture", "searches": [{"type": "lex", "query": "bounded public memory contract"}]}})
             if query.get("result", {}).get("structuredContent", {}).get("results", [{}])[0].get("docid") != "#recent":
                 errors.append("public unified query did not return the QMD fixture")
             query_argv = json.loads(calls.read_text(encoding="utf-8").splitlines()[-1])
