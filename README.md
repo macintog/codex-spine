@@ -72,9 +72,9 @@ The suite is optional. `codex-spine` remains fully usable without it, and the up
 | `yeet` | Validated task → commit → publish or integrate → prove → retire. |
 | `change-impact` | A change crosses interfaces, schemas, permissions, release boundaries, or several downstream consumers. |
 | `causal-explanation` | Why something already behaves this way, with the evidence named. |
-| `improve-codebase-architecture` | You want architecture, terminology, interface, or testability improvements. |
-| `skill-authoring-quality` | You are creating or auditing a portable Codex skill. |
-| `tufte-visualization` | You are creating or critiquing an evidence-rich chart, dashboard, map, or report. |
+| `improve-codebase-architecture` | When you want architecture, terminology, interface, or testability improvements. |
+| `skill-authoring-quality` | When you are creating or auditing a portable Codex skill. |
+| `tufte-visualization` | When you are creating or critiquing an evidence-rich chart, dashboard, map, or report. |
 
 Skills are session guidance and scaffolding, not background services or MCP servers. See each tree under `skills/` for its full contract, references, and assets.
 
