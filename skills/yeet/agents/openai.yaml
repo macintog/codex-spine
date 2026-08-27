@@ -1,6 +1,6 @@
 interface:
   display_name: "Yeet"
-  short_description: "Finish the registered Git transaction"
-  default_prompt: "Use $yeet to take this validated registered task to its configured terminal Git disposition."
+  short_description: "Validated task → commit → publish/integrate → prove → retire"
+  default_prompt: "Use $yeet to commit, publish or integrate, prove, and retire this validated registered task."
 policy:
   allow_implicit_invocation: false

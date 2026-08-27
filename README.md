@@ -1,218 +1,167 @@
 # codex-spine
 
-`codex-spine` is a macOS-first public Codex environment spine for shareable retrieval, indexing, workflow, and maintenance tooling. It installs and maintains the core pieces for you instead of turning the setup into a README scavenger hunt. When everything is working, your token counts should go down while accuracy goes up.
+`codex-spine` is a macOS-first Codex environment built around two recurring failures: useful context disappears between conversations, and a general-purpose agent improvises exactly where long-running work needs consistent judgment.
 
-The current `codex-spine` tree improves Codex in a few focused ways:
+A new chat does not know what you decided last week, why you rejected an alternative, or where the work stopped. Feeding it every old conversation creates the opposite problem: irrelevant history consumes context, and stale summaries can start acting like current authority. The [@tobi/qmd](https://github.com/tobi/qmd)-backed memory lane retrieves prior evidence only when the answer depends on it, returns a bounded source window, and leaves the current thread and checkout authoritative for current facts.
 
-- it adapts [@tobi/qmd](https://github.com/tobi/qmd) to the Codex workflow by:
-  - converting Codex thread JSON into Markdown for ingestion
-  - extracting only user and assistant conversation content for indexing
-  - narrowing the practical `qmd` surface down to the retrieval calls that matter for recalling that material
-- it can optionally install the [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), [@jgravelle/jdocmunch-mcp](https://github.com/jgravelle/jdocmunch-mcp), and [@jgravelle/jdatamunch-mcp](https://github.com/jgravelle/jdatamunch-mcp) suite, which can substantially improve token efficiency when working through code, docs, and data
-- it ships a focused public skill set for continuity, terminal closeout, change reasoning, architecture, skill authoring, and evidence-first visualization
+Memory handles the past. The shipped skills handle the decision boundaries that repeatedly produce expensive mistakes:
 
-## Audience
+- preserving durable project intent without letting an old handoff choose today's task, then completing Git work without losing ownership or proof
+- finding affected consumers before a cross-boundary change, explaining causes without outrunning the evidence, and catching terminology or architectural drift before it spreads
+- keeping skill guidance concise enough to route reliably, and making visual evidence clarify comparisons instead of decorating them
 
-This project is aimed at new macOS Codex users who want a turnkey way around some of Codex's basic limitations. It packages a tested daily-driver environment into a public install path, so people starting from zero can get useful retrieval, indexing, and maintenance tooling without first rebuilding the whole setup themselves. The project is still evolving, but the v0.5.4 release line is intended to be installable today, practical to update, and straightforward to adopt.
+These are narrow, triggered judgment tools—not a second agent framework, a background autonomy loop, or a catalog you must remember by name. Concise hooks stay visible; detailed guidance loads only when the current task matches.
 
-## What It Includes
+## Quick start
 
-- managed install, verify, update, and component status commands
-- manifest-driven component maintenance in `MAINTAINED_COMPONENTS.toml`, using compatibility ceilings instead of exact version pins
-- reusable `project-continuity`, `yeet`, `change-impact`, `causal-explanation`, `improve-codebase-architecture`, `skill-authoring-quality`, and `tufte-visualization` trees under `skills/`
-- generated Codex config for the managed core environment
-- shell integration and launchd-backed transcript sync on macOS
-- a managed system-wide `uv` policy at `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` as the default quarantine plus package-specific overrides for the optional jGravelle Munch MCP suite so the optional runners remain installable
-- a `memory` MCP lane backed by [@tobi/qmd](https://github.com/tobi/qmd): bounded bootstrap for durable re-anchors, `recent_session` for explicit topicless last-conversation recall, and one unified typed `query` followed by bounded source retrieval for named history
-- optional jGravelle Munch MCP suite integration through a managed enablement flow
-
-The memory lane is intentionally selective. Codex should use the current thread and checkout for current facts, reach for `recent_session` when you explicitly ask what the last conversation was about, and query indexed history when a named past decision or method is missing from the current thread. Exact names and identifiers start with fast lexical retrieval and only broaden to semantic search when needed. This keeps ordinary repository work local while avoiding broad scans of an unrelated checkout or live historical paths during lookback. QMD retrieval is bounded; the model's later synthesis may still be the larger time and token cost for complex questions.
-
-## Skills
-
-`codex-spine` ships seven public skill trees and installs them under `~/.codex/skills/` during `make install`. Skills are reusable guidance and scaffolding for Codex sessions; they are not background services or MCP servers.
-
-### `project-continuity`
-
-Use this skill when a repo is long-lived enough that Codex needs durable product intent and a small current handoff instead of relying on chat memory alone. It defines project `AGENTS.md` for local rules, `PROJECT_CONTINUITY.md` for durable intent, and `codex-project-checkpoint` for worktree-independent handoff state. Adopted repositories keep tracked `CHECKPOINT.md` only as a discovery stub; `not_adopted` retains the legacy tracked handoff.
-
-The artifacts under `skills/project-continuity/assets/` scaffold those files without replacing an existing instruction chain. The direct adoption procedure and read-only auditor live beside them under `references/` and `scripts/`. The shipped skill is the reusable pattern; actual continuity files remain project-local working state.
-
-Built-in Codex memories are disabled by the base config. Retained app-managed files under `~/.codex/memories/` are historical generated state and must not be read or routed into work unless the current user explicitly asks about those files. Keep required rules in `AGENTS.md` or checked-in docs, use the QMD-backed `memory` MCP lane documented in `codex/TOOLING.md` for historical retrieval, and use `/memories` or `codex/config/90-local.toml` only for an intentional user-owned opt-in.
-
-### `yeet`
-
-Use this explicit-only skill when the operator says `yeet` after a registered task's validation has passed. The bundled `codex-git-safe` runtime attempts the configured terminal commit/review or integration transaction, proves the remote result, reconciles an adopted checkpoint, and retires only task-owned state. It deliberately does not run product tests, broad verification, bootstrap, deployment, or release gates.
-
-### `change-impact`
-
-Use this skill before a change crosses interfaces, persisted schemas, permissions, deployment or release boundaries, or three or more downstream consumers. It produces an evidence-backed consumer map, the load-bearing assumptions, and a finite verification obligation list.
-
-### `causal-explanation`
-
-Use this skill to explain why or how an established consequential behavior, design choice, regression, threshold, or tradeoff exists. It keeps direct observations, causal inference, alternatives, and gaps distinct.
-
-### `improve-codebase-architecture`
-
-Use this skill to find architecture deepening, terminology, and semantic-symmetry opportunities, or to implement an architecture direction the user has already selected.
-
-### `skill-authoring-quality`
-
-Use this skill with the platform's skill-creation guidance to audit routing, placement, prompt economy, validation, distribution, provenance, and collision safety for skill packets.
-
-### `tufte-visualization`
-
-Use this skill as an evidence-design overlay when creating, revising, or critiquing charts, dashboards, analytical figures, visual tables, maps, KPI displays, evidence-rich diagrams, and decision-grade reports. It combines comparison-first reasoning with explicit uncertainty, anti-reflex taste checks, host-style preservation, responsive sibling compositions, accessibility, source documentation, and rendered QA. Medium-specific skills still own implementation mechanics; it does not install a charting runtime or bring its own data source.
-
-## What Install Changes
-
-`make install` is the install step, not just a validation step. It:
-
-- keeps one fullscreen session through the whole interactive install
-- checks early whether `~/.codex/config.toml` already exists and asks how to handle it before broader managed changes
-- for interactive installs, asks early whether you want to include the optional jGravelle Munch MCP suite later in the same install when it is not already fully enabled; that prompt defaults to yes
-- installs Homebrew if needed and then installs any missing baseline runtime packages
-- creates example local overlay files when they do not exist yet
-- manages symlinks under `~/.codex/` and `~/.local/bin/`, including all shipped skill trees and the `codex-git-safe` terminal-closeout runtime
-- manages `~/.config/uv/uv.toml` from the tracked `uv/uv.toml` policy file
-- updates managed source blocks in `~/.zprofile` and `~/.zshrc` only when the detected login shell is `zsh`
-- renders `~/.codex/config.toml`
-- installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
-- installs or updates the default managed components
-- runs the first transcript sync and [@tobi/qmd](https://github.com/tobi/qmd) lexical index refresh so memory and transcript retrieval are warm before install finishes
-
-The optional jGravelle Munch MCP suite stays out of the default core path, but interactive install can include it when you opt in.
-
-If you choose that suite during interactive install, `codex-spine` remembers that choice early, then later shows the current upstream terms once, requires you to type `accept` once, and only then enables all three integrations together. If the whole suite is already enabled, install reports that state and continues without re-prompting. The managed overlay then wires Codex to the latest compatible upstream MCP runners for `jcodemunch`, `jdocmunch`, and `jdatamunch` through the built-in `uv` runner, rendered as an absolute runtime path with a stable Munch MCP `PATH`. The `jcodemunch` path also writes `~/.code-index/config.jsonc` from the tracked `codex/config/jcodemunch.config.jsonc` default, keeping upstream `tool_profile: "core"`, `compact_schemas: true`, and `meta_fields: []`; a repo-local `.jcodemunch.jsonc` can widen that later when a project genuinely needs richer tools. The managed overlay also keeps `JDOCMUNCH_SHARE_SAVINGS=0`, `JDOCMUNCH_META_FIELDS=[]`, `JDATAMUNCH_SHARE_SAVINGS=0`, and `JDATAMUNCH_META_FIELDS=[]` in the rendered MCP entries so docs/data retrieval stay on the public token-saving posture. Those runners use the managed `~/.config/uv/uv.toml` policy with `exclude-newer = "7 days"` as the default quarantine plus package-specific cutoffs for the optional suite so the compatible runners stay installable on a clean system. If you skip it, install continues without the optional suite and you can still enable it later with `./scripts/component-enable jcodemunch-mcp`.
-
-Current terminals do not automatically pick up shell changes. Open a new shell after install when you want the refreshed shell environment. If install skipped shell wiring because your login shell is not `zsh`, update your shell startup manually instead.
-
-macOS may also show a one-time `Background Items Added` notification for `sync-codex-chat-qmd.sh` during install. That is expected because `codex-spine` registers the transcript-sync LaunchAgent under Login Items & Extensions. The scheduled agent sets `QMD_SYNC_EMBED=1`, so it refreshes transcript projection, bootstrap state, the lexical QMD index, contexts, and vector embeddings in the background. The default cadence is 15 minutes, which keeps backpressure below measured full-sync runtime while the pipeline records per-stage timing for incremental improvements.
-
-## Requirements
+Requirements:
 
 - macOS with a user-space Codex installation under `~/.codex`
-- stock `/usr/bin/python3` 3.9+ available as the only bootstrap dependency; tested on macOS 15.7.4 and 26.3
+- stock `/usr/bin/python3` 3.9+; tested on macOS 15.7.4 and 26.3
+- `zsh` for the tested shell-integration path
 
-`make install` uses Homebrew as the baseline package manager for `python`, `ripgrep`, `node`, `pnpm`, `uv`, and `jq`. If Homebrew is missing, install will offer to install it when run from an interactive TTY.
-Interactive install stays in one fullscreen session from the first prompt through completion.
+Then:
 
-## Homebrew Packages
-
-When `make install` installs missing baseline formulae, it installs these Homebrew packages:
-
-- `ripgrep`
-- `python`
-- `node`
-- `pnpm`
-- `uv`
-- `jq`
-
-## Quick Start
-
-1. Clone the repo wherever you want to keep the managed environment.
+1. Clone this repository wherever you want to keep the managed environment.
 2. Run `make install`.
-3. Restart Codex app.
-4. Open a new shell if install updated your zsh startup files or installed Homebrew during setup.
+3. Restart the Codex app.
+4. Open a new shell if install changed your zsh startup files or installed Homebrew.
 5. Run `make verify`.
-6. If you skipped the optional jGravelle Munch MCP suite prompt during install and later want indexed code, docs, and data navigation, run `./scripts/component-enable jcodemunch-mcp`.
 
-`make install` is interactive when run from a TTY. On stock macOS, the installer explains the Homebrew packages it is about to install and asks for approval before continuing. Use `./scripts/bootstrap --non-interactive` when you need a non-interactive install path.
-If Homebrew installation needs macOS password authentication, `codex-spine` keeps that prompt inside the installer's bottom panel and then continues in the same fullscreen session.
-Install now also runs an initial sync of local Codex transcripts from `~/.codex/sessions` into the local [@tobi/qmd](https://github.com/tobi/qmd) lexical and vector indexes before the final verification step, so the first run can take noticeably longer than later runs. Failed embed attempts record a cooldown marker under the QMD state directory instead of retrying on every scheduled run; after fixing QMD, run `QMD_EMBED_RETRY=1 sync-codex-chat-qmd.sh` to force a retry.
+`make install` is interactive when run from a TTY. It explains any Homebrew changes, asks before importing an existing Codex config, and offers the optional jGravelle Munch MCP suite. For unattended setup, run `./scripts/bootstrap --non-interactive`.
 
-`zsh` is the only shell path currently tested. If the detected login shell is not `zsh`, install warns once, skips shell-dotfile mutation, and continues with the core install. In that case, add `~/.local/bin` to your own shell startup manually.
+The first install can take longer because it projects local Codex transcripts from `~/.codex/sessions` into QMD and builds the initial lexical and vector indexes. If Homebrew needs your macOS password, the prompt stays inside the installer's fullscreen interface.
 
-## Existing Codex Configs
+## What you get
 
-Codex reads one live config file at `~/.codex/config.toml`. `codex-spine` does not patch that file in place table-by-table. Instead, it renders one final managed config from a small set of fragments so the result is predictable and repeatable.
+### Selective conversation memory
 
-The relevant inputs are:
+`codex-spine` converts Codex thread JSON into Markdown, indexes only user and assistant conversation content, and exposes a bounded `memory` MCP lane:
 
-- `codex/config/00-base.toml` for base `codex-spine` defaults
-- `codex/config/20-codex-spine-mcps.toml` for the `codex-spine`-managed `memory` MCP entry
-- `codex/config/80-adopted.toml` for settings imported from a pre-existing unmanaged `~/.codex/config.toml`
-- `codex/config/90-local.toml` for your own local machine-specific overrides
-- temporary live `model_reasoning_effort` changes are treated as operator-tunable and do not count as config drift in `make verify`
-- avoid top-level `sandbox_mode` and `approval_policy` in `codex/config/90-local.toml` for Codex desktop use; explicit values make the desktop app treat the config as `custom (config.toml)` instead of persisting the UI mode cleanly
+- `bootstrap_context` restores durable project context after a repository change, prior-thread recovery, or demonstrated context drift.
+- `recent_session` answers an explicit question about the last conversation.
+- `query`, followed by bounded source retrieval, finds a named past decision or method that is missing from the current thread and checkout.
 
-If `~/.codex/config.toml` already exists and is not already `codex-spine`-managed, install asks about it before broader system changes.
+The lane is deliberately selective. Current facts stay grounded in the current thread and checkout; historical retrieval runs only when the question needs it. Exact names and identifiers start with fast lexical retrieval, broadening to semantic search only when needed, without scanning unrelated checkouts or live historical paths. QMD bounds retrieval, though the model's synthesis can still dominate time and token use for complex questions.
 
-If you accept:
+Built-in Codex memories are disabled by the base config. Files retained under `~/.codex/memories/` are historical app-managed state and are not routed into work unless the current user explicitly asks about them. Use `/memories` or `codex/config/90-local.toml` if you want to opt back in.
 
-- `codex-spine` imports the non-`codex-spine` parts of the current live config into the local gitignored `codex/config/80-adopted.toml`
-- backs up the previous live `~/.codex/config.toml` as `~/.codex/config.toml.bak.<timestamp>` before writing the managed replacement
-- renders a new live config that includes the imported settings plus the `codex-spine`-managed memory entry and wrapper support
+### Optional indexed navigation
 
-If you decline:
+The optional jGravelle Munch MCP suite adds:
 
-- `~/.codex/config.toml` stays exactly as it was
-- `codex/config/80-adopted.toml` is not created
-- install stops before `codex-spine` changes Homebrew packages, managed wrappers, shell files, launchd, or the live Codex config
+- `jcodemunch` for code
+- `jdocmunch` for documentation
+- `jdatamunch` for tabular data
 
-The rationale is to keep `codex-spine` ownership narrow and explicit. It manages the memory entry and supporting wrapper layer it owns, preserves the rest of an existing Codex config when you approve that import, and avoids hand-editing arbitrary live config in place.
+Interactive install offers the suite early and defaults to yes. If you opt in, the installer shows the current upstream terms once and requires you to type `accept` before enabling all three integrations. You can skip it and enable it later:
 
-## First-Run Success Criteria
+```sh
+./scripts/component-enable jcodemunch-mcp
+```
 
-After a successful first run:
+The managed overlay runs compatible upstream releases under `<2.0` through `uv`. It also writes the default jCodeMunch profile to `~/.code-index/config.jsonc` and keeps anonymous docs/data savings sharing disabled. A repo-local `.jcodemunch.jsonc` can widen the default core profile when a project needs more tools.
 
-- `make install` ends with `install: ok`
-- `make verify` ends with `verify: ok`
-- `./scripts/component-status` reports the default components as healthy
-- `make verify` proves both the native components and the Codex-facing wrapper layer (`qmd-codex` and the memory MCP launcher)
-- `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` exists
-- `~/.codex/config.toml` exists and starts with `Generated by codex-spine`
-- if you enabled the optional jGravelle Munch MCP suite, `./scripts/component-enable jcodemunch-mcp` completes and `make verify` still passes
+The suite is optional. `codex-spine` remains fully usable without it, and the upstream projects retain their own terms, including any commercial-use restrictions.
 
-## Daily Commands
+### Public workflow skills
 
-- `make update`: refresh default and enabled optional components to the repo's managed compatibility ceilings
-- `make upgrade`: move a clean checkout to the newest `vX.Y.Z` release tag from `origin`, then run install, update, and verify
-- `make verify`: validate repo state, live-machine state, component health, and wrapper health
-- `./scripts/component-status`: inspect managed component health
-- `./scripts/component-enable jcodemunch-mcp`: enable the optional jGravelle Munch MCP suite for code, docs, and data
+`make install` places seven reusable skill trees under `~/.codex/skills/`:
 
-`make update` does not move your repo checkout between `codex-spine` releases. Use `make upgrade` when you want to move from an older release tag to the newest release tag published on your configured `origin` remote. `make upgrade` refuses to run when the checkout has local changes, then fetches tags, checks out the newest release, runs `make install`, refreshes managed components, and finishes with `make verify`.
+| Skill | Use it when |
+| --- | --- |
+| `project-continuity` | A long-lived repository needs durable product intent, local rules, and a small worktree-independent handoff. |
+| `yeet` | Validated task → commit → publish or integrate → prove → retire. |
+| `change-impact` | A change crosses interfaces, schemas, permissions, release boundaries, or several downstream consumers. |
+| `causal-explanation` | You need an evidence-calibrated explanation of an established behavior, regression, threshold, or tradeoff. |
+| `improve-codebase-architecture` | You want architecture, terminology, interface, or testability improvements. |
+| `skill-authoring-quality` | You are creating or auditing a portable Codex skill. |
+| `tufte-visualization` | You are creating or critiquing an evidence-rich chart, dashboard, map, or report. |
+
+Skills are session guidance and scaffolding, not background services or MCP servers. See each tree under `skills/` for its full contract, references, and assets.
+
+
+## What the installer changes
+
+`make install` performs real machine setup. It:
+
+- checks `~/.codex/config.toml` before broader changes and asks how to handle an existing unmanaged config
+- installs Homebrew when needed, then installs missing baseline packages: `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`
+- creates missing local overlay examples
+- manages symlinks under `~/.codex/` and `~/.local/bin/`, including the shipped skills and `codex-git-safe`
+- manages `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` as the default package quarantine and compatibility overrides for the optional Munch suite
+- updates managed blocks in `~/.zprofile` and `~/.zshrc` when the detected login shell is `zsh`
+- renders the final managed `~/.codex/config.toml`
+- installs or reloads `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`
+- installs or updates default components
+- runs the first transcript sync and QMD index refresh
+
+Current terminals do not inherit shell changes. Open a new shell after install. If your login shell is not `zsh`, install skips shell-dotfile changes; add `~/.local/bin` to that shell yourself if you want command-line integration.
+
+macOS may show a one-time `Background Items Added` notification for `sync-codex-chat-qmd.sh`. This is expected. The LaunchAgent refreshes transcript projection, bootstrap state, lexical indexes, contexts, and vector embeddings every 15 minutes.
+
+## Existing Codex configs
+
+Codex reads one live config file at `~/.codex/config.toml`. `codex-spine` renders that file from explicit fragments instead of patching arbitrary TOML tables in place:
+
+- `codex/config/00-base.toml` contains base defaults.
+- `codex/config/20-codex-spine-mcps.toml` defines the managed `memory` MCP entry.
+- `codex/config/80-adopted.toml` receives settings imported from an existing unmanaged config.
+- `codex/config/90-local.toml` contains your machine-specific overrides.
+
+If an unmanaged `~/.codex/config.toml` already exists, install asks before changing anything else. If you accept, it imports the non-`codex-spine` settings into the gitignored `codex/config/80-adopted.toml`, backs up the live file as `~/.codex/config.toml.bak.<timestamp>`, and renders the managed replacement. If you decline, install leaves the live config untouched and stops before changing Homebrew packages, wrappers, shell files, launchd, or Codex configuration.
+
+Temporary `model_reasoning_effort` changes do not count as config drift. Avoid top-level `sandbox_mode` and `approval_policy` in `codex/config/90-local.toml`; those values make Codex desktop treat the config as `custom (config.toml)` instead of persisting the UI mode cleanly.
+
+## Operate and update
+
+| Command | Purpose |
+| --- | --- |
+| `make install` | Install or reconcile the managed environment. |
+| `make verify` | Check repository state, live-machine state, component health, and Codex-facing wrappers. |
+| `make update` | Refresh default and enabled optional components within the managed compatibility ceilings. |
+| `make upgrade` | Move a clean checkout to the newest `vX.Y.Z` release tag from `origin`, then install, update, and verify. |
+| `./scripts/component-status` | Report managed component health. |
+| `./scripts/component-enable jcodemunch-mcp` | Enable the optional indexed-navigation suite. |
+
+`make update` updates components but does not move the repository to a newer `codex-spine` release. `make upgrade` performs that release change and refuses to run from a dirty checkout.
+
+## Verify the first install
+
+A healthy first run has all of these outcomes:
+
+- `make install` ends with `install: ok`.
+- `make verify` ends with `verify: ok`.
+- `./scripts/component-status` reports the default components as healthy.
+- `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` exists.
+- `~/.codex/config.toml` begins with `Generated by codex-spine`.
+- If you enabled the optional Munch suite, `./scripts/component-enable jcodemunch-mcp` completes and `make verify` still passes.
 
 ## Troubleshooting
 
-- If `make verify` says the live config is stale for non-tunable settings, run `make install`.
-- If transcript sync is missing, check `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist` and re-run `make install`.
-- If install warns that your login shell is not `zsh`, add `~/.local/bin` to that shell's startup and source the repo fragments manually if you want shell integration.
-- If `launchctl` warnings appear during install, rerun `make install` from a normal macOS GUI login session. The LaunchAgent plist is still written even when load fails.
-- If macOS shows `Background Items Added` for `sync-codex-chat-qmd.sh`, that is the expected one-time notice for the managed transcript-sync LaunchAgent.
-- If shell changes do not appear in your current terminal, open a new shell session after install.
-- If the optional jGravelle Munch MCP suite will not enable, rerun `./scripts/component-enable jcodemunch-mcp` from an interactive TTY and check the reported terms-fetch, `uv`, or version-compatibility error.
+- **Live config is stale:** Run `make install` when `make verify` reports drift in non-tunable settings.
+- **Transcript sync is missing:** Check `~/Library/LaunchAgents/codex-spine.qmd-codex-chat.plist`, then rerun `make install`.
+- **QMD embeddings keep failing:** Fix QMD, then run `QMD_EMBED_RETRY=1 sync-codex-chat-qmd.sh` to bypass the recorded retry cooldown once.
+- **Shell changes are missing:** Open a new shell. For a non-`zsh` login shell, add `~/.local/bin` to that shell's startup manually.
+- **LaunchAgent loading warns or fails:** Rerun `make install` from a normal macOS GUI login session. The plist is still written when loading fails.
+- **The Munch suite will not enable:** Rerun `./scripts/component-enable jcodemunch-mcp` from an interactive TTY and follow the reported terms-fetch, `uv`, or compatibility error.
 
-## Docs
+## Documentation map
 
-- `ARCHITECTURE.md`: subsystem map, flows, and invariants
-- `CHANGELOG.md`: notable user-visible release history
-- `SECURITY.md`: security posture and reporting expectations
-- `codex/AGENTS.md`: compact Codex startup and operating guidance for this installed environment
-- `codex/TOOLING.md`: on-demand guidance for continuity, memory retrieval, indexed navigation, and managed Git lifecycle
-- `THIRD_PARTY_NOTICES.md`: upstream project, pinned-source, license, and derivative-work attribution
-- `skills/project-continuity/`: reusable continuity contract plus starter templates
-- `skills/yeet/`: explicit terminal Git transaction contract backed by `codex-git-safe`
-- `skills/change-impact/`: affected-consumer and verification-obligation mapping
-- `skills/causal-explanation/`: evidence-calibrated why/how explanations
-- `skills/improve-codebase-architecture/`: architecture deepening and interface review
-- `skills/skill-authoring-quality/`: portable skill governance and audit workflow
-- `skills/tufte-visualization/`: evidence-first visualization workflow plus chart, accessibility, critique, and caption references
+| Document | What it answers |
+| --- | --- |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | How install, verification, memory, optional retrieval, and the public skill payload fit together. |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release. |
+| [`SECURITY.md`](SECURITY.md) | What the project touches, its trust boundaries, and how to report a vulnerability. |
+| [`codex/AGENTS.md`](codex/AGENTS.md) | Which compact operating rules Codex loads in this environment. |
+| [`codex/TOOLING.md`](codex/TOOLING.md) | How continuity, memory, indexed navigation, and managed Git lifecycle work on demand. |
+| [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Which upstream projects and adapted skill packets are included, with licenses and attribution. |
+| [`MAINTAINED_COMPONENTS.toml`](MAINTAINED_COMPONENTS.toml) | Which external components `codex-spine` manages and within what compatibility bounds. |
 
-This repo ships the docs needed to install, operate, and maintain `codex-spine`.
-The shipped maintenance manifest lives in `MAINTAINED_COMPONENTS.toml`.
+## License and third-party terms
 
-## Third-Party Components And Licensing
+`codex-spine` is licensed under MIT, including commercial use. Adapted public skill packets retain their upstream MIT notices, pinned project links, and derivative `LICENSE.txt` files; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-`codex-spine` is licensed under MIT, which permits commercial use. Some managed integrations are optional and continue to be governed by their own upstream terms.
+The default retrieval layer builds on [@tobi/qmd](https://github.com/tobi/qmd). `codex-spine` provides the Codex-facing wrappers, transcript sync, config rendering, and operator flow while keeping the upstream package boundary explicit.
 
-Adapted public skill packets retain their upstream MIT notices and pinned
-project links in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and in each
-derivative skill's `LICENSE.txt`.
-
-The default retrieval foundation is built around [@tobi/qmd](https://github.com/tobi/qmd). `codex-spine` adds the public Codex-facing wrappers, transcript sync, config rendering, and operator flow around that upstream project while keeping the upstream package boundary explicit.
-
-The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), [@jgravelle/jdocmunch-mcp](https://github.com/jgravelle/jdocmunch-mcp), and [@jgravelle/jdatamunch-mcp](https://github.com/jgravelle/jdatamunch-mcp) projects are optional integrations. They remain governed by their own upstream terms, including any commercial-use restrictions those upstream projects apply. `codex-spine` is not those upstream projects and does not imply formal affiliation, official distribution, or any re-licensing of upstream artifacts. Enabling the optional jGravelle Munch MCP suite shows the current upstream terms once when you opt in, requires one explicit `accept`, and then runs the latest compatible upstream releases under `<2.0` through `uv`.
-
-When the optional jGravelle Munch MCP suite is not enabled, `codex-spine` remains fully usable without those optional components.
+The optional [jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp), [jdocmunch-mcp](https://github.com/jgravelle/jdocmunch-mcp), and [jdatamunch-mcp](https://github.com/jgravelle/jdatamunch-mcp) integrations remain governed by their upstream terms. `codex-spine` does not claim affiliation, official distribution, or the right to relicense those projects.

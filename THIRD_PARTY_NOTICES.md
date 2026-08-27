@@ -1,9 +1,46 @@
 # Third-Party Notices
 
-`codex-spine` includes substantively adapted skill guidance from two MIT-licensed
-upstream projects. The adaptations are not wholesale copies. Each derivative
-skill packet carries the applicable full MIT notice so the packet remains
-self-contained when copied separately.
+The repository's MIT license covers `codex-spine`'s repo-owned code and
+documentation. It does not relicense upstream tools that the installer obtains,
+or source works that informed repo-owned guidance. This file distinguishes
+managed upstream tools, redistributed adaptations, and reference-only sources.
+
+## Managed upstream tools
+
+### @tobi/qmd
+
+- Project: https://github.com/tobi/qmd
+- Managed package: `@tobilu/qmd`
+- License: https://github.com/tobi/qmd/blob/main/LICENSE
+- License classification: MIT
+- Copyright: Copyright (c) 2024-2026 Tobi Lutke
+
+`codex-spine` installs and invokes the upstream package. It does not vendor or
+fork QMD. The transcript projection, Codex-facing wrappers, bounded memory MCP
+adapter, configuration, and operator flow in this repository are repo-owned
+integration work.
+
+### Optional jGravelle Munch MCP suite
+
+- jCodeMunch project: https://github.com/jgravelle/jcodemunch-mcp
+- jCodeMunch license: https://github.com/jgravelle/jcodemunch-mcp/blob/main/LICENSE
+- jDocMunch project: https://github.com/jgravelle/jdocmunch-mcp
+- jDocMunch license: https://github.com/jgravelle/jdocmunch-mcp/blob/master/LICENSE
+- jDataMunch project: https://github.com/jgravelle/jdatamunch-mcp
+- jDataMunch license: https://github.com/jgravelle/jdatamunch-mcp/blob/master/LICENSE
+- Copyright holder identified by the licenses: J. Gravelle
+
+These packages use separate dual-use licenses. Their upstream terms permit
+non-commercial use without charge and require a paid license for commercial
+use. Each upstream `LICENSE` file controls its package.
+
+The suite is optional and is not covered by the repository's MIT license.
+`codex-spine` does not vendor, modify, rename, rebrand, or redistribute the
+package source. When you opt in, the installer shows the current upstream terms,
+requires one explicit `accept`, and configures compatible upstream releases
+through `uv`.
+
+## Adapted skill guidance
 
 ## Cursor pstack
 
@@ -36,6 +73,17 @@ The full pstack MIT notice is retained in each listed skill's `LICENSE.txt`.
 The full Matt Pocock MIT notice is retained in each listed skill's
 `LICENSE.txt`.
 
-The public execution posture and `yeet` workflow are repo-owned work. External
-packets were comparative input to their design; no material upstream wording is
-distributed as part of those surfaces.
+## Reference-based visualization guidance
+
+### Tufte visualization
+
+`skills/tufte-visualization` is repo-owned synthesis, not a copied or adapted
+Tufte packet. Edward Tufte's books and public essays inform its evidence-design
+principles; the skill does not reproduce protected book pages, proprietary
+examples, or finished visual artifacts. Its complete source map also records
+the graphical-perception, accessibility, and statistical references it uses;
+see the skill's
+[source map](skills/tufte-visualization/references/citations.md).
+
+The name describes the skill's intellectual influence. It does not imply
+affiliation with or endorsement by Edward Tufte or Graphics Press.

@@ -1,15 +1,26 @@
 # Changelog
 
-## Unreleased
+All notable user-visible changes to `codex-spine` should be tracked here.
+
+## 0.5.5
+
+This release makes the public workflow layer a coherent installable core and
+rewrites the documentation around the continuity and judgment problems it
+solves.
 
 - Replace the retired `multi-step` skill with native Codex planning guidance.
-- Ship `yeet` plus the managed `codex-git-safe` terminal-closeout runtime for both direct-integration and pull-request closeout modes.
+- Ship `yeet` plus the managed `codex-git-safe` runtime for the complete
+  validated-task → commit → publish or integrate → prove → retire transaction,
+  with both direct-integration and pull-request closeout modes.
 - Add the public `change-impact`, `causal-explanation`,
   `improve-codebase-architecture`, and `skill-authoring-quality` skills.
-- Add pinned upstream project links and self-contained MIT notices for adapted
-  pstack and Matt Pocock skill packets.
-
-All notable user-visible changes to `codex-spine` should be tracked here.
+- Rewrite the README around selective QMD-backed conversation memory, triggered
+  workflow skills, a shorter quick start, and explicit installer and config
+  behavior.
+- Expand third-party notices for QMD, the optional jGravelle Munch suite,
+  adapted MIT skill packets, and the source-guided Tufte visualization skill.
+- Strengthen public verification for the declared skill payload, `yeet` packet
+  boundaries, and required provenance records.
 
 ## 0.5.4
 

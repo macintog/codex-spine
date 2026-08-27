@@ -91,6 +91,7 @@ PUBLIC_REQUIRED_SKILL_SENTINELS = (
     ("tufte-visualization", "references/citations.md"),
     ("yeet", "SKILL.md"),
     ("yeet", "agents/openai.yaml"),
+    ("yeet", "references/name-and-scope.md"),
 )
 PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
     "README.md": (
@@ -254,14 +255,36 @@ def validate_public_skill_surface_contract() -> list[str]:
     else:
         notice = notice_path.read_text(encoding="utf-8")
         for anchor in (
+            "https://github.com/tobi/qmd/blob/main/LICENSE",
+            "https://github.com/jgravelle/jcodemunch-mcp/blob/main/LICENSE",
+            "https://github.com/jgravelle/jdocmunch-mcp/blob/master/LICENSE",
+            "https://github.com/jgravelle/jdatamunch-mcp/blob/master/LICENSE",
             "https://github.com/cursor/plugins",
             "https://github.com/cursor/plugins/tree/60c641e4fad674784b30abcf9f8915dea39df38d/pstack",
             "https://github.com/cursor/plugins/blob/60c641e4fad674784b30abcf9f8915dea39df38d/pstack/LICENSE",
             "https://github.com/mattpocock/skills",
             "https://github.com/mattpocock/skills/blob/885e2ca4d842d139e9aef4e48d366c63cb1b8013/LICENSE",
+            "skills/tufte-visualization/references/citations.md",
         ):
             if anchor not in notice:
-                errors.append(f"third-party notices are missing an upstream anchor: {notice_path}: {anchor}")
+                errors.append(f"third-party notices are missing a required provenance anchor: {notice_path}: {anchor}")
+        for misplaced_anchor in (
+            "openai/skills/blob/590b49e/skills/.curated/yeet",
+            "openai/plugins/blob/1540745/plugins/github/skills/yeet",
+        ):
+            if misplaced_anchor in notice:
+                errors.append(f"repo-owned yeet naming context must not appear in third-party notices: {notice_path}")
+
+    yeet_name_path = skills_root / "yeet/references/name-and-scope.md"
+    if yeet_name_path.is_file():
+        yeet_name = yeet_name_path.read_text(encoding="utf-8")
+        for anchor in (
+            "https://github.com/openai/skills/blob/590b49e/skills/.curated/yeet/SKILL.md",
+            "https://github.com/openai/plugins/blob/1540745/plugins/github/skills/yeet/SKILL.md",
+            "validated registered task → commit → publish or integrate → prove → retire",
+        ):
+            if anchor not in yeet_name:
+                errors.append(f"yeet naming reference is missing its comparison anchor: {yeet_name_path}: {anchor}")
 
     runtime_paths = (
         REPO_ROOT / "bin/codex-git-safe",

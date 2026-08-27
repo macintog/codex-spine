@@ -1,9 +1,11 @@
 ---
 name: yeet
-description: Take a completed registered Git task to its configured terminal pull-request or selected-integration disposition when the operator explicitly says yeet. Use only for that exact terminal instruction after working-thread validation exists. Do not use for ordinary commits, tests, deployments, read-only or no-diff work, or selecting integration refs.
+description: Commit, publish or integrate, prove, and retire a completed registered Git task when the operator explicitly says yeet. Use only for that exact terminal instruction after working-thread validation exists. Do not use for ordinary commits, tests, deployments, read-only or no-diff work, or selecting integration refs.
 ---
 
 # Yeet
+
+`validated registered task → commit → publish or integrate → prove → retire`
 
 Treat the operator's exact `yeet` instruction as authorization to attempt the
 registered task's configured terminal Git transaction now. It is not authority
@@ -32,3 +34,7 @@ release work, or to select additional integration refs.
 Success requires the task-class-specific remote proof, checkpoint disposition,
 and absence of its local worktree, branch, and active registration. Completion
 is terminal; do not ask for or emit a second closeout phrase.
+
+This packet deliberately recycles a familiar name for a materially different
+Git contract. When comparing it with public skills named `yeet`, read
+[Same name, different contract](references/name-and-scope.md).

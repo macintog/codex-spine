@@ -166,7 +166,9 @@ This skill is reusable scaffolding. It does not mean `codex-spine` itself owns t
 
 ### `skills/yeet/`
 
-This explicit-only tree ships the terminal transaction contract for a validated registered task:
+`validated registered task → commit → publish or integrate → prove → retire`
+
+This explicit-only tree ships that terminal transaction contract:
 
 - `SKILL.md` limits `yeet` to the operator's exact instruction and forbids it
   from running product tests or broad gates.
