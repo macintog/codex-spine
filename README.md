@@ -1,16 +1,12 @@
 # codex-spine
 
-`codex-spine` is a macOS-first Codex environment built around two recurring failures: useful context disappears between conversations, and a general-purpose agent improvises exactly where long-running work needs consistent judgment.
+Managed Codex environment for macOS. Install it on the Mac where you already run Codex if you want two things that stock Codex does not give you.
 
-A new chat does not know what you decided last week, why you rejected an alternative, or where the work stopped. Feeding it every old conversation creates the opposite problem: irrelevant history consumes context, and stale summaries can start acting like current authority. The [@tobi/qmd](https://github.com/tobi/qmd)-backed memory lane retrieves prior evidence only when the answer depends on it, returns a bounded source window, and leaves the current thread and checkout authoritative for current facts.
+Every new chat starts blank. Paste old threads and the model treats last month's notes as today's plan. Leave them out and it forgets the decision you already made. `codex-spine` keeps a local index of your Codex transcripts and searches it when you ask about the past. It does not dump the archive into every thread. What you are doing now still comes from this chat and the files on disk.
 
-Memory handles the past. The shipped skills handle the decision boundaries that repeatedly produce expensive mistakes:
+It also installs seven skills for work that goes badly when the model freestyles: project handoff, Git closeout, change impact, causal writeups, architecture cleanup, skill authoring, and evidence-heavy charts. They are ordinary Codex skills, not a second agent.
 
-- preserving durable project intent without letting an old handoff choose today's task, then completing Git work without losing ownership or proof
-- finding affected consumers before a cross-boundary change, explaining causes without outrunning the evidence, and catching terminology or architectural drift before it spreads
-- keeping skill guidance concise enough to route reliably, and making visual evidence clarify comparisons instead of decorating them
-
-These are narrow, triggered judgment tools—not a second agent framework, a background autonomy loop, or a catalog you must remember by name. Concise hooks stay visible; detailed guidance loads only when the current task matches.
+`make install` is the setup path. It writes a rendered `~/.codex/config.toml`, links the skills, enables the memory MCP, and loads a LaunchAgent that keeps the transcript index current. Skip this repo if you do not run Codex on a Mac, or if you do not want an installer that can touch Homebrew, your Codex config, and launchd.
 
 ## Quick start
 
@@ -36,13 +32,15 @@ The first install can take longer because it projects local Codex transcripts fr
 
 ### Selective conversation memory
 
-`codex-spine` converts Codex thread JSON into Markdown, indexes only user and assistant conversation content, and exposes a bounded `memory` MCP lane:
+Install turns Codex thread JSON into Markdown, indexes user and assistant turns, and exposes a `memory` MCP:
 
-- `bootstrap_context` restores durable project context after a repository change, prior-thread recovery, or demonstrated context drift.
-- `recent_session` answers an explicit question about the last conversation.
-- `query`, followed by bounded source retrieval, finds a named past decision or method that is missing from the current thread and checkout.
+- `bootstrap_context` restores project framing after a repo change, a recovered thread, or obvious context drift.
+- `recent_session` answers "what were we just discussing?"
+- `query`, then a short source read, finds a named past decision or method that this chat and this checkout do not already contain.
 
-The lane is deliberately selective. Current facts stay grounded in the current thread and checkout; historical retrieval runs only when the question needs it. Exact names and identifiers start with fast lexical retrieval, broadening to semantic search only when needed, without scanning unrelated checkouts or live historical paths. QMD bounds retrieval, though the model's synthesis can still dominate time and token use for complex questions.
+It searches that index when you ask about the past. It does not pour old threads into every new chat. What is true in this repo right now still comes from the files and Git refs in front of you.
+
+Exact names use lexical search first, then one source read. Semantic search is the fallback if that misses. QMD bounds the retrieved excerpt. Writing the answer can still take most of the time and tokens.
 
 Built-in Codex memories are disabled by the base config. Files retained under `~/.codex/memories/` are historical app-managed state and are not routed into work unless the current user explicitly asks about them. Use `/memories` or `codex/config/90-local.toml` if you want to opt back in.
 
@@ -70,10 +68,10 @@ The suite is optional. `codex-spine` remains fully usable without it, and the up
 
 | Skill | Use it when |
 | --- | --- |
-| `project-continuity` | A long-lived repository needs durable product intent, local rules, and a small worktree-independent handoff. |
+| `project-continuity` | Long-lived repo: purpose, local rules, and a handoff that is not stuck to one worktree. |
 | `yeet` | Validated task → commit → publish or integrate → prove → retire. |
 | `change-impact` | A change crosses interfaces, schemas, permissions, release boundaries, or several downstream consumers. |
-| `causal-explanation` | You need an evidence-calibrated explanation of an established behavior, regression, threshold, or tradeoff. |
+| `causal-explanation` | Why something already behaves this way, with the evidence named. |
 | `improve-codebase-architecture` | You want architecture, terminology, interface, or testability improvements. |
 | `skill-authoring-quality` | You are creating or auditing a portable Codex skill. |
 | `tufte-visualization` | You are creating or critiquing an evidence-rich chart, dashboard, map, or report. |

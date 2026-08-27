@@ -41,7 +41,7 @@ Outside the optional first-run Homebrew bootstrap path, `codex-spine` does not r
 
 - single-user workstation operation
 - user-space installation without elevated privileges
-- macOS-first automation; Linux and Windows analogs are documented inline but not supported as packaged automation in v1
+- macOS only. Linux and Windows are not packaged install targets.
 
 ## Reporting
 

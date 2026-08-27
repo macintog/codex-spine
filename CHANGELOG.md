@@ -5,8 +5,7 @@ All notable user-visible changes to `codex-spine` should be tracked here.
 ## 0.5.5
 
 This release makes the public workflow layer a coherent installable core and
-rewrites the documentation around the continuity and judgment problems it
-solves.
+rewrites the public docs so a new visitor can tell what the install is for.
 
 - Replace the retired `multi-step` skill with native Codex planning guidance.
 - Ship `yeet` plus the managed `codex-git-safe` runtime for the complete
@@ -14,9 +13,14 @@ solves.
   with both direct-integration and pull-request closeout modes.
 - Add the public `change-impact`, `causal-explanation`,
   `improve-codebase-architecture`, and `skill-authoring-quality` skills.
-- Rewrite the README around selective QMD-backed conversation memory, triggered
-  workflow skills, a shorter quick start, and explicit installer and config
-  behavior.
+- Rewrite the README opener so a visitor can decide whether this helps them:
+  blank chats versus pasted archives, seven ordinary skills, and an installer
+  that can touch Homebrew, `~/.codex`, and launchd. Keep a shorter quick start
+  and explicit installer and config behavior.
+- Say the same memory rule in `ARCHITECTURE.md`: search the local transcript
+  index when asked about the past; current repo and Git facts still come from
+  this checkout.
+- State the supported platform as macOS only in `SECURITY.md`.
 - Expand third-party notices for QMD, the optional jGravelle Munch suite,
   adapted MIT skill packets, and the source-guided Tufte visualization skill.
 - Strengthen public verification for the declared skill payload, `yeet` packet
