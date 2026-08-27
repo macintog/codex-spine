@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import re
 import subprocess
@@ -115,6 +117,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("unanswered automatic goal continuation is a no-op",),
         ("do not create action queues",),
         ("memory.bootstrap_context",),
+        ("memory.recent_session",),
+        ("memory.query",),
         ("jcodemunch",),
         ("jdocmunch",),
         ("jdatamunch",),
@@ -131,9 +135,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("before reporting completion for `yeet`",),
         ("codex-git-safe yeet --apply",),
         ("memory.bootstrap_context",),
-        ("search",),
-        ("deep_search",),
-        ("vector_search",),
+        ("recent_session",),
+        ("memory.query", "`query`"),
         ("get",),
         ("multi_get",),
         ("~/.codex/memories/",),
@@ -447,6 +450,103 @@ def validate_memory_public_surface() -> list[str]:
         text = doc_path.read_text(encoding="utf-8")
         if "qmd_codex" in text:
             errors.append(f"public doc still describes qmd_codex as a shipped public surface: {doc_path}")
+
+    with tempfile.TemporaryDirectory(prefix="codex-spine-memory-contract-") as tmpdir:
+        home = Path(tmpdir)
+        project = home / "project"
+        project.mkdir()
+        project_root = str(project.resolve())
+        subprocess.run(["git", "-C", project_root, "init", "-q"], check=True)
+        subprocess.run(["git", "-C", project_root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-qm", "fixture"], check=True)
+        project_worktree = home / "project-worktree"
+        subprocess.run(["git", "-C", project_root, "worktree", "add", "-qb", "fixture-worktree", str(project_worktree)], check=True)
+        project_key = f"project-{hashlib.sha1(project_root.encode()).hexdigest()[:12]}"
+        relative = "2026/08/26/recent.md"
+        projection = home / ".cache" / "qmd" / "codex_chat" / relative
+        projection.parent.mkdir(parents=True)
+        projection.write_text("## USER\n\nWhat changed?\n\n## ASSISTANT\n\nThe bounded public memory contract.\n", encoding="utf-8")
+        source = home / ".codex" / "sessions" / "2026" / "08" / "26" / "recent.jsonl"
+        source.parent.mkdir(parents=True)
+        source.write_text(json.dumps({"timestamp": "2026-08-26T20:00:00Z", "type": "event_msg", "payload": {"message": "done"}}) + "\n", encoding="utf-8")
+        older_relative = "2026/08/26/projection-newer.md"
+        older_projection = home / ".cache" / "qmd" / "codex_chat" / older_relative
+        older_projection.write_text("## USER\n\nProjection newer\n\n## ASSISTANT\n\nBut raw session older.\n", encoding="utf-8")
+        older_source = home / ".codex" / "sessions" / "2026" / "08" / "26" / "older.jsonl"
+        older_source.write_text(json.dumps({"timestamp": "2026-08-26T19:00:00Z", "type": "event_msg", "payload": {"message": "done"}}) + "\n", encoding="utf-8")
+        os.utime(projection, (1000, 1000))
+        os.utime(source, (3000, 3000))
+        os.utime(older_projection, (4000, 4000))
+        os.utime(older_source, (2000, 2000))
+        state = home / ".cache" / "qmd" / "codex_chat" / ".state" / "projects" / project_key
+        state.mkdir(parents=True)
+        (state / "session_index.json").write_text(json.dumps({"project_key": project_key, "project_path": project_root, "sessions": [
+            {"session_id": "recent-root", "project_path": project_root, "source_rel": "2026/08/26/recent.jsonl", "projection_rel": relative, "projected": True, "started_utc": "2026-08-26T00:00:00Z"},
+            {"session_id": "projection-newer", "project_path": project_root, "source_rel": "2026/08/26/older.jsonl", "projection_rel": older_relative, "projected": True, "started_utc": "2026-08-26T01:00:00Z"},
+        ]}), encoding="utf-8")
+        calls = home / "qmd-calls.jsonl"
+        qmd = home / "qmd-codex"
+        qmd.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" | jq -Rsc 'split(\"\\n\")[:-1]' >> \"$QMD_CALLS\"\nprintf '[{\"file\":\"qmd://codex-chat/2026/08/26/recent.md\",\"docid\":\"#recent\",\"score\":0.9}]\\n'\n", encoding="utf-8")
+        qmd.chmod(0o755)
+        env = {**os.environ, "HOME": str(home), "QMD_CLI": str(qmd), "QMD_CALLS": str(calls)}
+        server = REPO_ROOT / "bin" / "codex-memory-mcp"
+
+        def rpc(method: str, params: dict[str, object]) -> dict[str, object]:
+            request = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+            result = subprocess.run(["node", str(server)], input=json.dumps(request) + "\n", text=True, capture_output=True, env=env, check=False, timeout=10)
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr or result.stdout)
+            return json.loads(result.stdout)
+
+        try:
+            initialize = rpc("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "verify", "version": "1"}})
+            instructions = str(initialize.get("result", {}).get("instructions", ""))
+            if "recent_session" not in instructions or "current thread or current checkout" not in instructions:
+                errors.append("public memory MCP initialize response lacks compact activation and non-activation guidance")
+
+            listed = rpc("tools/list", {})
+            tools = {str(tool.get("name", "")): tool for tool in listed.get("result", {}).get("tools", []) if isinstance(tool, dict)}
+            for name in ("bootstrap_context", "recent_session", "status", "query", "get", "multi_get"):
+                if name not in tools:
+                    errors.append(f"public memory MCP did not advertise {name}")
+            for alias in ("deep_search", "search", "vector_search"):
+                if alias in tools:
+                    errors.append(f"public memory MCP still advertises hidden compatibility alias {alias}")
+            expected_annotations = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
+            for name, tool in tools.items():
+                if name != "bootstrap_context" and tool.get("annotations") != expected_annotations:
+                    errors.append(f"public memory MCP read-only tool lacks exact annotations: {name}")
+
+            recent = rpc("tools/call", {"name": "recent_session", "arguments": {"project_root": project_root, "max_messages": 20, "max_bytes": 12000}})
+            recent_payload = recent.get("result", {}).get("structuredContent", {})
+            if recent_payload.get("session_id") != "recent-root" or str(recent_payload.get("uri", "")) != f"qmd://codex-chat/{relative}":
+                errors.append("public recent_session did not return the bounded projected fixture")
+            if str(home) in json.dumps(recent):
+                errors.append("public recent_session leaked a local path")
+            if len(json.dumps(recent_payload).encode()) > 8000 or len(recent_payload.get("messages", [])) > 8:
+                errors.append("public recent_session did not clamp harmless upper-bound overshoot")
+
+            query = rpc("tools/call", {"name": "query", "arguments": {"intent": "Find the exact public fixture", "searches": [{"type": "lex", "query": "bounded public memory contract"}], "rerank": False}})
+            if query.get("result", {}).get("structuredContent", {}).get("results", [{}])[0].get("docid") != "#recent":
+                errors.append("public unified query did not return the QMD fixture")
+            query_argv = json.loads(calls.read_text(encoding="utf-8").splitlines()[-1])
+            if query_argv[:2] != ["search", "bounded public memory contract"]:
+                errors.append(f"public unified lex query used the wrong backend: {query_argv!r}")
+            worktree_query = rpc("tools/call", {"name": "query", "arguments": {"intent": "Resolve managed worktree project identity", "searches": [{"type": "lex", "query": "bounded public memory contract"}], "rerank": False, "project_root": str(project_worktree)}})
+            if worktree_query.get("result", {}).get("structuredContent", {}).get("results", [{}])[0].get("docid") != "#recent":
+                errors.append("public query did not normalize a managed worktree to the indexed canonical project root")
+            bounded_get = rpc("tools/call", {"name": "get", "arguments": {"file": "#recent", "maxLines": 1000, "maxBytes": 100000}})
+            get_window = bounded_get.get("result", {}).get("structuredContent", {}).get("window")
+            if get_window != {"fromLine": 1, "maxLines": 100, "maxBytes": 12000, "requestClamped": True, "nextFromLine": 101}:
+                errors.append(f"public get did not report its effective clamped retrieval window: {get_window!r}")
+            escaped = rpc("tools/call", {"name": "query", "arguments": {"intent": "Attempt collection escape", "searches": [{"type": "lex", "query": "anything"}], "collections": ["codex-trace-lessons"]}})
+            if escaped.get("result", {}).get("isError") is not True:
+                errors.append("public unified query did not reject a non-transcript collection")
+            for alias in ("deep_search", "search", "vector_search"):
+                compatibility = rpc("tools/call", {"name": alias, "arguments": {"query": "compatibility"}})
+                if compatibility.get("result", {}).get("isError") is True:
+                    errors.append(f"public hidden compatibility alias is not callable: {alias}")
+        except Exception as exc:
+            errors.append(f"public memory MCP contract fixture failed: {exc}")
 
     base_config_path = REPO_ROOT / "codex/config/00-base.toml"
     base_config = tomllib.loads(base_config_path.read_text(encoding="utf-8"))

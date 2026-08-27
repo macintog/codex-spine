@@ -27,8 +27,40 @@ const PROJECT_CACHE_ROOT = path.join(HOME, ".cache", "qmd", DEFAULT_INDEX);
 const STALE_SECONDS = Number(process.env.MEMORY_STALE_SECONDS || "300");
 const BOOTSTRAP_MAX_BYTES = Number(process.env.MEMORY_BOOTSTRAP_MAX_BYTES || "8000");
 const BOOTSTRAP_EVENTS_FILE = path.join(STATE_ROOT, "bootstrap-events.jsonl");
+const RAW_SESSION_MAX_LINE_BYTES = 1024 * 1024;
+const RECENT_SESSION_DEFAULT_MAX_MESSAGES = 4;
+const RECENT_SESSION_MAX_MESSAGES = 8;
+const RECENT_SESSION_DEFAULT_MAX_BYTES = 5000;
+const RECENT_SESSION_MAX_BYTES = 8000;
+const QUERY_DEFAULT_LIMIT = 8;
+const QUERY_MAX_LIMIT = 12;
+const QUERY_MAX_RESPONSE_BYTES = 12000;
+const GET_DEFAULT_MAX_LINES = 80;
+const GET_MAX_LINES = 100;
+const GET_DEFAULT_MAX_BYTES = 10000;
+const GET_MAX_BYTES = 12000;
+const MULTI_GET_DEFAULT_MAX_LINES = 60;
+const MULTI_GET_MAX_LINES = 80;
+const MULTI_GET_DEFAULT_MAX_BYTES = 16000;
+const MULTI_GET_MAX_BYTES = 20000;
 const bootstrapCache = new Map();
 let transportStyle = "framed";
+
+const MEMORY_MCP_INSTRUCTIONS = [
+  "Use recent_session only for an explicit topicless last-conversation question such as what we were just discussing. If historical retrieval is needed and the prompt names a failure, decision, task, or subject, use query instead; a named current-state subject does not by itself require memory.",
+  "Use query for historical recall with a concise intent and one to three typed searches: lex for a few discriminative exact terms or one exact phrase, vec for same-idea recall, and hyde only for nuanced concepts; then use get or multi_get for source evidence.",
+  "For ordinary recall, make one query and one bounded get or multi_get, starting transcript retrieval near the hit's returned line instead of line 1. Stop when that source answers the question; do not search for redundant corroboration. Broaden once only when it does not answer. After broadening, batch multiple selected sources in one multi_get instead of serial get calls; follow one same-source continuation only when nextFromLine is needed to finish the decision.",
+  "For a final-decision lookup, do not treat a source window ending in a proposal, question, or confirmation request as final; follow its nextFromLine continuation.",
+  "Do not call memory when the current thread or current checkout already contains the needed evidence. For current Git landing, containment, or ref-existence questions, inspect current refs first; memory may resolve an approximate historical label but current Git remains authority for current state. Call this server sequentially.",
+  "Treat tools/list as the canonical client surface; unadvertised compatibility aliases exist only for cached clients and are not peer tools to recommend.",
+].join(" ");
+
+const READ_ONLY_TOOL_ANNOTATIONS = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
 
 function bootstrapContract() {
   return {
@@ -39,7 +71,7 @@ function bootstrapContract() {
     max_serialized_payload_bytes: BOOTSTRAP_MAX_BYTES,
     deduplication: { proven: true, scope: "same_mcp_process_per_project_reason_and_recent_session_limit", behavior: "returns a compact response without repeated structured context" },
     payload_bound: { proven: true, max_bytes: BOOTSTRAP_MAX_BYTES, measurement: "final structuredContent JSON UTF-8 bytes" },
-    historical_retrieval_boundary: "Bootstrap is a durable re-anchor; use search then get or multi_get for historical wording and docs-vs-transcript evidence.",
+    historical_retrieval_boundary: "Bootstrap is a durable re-anchor; use query then get or multi_get for historical wording and docs-vs-transcript evidence.",
   };
 }
 
@@ -138,6 +170,12 @@ function normalizePath(inputPath) {
 
 function canonicalProjectPath(cwd) {
   const resolved = normalizePath(cwd);
+  const common = runCommand("git", ["-C", resolved, "rev-parse", "--git-common-dir"]);
+  if (common.status === 0 && common.stdout && common.stdout.trim().length > 0) {
+    const rawCommon = common.stdout.trim();
+    const commonPath = normalizePath(path.isAbsolute(rawCommon) ? rawCommon : path.resolve(resolved, rawCommon));
+    if (path.basename(commonPath) === ".git") return path.dirname(commonPath);
+  }
   const git = runCommand("git", ["-C", resolved, "rev-parse", "--show-toplevel"]);
   if (git.status === 0 && git.stdout && git.stdout.trim().length > 0) {
     return git.stdout.trim();
@@ -326,10 +364,10 @@ function normalizeCollectionFilter(collection) {
   if (!requested) {
     return "";
   }
-  if (requested === DEFAULT_INDEX) {
+  if (requested === DEFAULT_INDEX || requested === "codex-chat") {
     return statusCollectionName(readStatusText());
   }
-  return requested;
+  throw new Error("public memory queries are confined to the codex-chat collection");
 }
 
 function fileMtimeIso(file) {
@@ -399,12 +437,14 @@ function buildSearchArgs(commandName, args) {
   if (typeof args.intent === "string" && args.intent.trim().length > 0) {
     cliArgs.push("--intent", args.intent.trim());
   }
-  if (typeof args.collection === "string" && args.collection.length > 0) {
-    const collection = normalizeCollectionFilter(args.collection);
-    if (collection) {
-      cliArgs.push("-c", collection);
-    }
+  const collections = Array.isArray(args.collections)
+    ? args.collections
+    : (typeof args.collection === "string" && args.collection.length > 0 ? [args.collection] : []);
+  for (const rawCollection of collections) {
+    const collection = normalizeCollectionFilter(rawCollection);
+    if (collection) cliArgs.push("-c", collection);
   }
+  if (commandName === "query" && args.rerank === false) cliArgs.push("--no-rerank");
   cliArgs.push("--json");
   return cliArgs;
 }
@@ -412,8 +452,7 @@ function buildSearchArgs(commandName, args) {
 function sessionMetadataForUri(uri) {
   uri = normalizeReturnedQmdUri(uri);
   if (!isPublicQmdUri(uri) || !fs.existsSync(PROJECTS_DIR)) return null;
-  for (const entry of fs.readdirSync(PROJECTS_DIR)) {
-    const index = readJsonIfExists(path.join(PROJECTS_DIR, entry, "session_index.json"));
+  for (const { index } of loadProjectIndexes()) {
     for (const session of index?.sessions || []) {
       if (`qmd://codex-chat/${session.projection_rel || ""}` === uri) return session;
     }
@@ -421,9 +460,195 @@ function sessionMetadataForUri(uri) {
   return null;
 }
 
+function loadProjectIndexes(projectRoot = "") {
+  if (!fs.existsSync(PROJECTS_DIR)) return [];
+  const normalizedProjectRoot = projectRoot ? canonicalProjectPath(projectRoot) : "";
+  const entries = normalizedProjectRoot ? [projectKeyForPath(normalizedProjectRoot)] : fs.readdirSync(PROJECTS_DIR).sort();
+  const indexes = [];
+  for (const entry of entries) {
+    const index = readJsonIfExists(path.join(PROJECTS_DIR, entry, "session_index.json"));
+    if (!index || (normalizedProjectRoot && index.project_path !== normalizedProjectRoot)) continue;
+    indexes.push({ entry, index });
+  }
+  return indexes;
+}
+
+function sessionCatalog(projectRoot = "") {
+  projectRoot = projectRoot ? canonicalProjectPath(projectRoot) : "";
+  const sessions = [];
+  const sessionEntries = [];
+  for (const { entry, index } of loadProjectIndexes(projectRoot)) {
+    for (const session of index.sessions || []) {
+      if (!projectRoot || session.project_path === projectRoot) {
+        sessions.push(session);
+        sessionEntries.push({ session, project_key: String(index.project_key || entry) });
+      }
+    }
+  }
+  const children = new Map();
+  for (const session of sessions) {
+    if (!session.parent_thread_id || !session.session_id) continue;
+    const entries = children.get(session.parent_thread_id) || [];
+    entries.push(session.session_id);
+    children.set(session.parent_thread_id, entries);
+  }
+  return { sessions, children, sessionEntries };
+}
+
+function descendantThreadIds(threadId, projectRoot = "", catalog = null) {
+  const { children } = catalog || sessionCatalog(projectRoot);
+  const seen = new Set();
+  const queue = [threadId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    for (const child of children.get(current) || []) if (!seen.has(child)) queue.push(child);
+  }
+  return seen;
+}
+
+function isUtilitySession(session) {
+  return ["awaiter_utility", "approval_review_utility", "unknown_utility"].includes(session?.session_kind);
+}
+
+function plausibleSessionId(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+function isReliablyDelegatedSession(session) {
+  if (session?.session_kind === "subagent") return true;
+  const parentThreadId = String(session?.parent_thread_id || "").trim();
+  if (!parentThreadId) return false;
+  if (["session_meta", "thread_spawn"].includes(session?.lineage_source)) return true;
+  if (session?.lineage_source === "delegation_tag") return plausibleSessionId(parentThreadId);
+  return session?.delegated === true && plausibleSessionId(parentThreadId);
+}
+
+function sessionProjectionPath(session) {
+  const relative = typeof session?.projection_rel === "string" ? session.projection_rel.trim() : "";
+  if (!relative || path.isAbsolute(relative) || relative.split(path.sep).includes("..")) return "";
+  const root = path.resolve(PROJECT_CACHE_ROOT);
+  const candidate = path.resolve(root, relative);
+  if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) return "";
+  return fs.existsSync(candidate) ? candidate : "";
+}
+
+function sessionSourcePath(session) {
+  const relative = typeof session?.source_rel === "string" ? session.source_rel.trim() : "";
+  if (!relative || path.isAbsolute(relative) || relative.split(path.sep).includes("..")) return "";
+  const root = path.resolve(HOME, ".codex", "sessions");
+  const candidate = path.resolve(root, relative);
+  if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) return "";
+  return fs.existsSync(candidate) ? candidate : "";
+}
+
+function lastJsonTimestamp(file) {
+  try {
+    if (!file || !fs.existsSync(file)) return "";
+    const stat = fs.statSync(file);
+    const readBytes = Math.min(stat.size, RAW_SESSION_MAX_LINE_BYTES);
+    const fd = fs.openSync(file, "r");
+    const buffer = Buffer.alloc(readBytes);
+    try {
+      fs.readSync(fd, buffer, 0, readBytes, Math.max(0, stat.size - readBytes));
+    } finally {
+      fs.closeSync(fd);
+    }
+    for (const line of buffer.toString("utf8").split(/\r?\n/).reverse()) {
+      const candidate = line.trim();
+      if (!candidate.startsWith("{")) continue;
+      try {
+        const parsed = JSON.parse(candidate);
+        const timestamp = String(parsed?.timestamp || parsed?.payload?.timestamp || "").trim();
+        if (Number.isFinite(Date.parse(timestamp))) return timestamp;
+      } catch {
+        // Continue through a possibly partial tail buffer.
+      }
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function sessionActivityRankUtc(session) {
+  const sourcePath = sessionSourcePath(session);
+  try {
+    if (sourcePath) return fs.statSync(sourcePath).mtime.toISOString();
+  } catch {
+    // Fall through to the projected transcript.
+  }
+  const projectionPath = sessionProjectionPath(session);
+  try {
+    if (projectionPath) return fs.statSync(projectionPath).mtime.toISOString();
+  } catch {
+    // Fall through to the stable session start timestamp.
+  }
+  return String(session?.started_utc || "");
+}
+
+function projectedConversationMessages(text) {
+  const source = String(text || "");
+  const matches = Array.from(source.matchAll(/^## (USER|ASSISTANT)\s*$/gm));
+  return matches.map((match, index) => ({
+    role: match[1].toLowerCase(),
+    text: source.slice(match.index + match[0].length, index + 1 < matches.length ? matches[index + 1].index : source.length).trim(),
+  })).filter((message) => message.text);
+}
+
+function boundRecentSession(result, maxBytes) {
+  const byteLength = () => Buffer.byteLength(JSON.stringify(result), "utf8");
+  while (result.messages.length > 2 && byteLength() > maxBytes) result.messages.shift();
+  if (byteLength() <= maxBytes) return result;
+  const available = Math.max(128, maxBytes - Buffer.byteLength(JSON.stringify({ ...result, messages: [] }), "utf8") - 128);
+  const perMessage = Math.max(64, Math.floor(available / Math.max(1, result.messages.length)));
+  result.messages = result.messages.map((message) => ({ role: message.role, text: limitUtf8Text(message.text, perMessage) }));
+  while (result.messages.length > 1 && byteLength() > maxBytes) result.messages.shift();
+  if (byteLength() > maxBytes && result.messages.length === 1) {
+    const overhead = Buffer.byteLength(JSON.stringify({ ...result, messages: [{ role: result.messages[0].role, text: "" }] }), "utf8");
+    result.messages[0].text = limitUtf8Text(result.messages[0].text, Math.max(0, maxBytes - overhead));
+  }
+  if (byteLength() > maxBytes) throw new Error(`recent_session structured payload exceeds ${maxBytes} bytes after bounding`);
+  return result;
+}
+
+function recentSession(args) {
+  const projectRootInput = String(args.project_root || "").trim();
+  const projectRoot = projectRootInput ? canonicalProjectPath(projectRootInput) : "";
+  const excludeThreadId = String(args.exclude_thread_id || "").trim();
+  if (args.max_messages !== undefined && (!Number.isInteger(args.max_messages) || args.max_messages < 1)) throw new Error("max_messages must be a positive integer");
+  if (args.max_bytes !== undefined && (!Number.isInteger(args.max_bytes) || args.max_bytes < 512)) throw new Error("max_bytes must be an integer of at least 512");
+  const maxMessages = Math.min(args.max_messages ?? RECENT_SESSION_DEFAULT_MAX_MESSAGES, RECENT_SESSION_MAX_MESSAGES);
+  const maxBytes = Math.min(args.max_bytes ?? RECENT_SESSION_DEFAULT_MAX_BYTES, RECENT_SESSION_MAX_BYTES);
+  const catalog = sessionCatalog(projectRoot);
+  const eligible = catalog.sessionEntries
+    .filter(({ session }) => session?.projected === true && typeof session?.projection_rel === "string" && session.projection_rel.trim())
+    .filter(({ session }) => !session.suppressed && !isUtilitySession(session) && !isReliablyDelegatedSession(session))
+    .filter(({ session }) => !excludeThreadId || session.session_id !== excludeThreadId)
+    .map((entry) => ({ ...entry, activity_rank_utc: sessionActivityRankUtc(entry.session) }))
+    .sort((left, right) => String(right.activity_rank_utc || "").localeCompare(String(left.activity_rank_utc || "")) || String(right.session.started_utc || "").localeCompare(String(left.session.started_utc || "")));
+  if (eligible.length === 0) throw new Error(projectRoot ? `no eligible projected sessions for ${projectRoot}` : "no eligible projected sessions");
+  const selected = eligible[0];
+  const projectionPath = sessionProjectionPath(selected.session);
+  if (!projectionPath) throw new Error("newest eligible session projection is unavailable");
+  const messages = projectedConversationMessages(fs.readFileSync(projectionPath, "utf8")).slice(-maxMessages);
+  if (messages.length === 0) throw new Error("newest eligible session contains no projected conversation messages");
+  return boundRecentSession({
+    session_id: String(selected.session.session_id || ""),
+    started_utc: String(selected.session.started_utc || ""),
+    last_activity_utc: lastJsonTimestamp(sessionSourcePath(selected.session)) || selected.activity_rank_utc || String(selected.session.started_utc || ""),
+    project_key: String(selected.project_key || ""),
+    uri: publicQmdUriForRelativePath(selected.session.projection_rel),
+    messages,
+  }, maxBytes);
+}
+
 function filterSearchResults(results, args) {
   const hasFilter = ["date_from", "date_to", "cwd", "project_root", "thread_id", "parent_thread_id", "own_thread_id"].some((key) => typeof args[key] === "string" && args[key].trim());
   if (!hasFilter) return results;
+  const projectRoot = args.project_root ? canonicalProjectPath(args.project_root) : "";
+  const ownedIds = args.own_thread_id ? descendantThreadIds(args.own_thread_id, args.project_root || "") : null;
   return results.filter((item) => {
     const meta = sessionMetadataForUri(item?.file || "");
     if (!meta) return false;
@@ -431,22 +656,57 @@ function filterSearchResults(results, args) {
     if (args.date_from && started < args.date_from) return false;
     if (args.date_to && started > args.date_to) return false;
     if (args.cwd && meta.cwd !== args.cwd) return false;
-    if (args.project_root && meta.project_path !== args.project_root) return false;
+    if (projectRoot && meta.project_path !== projectRoot) return false;
     if (args.thread_id && meta.session_id !== args.thread_id) return false;
     if (args.parent_thread_id && meta.parent_thread_id !== args.parent_thread_id) return false;
-    if (args.own_thread_id && meta.session_id !== args.own_thread_id && meta.parent_thread_id !== args.own_thread_id) return false;
+    if (ownedIds && !ownedIds.has(meta.session_id)) return false;
     return true;
   });
 }
 
 function callSearch(commandName, args) {
   for (const key of ["date_from", "date_to"]) if (args[key] && (!/^\d{4}-\d{2}-\d{2}$/.test(args[key]) || Number.isNaN(Date.parse(`${args[key]}T00:00:00Z`)) || new Date(`${args[key]}T00:00:00Z`).toISOString().slice(0, 10) !== args[key])) throw new Error(`${key} must be a real YYYY-MM-DD date`);
-  if (Number.isInteger(args.limit) && args.limit <= 0) throw new Error("limit must be greater than zero");
+  if (args.limit !== undefined && (!Number.isInteger(args.limit) || args.limit <= 0)) throw new Error("limit must be a positive integer");
   const filtered = ["date_from", "date_to", "cwd", "project_root", "thread_id", "parent_thread_id", "own_thread_id"].some((key) => args[key]);
-  const requested = Number.isInteger(args.limit) ? args.limit : undefined;
-  const engineArgs = filtered ? { ...args, limit: Math.max(requested || 20, 100) } : args;
+  const requested = Math.min(args.limit ?? QUERY_DEFAULT_LIMIT, QUERY_MAX_LIMIT);
+  const engineArgs = filtered ? { ...args, limit: Math.max(requested, 100) } : { ...args, limit: requested };
   const results = filterSearchResults(runQmd(buildSearchArgs(commandName, engineArgs), { expectJson: true }), args);
-  return { results: requested ? results.slice(0, requested) : results };
+  return { results: boundSearchResults(results.slice(0, requested), QUERY_MAX_RESPONSE_BYTES) };
+}
+
+function compactSearchValue(value, key = "") {
+  if (typeof value === "string") return ["file", "docid"].includes(key) ? value : limitUtf8Text(value, 2048);
+  if (Array.isArray(value)) return value.slice(0, 8).map((item) => compactSearchValue(item));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [childKey, compactSearchValue(childValue, childKey)]));
+  return value;
+}
+
+function boundSearchResults(results, maxBytes) {
+  const bounded = [];
+  for (const result of results) {
+    const candidate = compactSearchValue(result);
+    if (Buffer.byteLength(JSON.stringify([...bounded, candidate]), "utf8") > maxBytes) break;
+    bounded.push(candidate);
+  }
+  return bounded;
+}
+
+function callUnifiedQuery(args) {
+  const intent = String(args.intent || "").trim();
+  const searches = Array.isArray(args.searches) ? args.searches : [];
+  if (!intent) throw new Error("intent is required");
+  if (searches.length < 1 || searches.length > 3) throw new Error("searches must contain from 1 to 3 typed searches");
+  const normalized = [];
+  for (const search of searches) {
+    const type = String(search?.type || "").trim();
+    const query = String(search?.query || "").trim();
+    if (!["lex", "vec", "hyde"].includes(type) || !query || query.includes("\n")) throw new Error("each typed search requires type lex, vec, or hyde and a single-line query");
+    normalized.push({ type, query });
+  }
+  if (normalized.length === 1 && args.rerank === false && normalized[0].type === "lex") return callSearch("search", { ...args, query: normalized[0].query, searches: undefined, intent: undefined, rerank: undefined });
+  if (normalized.length === 1 && args.rerank === false && normalized[0].type === "vec") return callSearch("vsearch", { ...args, query: normalized[0].query, searches: undefined, intent: undefined, rerank: undefined });
+  const lines = [`intent: ${intent}`, ...normalized.map((search) => `${search.type}: ${search.query}`)];
+  return callSearch("query", { ...args, query: lines.join("\n"), searches: undefined, intent: undefined });
 }
 
 function isPublicQmdUri(value) {
@@ -587,21 +847,47 @@ function renderProjectMemory(projectKey, options = {}) {
   return limitUtf8Text(renderedLines.join("\n"), options.maxBytes);
 }
 
+function retrievalWindow(requestedArgs, boundedArgs, text = "") {
+  const fromLine = Number.isInteger(boundedArgs.fromLine) ? boundedArgs.fromLine : 1;
+  const lineClamped = Number.isInteger(requestedArgs.maxLines) && requestedArgs.maxLines > boundedArgs.maxLines;
+  const byteClamped = Number.isInteger(requestedArgs.maxBytes) && requestedArgs.maxBytes > boundedArgs.maxBytes;
+  const window = {
+    fromLine,
+    maxLines: boundedArgs.maxLines,
+    maxBytes: boundedArgs.maxBytes,
+    requestClamped: lineClamped || byteClamped,
+  };
+  const numberedLines = [...String(text).matchAll(/^(\d+):/gm)].map((match) => Number(match[1]));
+  if (boundedArgs.lineNumbers === true && numberedLines.length >= boundedArgs.maxLines) {
+    window.nextFromLine = numberedLines[numberedLines.length - 1] + 1;
+  } else if (lineClamped) {
+    window.nextFromLine = fromLine + boundedArgs.maxLines;
+  }
+  return window;
+}
+
 function callGet(args) {
+  const requestedArgs = { ...args };
   const file = String(args.file || "").trim();
   if (!file) {
     throw new Error("file is required");
   }
+  if (args.maxLines !== undefined && (!Number.isInteger(args.maxLines) || args.maxLines < 1)) throw new Error("maxLines must be a positive integer");
+  if (args.maxBytes !== undefined && (!Number.isInteger(args.maxBytes) || args.maxBytes < 1024)) throw new Error("maxBytes must be an integer of at least 1024");
+  args = { ...args, maxLines: Math.min(args.maxLines ?? GET_DEFAULT_MAX_LINES, GET_MAX_LINES), maxBytes: Math.min(args.maxBytes ?? GET_DEFAULT_MAX_BYTES, GET_MAX_BYTES) };
 
   const projectKey = projectMemoryKeyFromUri(file);
   if (projectKey) {
+    const text = renderProjectMemory(projectKey, {
+      fromLine: args.fromLine,
+      maxLines: args.maxLines,
+      maxBytes: args.maxBytes,
+      lineNumbers: args.lineNumbers === true,
+    });
     return {
       file,
-      text: renderProjectMemory(projectKey, {
-        fromLine: args.fromLine,
-        maxLines: args.maxLines,
-        lineNumbers: args.lineNumbers === true,
-      }),
+      text,
+      window: retrievalWindow(requestedArgs, args, text),
     };
   }
 
@@ -610,13 +896,12 @@ function callGet(args) {
   if (Number.isInteger(args.fromLine)) {
     cliArgs.push("--from", String(args.fromLine));
   }
-  if (Number.isInteger(args.maxLines)) {
-    cliArgs.push("-l", String(args.maxLines));
-  }
+  cliArgs.push("-l", String(args.maxLines));
   if (args.lineNumbers === true) {
     cliArgs.push("--line-numbers");
   }
-  return { file, text: runQmd(cliArgs) };
+  const text = limitUtf8Text(runQmd(cliArgs), args.maxBytes);
+  return { file, text, window: retrievalWindow(requestedArgs, args, text) };
 }
 
 function renderExplicitMemoryTarget(target, args) {
@@ -637,7 +922,7 @@ function renderExplicitMemoryTarget(target, args) {
   if (args.lineNumbers === true) {
     cliArgs.push("--line-numbers");
   }
-  return runQmd(cliArgs);
+  return limitUtf8Text(runQmd(cliArgs), args.maxBytes);
 }
 
 function callMultiGet(args) {
@@ -645,6 +930,9 @@ function callMultiGet(args) {
   if (!pattern) {
     throw new Error("pattern is required");
   }
+  if (args.maxLines !== undefined && (!Number.isInteger(args.maxLines) || args.maxLines < 1)) throw new Error("maxLines must be a positive integer");
+  if (args.maxBytes !== undefined && (!Number.isInteger(args.maxBytes) || args.maxBytes < 1024)) throw new Error("maxBytes must be an integer of at least 1024");
+  args = { ...args, maxLines: Math.min(args.maxLines ?? MULTI_GET_DEFAULT_MAX_LINES, MULTI_GET_MAX_LINES), maxBytes: Math.min(args.maxBytes ?? MULTI_GET_DEFAULT_MAX_BYTES, MULTI_GET_MAX_BYTES) };
 
   const projectKey = projectMemoryKeyFromPattern(pattern);
   if (projectKey) {
@@ -678,7 +966,7 @@ function callMultiGet(args) {
   if (args.lineNumbers === true) {
     cliArgs.push("--line-numbers");
   }
-  return { pattern, text: runQmd(cliArgs) };
+  return { pattern, text: limitUtf8Text(runQmd(cliArgs), args.maxBytes) };
 }
 
 function buildColdStart(projectPath, projectKey, checkpointResolver = {}) {
@@ -802,7 +1090,7 @@ function appendBootstrapEvent(event) {
 function bootstrapReason(args) {
   const reason = typeof args.reason === "string" ? args.reason.trim() : "";
   const allowed = new Set(["repo_cwd_change", "prior_thread_recovery", "demonstrated_drift"]);
-  if (!allowed.has(reason)) throw new Error("reason must be repo_cwd_change, prior_thread_recovery, or demonstrated_drift; use search then get/multi_get for historical wording");
+  if (!allowed.has(reason)) throw new Error("reason must be repo_cwd_change, prior_thread_recovery, or demonstrated_drift; use query then get/multi_get for historical wording");
   return reason;
 }
 
@@ -895,7 +1183,7 @@ function bootstrapContext(args) {
   const cacheKey = `${inferredProjectKey}:${reason}:${maxRecent}:${currentCheckpointSignature}`;
   const cached = bootstrapCache.get(cacheKey);
   if (cached && Date.now() - cached.at < STALE_SECONDS * 1000) {
-    const summary = `Bootstrap already supplied for ${inferredProjectKey}; use search then get/multi_get for history.`;
+    const summary = `Bootstrap already supplied for ${inferredProjectKey}; use query then get/multi_get for history.`;
     const result = { project_key: inferredProjectKey, summary };
     const payloadBytes = finalizeBootstrap(result, { reason, source: "process_cache", summary_bytes: Buffer.byteLength(summary, "utf8"), source_payload_bytes: cached.result.telemetry.payload_bytes, max_bytes: BOOTSTRAP_MAX_BYTES, max_recent_sessions: maxRecent, deduplicated: true });
     appendBootstrapEvent({ at: new Date().toISOString(), event: "bootstrap", project_key: inferredProjectKey, reason, source: "process_cache", payload_bytes: payloadBytes, deduplicated: true });
@@ -930,7 +1218,7 @@ function toolListResult() {
       {
         name: "bootstrap_context",
         description:
-          "Return a bounded, project-scoped durable re-anchor for an explicit repo change, prior-thread recovery, or demonstrated drift. Use search then get/multi_get for history.",
+          "Return a bounded, project-scoped durable re-anchor for an explicit repo change, prior-thread recovery, or demonstrated drift. Use query then get/multi_get for history.",
         inputSchema: {
           type: "object",
           properties: {
@@ -953,7 +1241,7 @@ function toolListResult() {
             reason: {
               type: "string",
               enum: ["repo_cwd_change", "prior_thread_recovery", "demonstrated_drift"],
-              description: "Why a compact re-anchor is needed. Bootstrap is not historical retrieval; use search then get/multi_get for wording or docs-vs-transcript evidence.",
+              description: "Why a compact re-anchor is needed. Bootstrap is not historical retrieval; use query then get/multi_get for wording or docs-vs-transcript evidence.",
             },
           },
           required: ["reason"],
@@ -961,23 +1249,50 @@ function toolListResult() {
         },
       },
       {
+        name: "recent_session",
+        description:
+          "Return a bounded excerpt from the newest eligible substantive projected session. Use only for an explicit topicless last-conversation question such as what we were just discussing. If historical retrieval is needed and the prompt names a failure, decision, task, or subject, use query instead. A named current-state subject does not by itself require memory.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            project_root: { type: "string", description: "Optional exact canonical project root. Omit for the newest eligible session across projects." },
+            exclude_thread_id: { type: "string", description: "Optional exact session/thread ID to exclude from selection." },
+            max_messages: { type: "integer", minimum: 1, maximum: RECENT_SESSION_MAX_MESSAGES, default: RECENT_SESSION_DEFAULT_MAX_MESSAGES },
+            max_bytes: { type: "integer", minimum: 512, maximum: RECENT_SESSION_MAX_BYTES, default: RECENT_SESSION_DEFAULT_MAX_BYTES },
+          },
+          additionalProperties: false,
+        },
+        annotations: READ_ONLY_TOOL_ANNOTATIONS,
+      },
+      {
         name: "status",
         description:
           "Show transcript-index status for the codex_chat retrieval backend. Use early when retrieval feels stale, sparse, or surprising.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
+        annotations: READ_ONLY_TOOL_ANNOTATIONS,
       },
       {
-        name: "deep_search",
+        name: "query",
         description:
-          "Default broad-recall retrieval across the codex_chat index, backed by QMD query. Use for complex or ambiguous questions, especially when intent can disambiguate overloaded terms.",
+          "Search historical memory with QMD's unified typed retrieval. Supply a concise disambiguating intent and one to three searches: lex for a few discriminative exact terms or one exact phrase, vec for same-idea recall, and hyde for a nuanced hypothetical passage. Avoid overconstraining lex with terms that may not co-occur, and retrieve selected results with get or multi_get. Do not use query merely to determine current Git state when refs and ancestry suffice; it may resolve an approximate historical label, but current Git is authority for current landing state.",
         inputSchema: {
           type: "object",
           properties: {
-            query: {
-              type: "string",
-              description: "Plain search text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
+            searches: {
+              type: "array",
+              minItems: 1,
+              maxItems: 3,
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["lex", "vec", "hyde"] },
+                  query: { type: "string", description: "Single-line typed search." },
+                },
+                required: ["type", "query"],
+                additionalProperties: false,
+              },
             },
-            collection: { type: "string" },
+            collections: { type: "array", maxItems: 1, items: { type: "string", enum: ["codex-chat"] }, description: "Optional explicit public transcript collection; no other collection is accessible." },
             date_from: { type: "string", description: "Inclusive YYYY-MM-DD filter applied from projected session metadata." },
             date_to: { type: "string", description: "Inclusive YYYY-MM-DD filter applied from projected session metadata." },
             cwd: { type: "string", description: "Exact projected cwd filter." },
@@ -985,64 +1300,15 @@ function toolListResult() {
             thread_id: { type: "string", description: "Exact projected session/thread ID filter." },
             parent_thread_id: { type: "string", description: "Exact delegated parent-thread filter." },
             own_thread_id: { type: "string", description: "Restrict to this thread and its delegated children." },
-            intent: {
-              type: "string",
-              description: "Background context to disambiguate the query. Does not search on its own.",
-            },
-            limit: { type: "integer" },
+            intent: { type: "string", description: "Concise purpose that disambiguates overloaded terms. It does not search on its own." },
+            rerank: { type: "boolean", default: true },
+            limit: { type: "integer", minimum: 1, maximum: QUERY_MAX_LIMIT, default: QUERY_DEFAULT_LIMIT },
             minScore: { type: "number" },
           },
-          required: ["query"],
+          required: ["intent", "searches"],
           additionalProperties: false,
         },
-      },
-      {
-        name: "search",
-        description:
-          "Keyword BM25 search across the codex_chat retrieval index. Best for exact terms, identifiers, filenames, quoted phrases, and minus exclusions. If it returns nothing, broaden wording or switch to deep_search/vector_search before concluding there is no evidence.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Plain search text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
-            },
-            collection: { type: "string" },
-            date_from: { type: "string" }, date_to: { type: "string" }, cwd: { type: "string" }, project_root: { type: "string" }, thread_id: { type: "string" }, parent_thread_id: { type: "string" }, own_thread_id: { type: "string" },
-            intent: {
-              type: "string",
-              description: "Background context to disambiguate the query. Does not search on its own.",
-            },
-            limit: { type: "integer" },
-            minScore: { type: "number" },
-          },
-          required: ["query"],
-          additionalProperties: false,
-        },
-      },
-      {
-        name: "vector_search",
-        description:
-          "Semantic vector search across the codex_chat retrieval index. Use a full natural-language question for same-idea/different-wording recall when you do not know the exact stored vocabulary.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Plain natural-language query text only. Do not use pseudo-filters such as project:, repo:, path:, or cwd:.",
-            },
-            collection: { type: "string" },
-            date_from: { type: "string" }, date_to: { type: "string" }, cwd: { type: "string" }, project_root: { type: "string" }, thread_id: { type: "string" }, parent_thread_id: { type: "string" }, own_thread_id: { type: "string" },
-            intent: {
-              type: "string",
-              description: "Background context to disambiguate the query. Does not search on its own.",
-            },
-            limit: { type: "integer" },
-            minScore: { type: "number" },
-          },
-          required: ["query"],
-          additionalProperties: false,
-        },
+        annotations: READ_ONLY_TOOL_ANNOTATIONS,
       },
       {
         name: "get",
@@ -1056,18 +1322,20 @@ function toolListResult() {
               description:
                 "Public memory identifier: a returned qmd://codex-chat/... URI, qmd://codex-chat/projects/<project_key>, or a returned docid like #abc123. Do not pass local filesystem paths or guessed qmd:// targets.",
             },
-            fromLine: { type: "integer" },
+            fromLine: { type: "integer", description: "Start near the query hit's returned line for long transcripts; omit only when the beginning of the document is relevant." },
             lineNumbers: { type: "boolean" },
-            maxLines: { type: "integer" },
+            maxLines: { type: "integer", minimum: 1, maximum: GET_MAX_LINES, default: GET_DEFAULT_MAX_LINES, description: "Bounded source window. Page with fromLine rather than requesting a large transcript." },
+            maxBytes: { type: "integer", minimum: 1024, maximum: GET_MAX_BYTES, default: GET_DEFAULT_MAX_BYTES },
           },
           required: ["file"],
           additionalProperties: false,
         },
+        annotations: READ_ONLY_TOOL_ANNOTATIONS,
       },
       {
         name: "multi_get",
         description:
-          "Batch retrieve memory content by comma-separated returned qmd://codex-chat/... URIs or returned docids, one explicit qmd://codex-chat/projects/<project_key> alias, or a true rooted qmd://codex-chat/... wildcard pattern when pattern expansion is intentional. Project-memory wildcards stay forbidden.",
+          "Batch retrieve memory content by comma-separated returned qmd://codex-chat/... URIs or returned docids, one explicit qmd://codex-chat/projects/<project_key> alias, or a true rooted qmd://codex-chat/... wildcard pattern when pattern expansion is intentional. After a broadened query, prefer one multi_get when multiple sources are needed instead of serial get calls. Project-memory wildcards stay forbidden.",
         inputSchema: {
           type: "object",
           properties: {
@@ -1077,22 +1345,23 @@ function toolListResult() {
                 "Explicit public-memory target: comma-separated returned qmd://... URIs or returned docids, one qmd://codex-chat/projects/<project_key> alias, or a true rooted qmd://codex-chat/... wildcard pattern. Do not pass local paths, guessed qmd:// targets, or qmd://codex-chat/projects/*.",
             },
             lineNumbers: { type: "boolean" },
-            maxBytes: { type: "integer" },
-            maxLines: { type: "integer" },
+            maxBytes: { type: "integer", minimum: 1024, maximum: MULTI_GET_MAX_BYTES, default: MULTI_GET_DEFAULT_MAX_BYTES },
+            maxLines: { type: "integer", minimum: 1, maximum: MULTI_GET_MAX_LINES, default: MULTI_GET_DEFAULT_MAX_LINES },
           },
           required: ["pattern"],
           additionalProperties: false,
         },
+        annotations: READ_ONLY_TOOL_ANNOTATIONS,
       },
     ],
   };
 }
 
 function toolSuccess(id, payload) {
-  return sendResponse(id, {
-    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
-    structuredContent: payload,
-  });
+  const text = JSON.stringify(payload, null, 2);
+  const result = { content: [{ type: "text", text }] };
+  if (Buffer.byteLength(text, "utf8") <= 8192) result.structuredContent = payload;
+  return sendResponse(id, result);
 }
 
 function toolFailure(id, name, err) {
@@ -1119,8 +1388,9 @@ function handleRequest(message) {
       },
       serverInfo: {
         name: "codex-memory-mcp",
-        version: "0.2.0",
+        version: "0.3.0",
       },
+      instructions: MEMORY_MCP_INSTRUCTIONS,
     });
   }
 
@@ -1158,6 +1428,10 @@ function handleRequest(message) {
         }
         case "status":
           return toolSuccess(id, buildStatus());
+        case "recent_session":
+          return toolSuccess(id, recentSession(args));
+        case "query":
+          return toolSuccess(id, callUnifiedQuery(args));
         case "deep_search":
           return toolSuccess(id, callSearch("query", args));
         case "search":

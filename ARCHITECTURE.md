@@ -103,10 +103,12 @@ Codex transcripts + project-memory material
     -> sync-codex-chat-qmd.sh
     -> projected markdown + refreshed retrieval index under ~/.cache/qmd/codex_chat
     -> codex-memory-mcp public MCP surface backed by the internal qmd-codex adapter
-    -> Codex startup context and transcript archaeology
+    -> bounded bootstrap, explicit topicless recency, and unified typed historical query
 ```
 
-This subsystem is the default public core. It is built around [@tobi/qmd](https://github.com/tobi/qmd) and exists to give Codex better startup context and retrieval without requiring manual transcript spelunking.
+This subsystem is the default public core. It is built around [@tobi/qmd](https://github.com/tobi/qmd) and exists to give Codex better startup context and retrieval without requiring manual transcript spelunking. The advertised historical surface is deliberately small: `recent_session` handles only explicit topicless last-conversation questions, while `query` accepts one to three typed `lex`, `vec`, or `hyde` searches and is followed by bounded `get` or `multi_get` evidence. The older three search names remain hidden compatibility aliases for cached clients.
+
+Routing preserves evidence authority: current repository and Git questions stay on the current checkout and refs; memory is used only for historical wording, decisions, and methods that are otherwise absent. A normal lookup is one query plus one bounded source retrieval, with one broader attempt and one same-source continuation available when needed. Retrieval latency and payload are distinct from the model's whole-turn synthesis cost.
 
 Built-in Codex memories are disabled by the base config. Retained app-managed files under `~/.codex/memories/` are historical generated state, not an operator-facing retrieval lane or an implicit project input. The shipped public contract keeps required rules in `codex/AGENTS.md` or checked-in repo docs, uses the QMD-backed `memory` MCP surface for bootstrap and transcript retrieval, and treats `/memories` plus `codex/config/90-local.toml` as the explicit user-owned opt-in controls.
 

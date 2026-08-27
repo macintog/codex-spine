@@ -23,8 +23,10 @@ This project is aimed at new macOS Codex users who want a turnkey way around som
 - generated Codex config for the managed core environment
 - shell integration and launchd-backed transcript sync on macOS
 - a managed system-wide `uv` policy at `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` as the default quarantine plus package-specific overrides for the optional jGravelle Munch MCP suite so the optional runners remain installable
-- a `memory` MCP lane backed by [@tobi/qmd](https://github.com/tobi/qmd) for transcript bootstrap and retrieval
+- a `memory` MCP lane backed by [@tobi/qmd](https://github.com/tobi/qmd): bounded bootstrap for durable re-anchors, `recent_session` for explicit topicless last-conversation recall, and one unified typed `query` followed by bounded source retrieval for named history
 - optional jGravelle Munch MCP suite integration through a managed enablement flow
+
+The memory lane is intentionally selective. Codex should use the current thread and checkout for current facts, reach for `recent_session` when you explicitly ask what the last conversation was about, and query indexed history when a named past decision or method is missing from current evidence. This keeps ordinary repository work local while making long-range lookbacks possible without scanning raw transcript files. QMD retrieval is bounded; the model's later synthesis may still be the larger time and token cost for complex questions.
 
 ## Skills
 

@@ -508,7 +508,7 @@ build_project_state() {
         session_id="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.id // ""' 2>/dev/null || true)"
         session_ts="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.timestamp // ""' 2>/dev/null || true)"
         session_cwd="$(printf '%s\n' "$header" | "$JQ" -r 'select(.type=="session_meta") | .payload.cwd // ""' 2>/dev/null || true)"
-        parent_thread_id="$("$JQ" -rs -r '[.. | strings | select(test("<codex_delegation>")) | (capture("<source_thread_id>(?<id>[^<]+)")?.id // empty)] | first // ""' "$src" 2>/dev/null || true)"
+        parent_thread_id="$("$JQ" -rs -r '[.[] | select(.type=="response_item" and .payload.type=="message" and (.payload.role=="developer" or .payload.role=="user")) | .payload.content[]? | select(.type=="input_text" or .type=="output_text" or .type=="text") | (.text // "") | select(test("^\\s*<codex_delegation>")) | (capture("<source_thread_id>(?<id>[^<]+)")?.id // empty)] | first // ""' "$src" 2>/dev/null || true)"
         [[ -z "$session_ts" ]] && session_ts="$(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%SZ' "$src" 2>/dev/null || true)"
         project_path="$(canonical_project_path "$session_cwd")"
         if [[ -n "$TARGET_PROJECT_PATH" && "$project_path" != "$TARGET_PROJECT_PATH" ]]; then
@@ -947,7 +947,7 @@ render_chat_projection() {
     local compaction_count=0
 
     read -r is_awaiter user_count assistant_count non_slash_user_count compaction_count < <(projection_metrics "$src")
-    parent_thread_id="$("$JQ" -rs -r '[.. | strings | select(test("<codex_delegation>")) | (capture("<source_thread_id>(?<id>[^<]+)")?.id // empty)] | first // ""' "$src" 2>/dev/null || true)"
+    parent_thread_id="$("$JQ" -rs -r '[.[] | select(.type=="response_item" and .payload.type=="message" and (.payload.role=="developer" or .payload.role=="user")) | .payload.content[]? | select(.type=="input_text" or .type=="output_text" or .type=="text") | (.text // "") | select(test("^\\s*<codex_delegation>")) | (capture("<source_thread_id>(?<id>[^<]+)")?.id // empty)] | first // ""' "$src" 2>/dev/null || true)"
 
     if [[ "$is_awaiter" == "true" ]]; then
         log "Skipping thread (awaiter utility session): $rel"
