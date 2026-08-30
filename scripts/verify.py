@@ -536,6 +536,8 @@ def validate_memory_public_surface() -> list[str]:
                     errors.append(f"public memory MCP still advertises hidden compatibility alias {alias}")
             if "default" in tools.get("query", {}).get("inputSchema", {}).get("properties", {}).get("rerank", {}):
                 errors.append("public query schema exposes an unconditional rerank default instead of the contextual runtime default")
+            if tools.get("query", {}).get("inputSchema", {}).get("required") != ["intent", "searches", "project_root"]:
+                errors.append("public query schema does not require a fail-closed project boundary")
             expected_annotations = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}
             for name, tool in tools.items():
                 if name != "bootstrap_context" and tool.get("annotations") != expected_annotations:
@@ -550,9 +552,12 @@ def validate_memory_public_surface() -> list[str]:
             if len(json.dumps(recent_payload).encode()) > 8000 or len(recent_payload.get("messages", [])) > 8:
                 errors.append("public recent_session did not clamp harmless upper-bound overshoot")
 
-            query = rpc("tools/call", {"name": "query", "arguments": {"intent": "Find the exact public fixture", "searches": [{"type": "lex", "query": "bounded public memory contract"}]}})
+            query = rpc("tools/call", {"name": "query", "arguments": {"intent": "Find the exact public fixture", "searches": [{"type": "lex", "query": "bounded public memory contract"}], "project_root": project_root}})
             if query.get("result", {}).get("structuredContent", {}).get("results", [{}])[0].get("docid") != "#recent":
                 errors.append("public unified query did not return the QMD fixture")
+            query_payload = query.get("result", {}).get("structuredContent", {})
+            if query_payload.get("retrieval_scope", {}).get("cross_project_broadening") != "forbidden" or query_payload.get("authority", {}).get("live_system_access") != "none":
+                errors.append("public query result did not expose scope and downstream authority boundaries")
             query_argv = json.loads(calls.read_text(encoding="utf-8").splitlines()[-1])
             if query_argv[:2] != ["search", "bounded public memory contract"]:
                 errors.append(f"public unified lex query used the wrong backend: {query_argv!r}")
@@ -563,13 +568,16 @@ def validate_memory_public_surface() -> list[str]:
             get_window = bounded_get.get("result", {}).get("structuredContent", {}).get("window")
             if get_window != {"fromLine": 1, "maxLines": 100, "maxBytes": 12000, "requestClamped": True, "nextFromLine": 101}:
                 errors.append(f"public get did not report its effective clamped retrieval window: {get_window!r}")
-            escaped = rpc("tools/call", {"name": "query", "arguments": {"intent": "Attempt collection escape", "searches": [{"type": "lex", "query": "anything"}], "collections": ["codex-trace-lessons"]}})
+            escaped = rpc("tools/call", {"name": "query", "arguments": {"intent": "Attempt collection escape", "searches": [{"type": "lex", "query": "anything"}], "collections": ["codex-trace-lessons"], "project_root": project_root}})
             if escaped.get("result", {}).get("isError") is not True:
                 errors.append("public unified query did not reject a non-transcript collection")
             for alias in ("deep_search", "search", "vector_search"):
-                compatibility = rpc("tools/call", {"name": alias, "arguments": {"query": "compatibility"}})
+                compatibility = rpc("tools/call", {"name": alias, "arguments": {"query": "compatibility", "project_root": project_root}})
                 if compatibility.get("result", {}).get("isError") is True:
                     errors.append(f"public hidden compatibility alias is not callable: {alias}")
+            unscoped = rpc("tools/call", {"name": "query", "arguments": {"intent": "Unsafe global retry", "searches": [{"type": "lex", "query": "survey"}]}})
+            if unscoped.get("result", {}).get("isError") is not True:
+                errors.append("public query accepted an unscoped global retry")
         except Exception as exc:
             errors.append(f"public memory MCP contract fixture failed: {exc}")
 

@@ -36,7 +36,7 @@ Install turns Codex thread JSON into Markdown, indexes user and assistant turns,
 
 - `bootstrap_context` restores project framing after a repo change, a recovered thread, or obvious context drift.
 - `recent_session` answers "what were we just discussing?"
-- `query`, then a short source read, finds a named past decision or method that this chat and this checkout do not already contain.
+- `query`, then a short source read, finds a named past decision or method that this chat and this checkout do not already contain. It requires the exact project root, and a project-scoped miss cannot be widened globally.
 
 It searches that index when you ask about the past. It does not pour old threads into every new chat. What is true in this repo right now still comes from the files and Git refs in front of you.
 
