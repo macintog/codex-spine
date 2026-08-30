@@ -2,6 +2,11 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.5.6
+
+This release keeps historical memory retrieval inside the active project and
+fails closed when that project has no matching history.
+
 ## 0.5.5
 
 This release makes the public workflow layer a coherent installable core and
