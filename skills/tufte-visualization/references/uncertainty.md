@@ -46,6 +46,9 @@ range, tolerance interval, and scenario range are not interchangeable.
   may misread an interval as a guaranteed range.
 - Avoid ranking estimates when interval overlap or sensitivity makes the rank
   unstable. Group, tier, or show the uncertainty in rank instead.
+- Distinguish statistical detectability from practical magnitude and decision
+  significance. A precisely estimated trivial effect should not receive visual
+  emphasis merely because its interval excludes zero.
 
 ## Missingness, Imputation, And Sensitivity
 

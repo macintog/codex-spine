@@ -1,6 +1,6 @@
 ---
 name: causal-explanation
-description: Explain why or how an existing consequential behavior, design choice, regression, threshold, or tradeoff exists from current evidence and relevant history. Use for why, how, rationale, or postmortem questions and to explain an established root cause or regression finding; do not use to reproduce, diagnose, or attribute an active failure, for routine code navigation, generic summaries, or certainty the evidence cannot support.
+description: Prepare a substantive, source-backed causal account of an existing behavior, incident, or historical design decision when reconstructing and documenting the evidence is the selected deliverable. Do not trigger for routine rationale, explanation of your own recommendation, ordinary technical questions, current-task updates, or active failure diagnosis.
 ---
 
 # Causal Explanation
@@ -17,15 +17,20 @@ distinct. Do not turn an explanation request into implementation work.
 - Use `jcode` for a symbol lookup, file map, caller trace, or adjacent source
   context. Use the repo's QA intake or attribution lane for reproducing,
   diagnosing, or attributing an active failure, including a request to find an
-  unknown root cause. Use this skill after the cause or regression finding is
-  established, or when the selected job is to explain existing evidence.
+  unknown root cause. An established cause alone does not select this skill;
+  use it when reconstructing and documenting the causal account is the selected
+  deliverable, or when the user explicitly invokes it.
 - Use the applicable architecture or performance skill when the requested
   outcome is a design review or benchmark judgment rather than an explanation.
 
 ## Build A Proportionate Evidence Record
 
-1. Inspect the current code, runtime state, configuration, or artifact that
-   establishes what exists now.
+1. Include firsthand user reports and relayed client updates as evidence;
+   preserve their uncertainty and distinguish observations from causal claims.
+   Do not demand independent corroboration merely because the user is the source.
+   Identify the existing sources that can answer the question. Choose the
+   cheapest authoritative evidence; pure historical recall uses memory first,
+   while a current mechanism may be settled directly from source or an artifact.
 2. Consult only sources likely to resolve the causal question. Use `jcode` for
    source structure and callers, `jdocs` for authored documentation or reference
    trees, direct QMD retrieval plus `get` or `multi_get` for exact prior wording
@@ -35,9 +40,10 @@ distinct. Do not turn an explanation request into implementation work.
 3. Record each source actually consulted. Mark relevant searches that returned
    nothing, unavailable sources that leave a material gap, and deliberately
    omitted categories whose evidence could not affect the answer.
-4. For a regression, compare the closest defensible known-good state with the
-   current state and inspect the exact intervening changes. Timing is a
-   hypothesis, not proof of cause.
+4. For a regression, compare relevant successful and failed runs under like
+   source/build, input, scenario, and environment conditions, and inspect the
+   intervening changes. Completed qualification and later successes constrain
+   the claim; timing is a hypothesis, not proof of cause.
 
 Code shape and runtime behavior can establish mechanism. They do not, by
 themselves, establish the motivation, rejected alternatives, or original

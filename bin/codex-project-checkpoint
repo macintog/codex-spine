@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 from urllib.parse import unquote, urlsplit
 
 
@@ -63,6 +63,13 @@ BODY_HEADINGS = (
     "## Current Boundaries",
     "## References",
 )
+PROTECTED_SECTIONS = ("in_flight", "blocked_or_awaiting_decision", "current_boundaries")
+TABLE_FIELDS = {
+    "in_flight": ("id", "owner_binding", "state", "task_subject", "evidence_status", "evidence_pointer", "last_confirmed_at", "clears_when"),
+    "just_learned": ("id", "finding", "evidence_status", "evidence_pointer", "impact", "last_confirmed_at", "expires_or_promote_by"),
+    "blocked_or_awaiting_decision": ("id", "decision", "resolver", "safe_state", "last_confirmed_at", "clears_when"),
+    "current_boundaries": ("id", "boundary", "last_confirmed_at", "clears_when"),
+}
 
 
 class CheckpointError(RuntimeError):
@@ -72,6 +79,15 @@ class CheckpointError(RuntimeError):
         self.reason = reason
         self.exit_code = exit_code
         self.data = data or {}
+
+
+class CheckpointInvocationError(RuntimeError):
+    pass
+
+
+class TypedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise CheckpointInvocationError(message)
 
 
 @dataclass(frozen=True)
@@ -108,6 +124,70 @@ def utc_now() -> str:
 
 def compact_json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def redacted_argv(argv: list[str]) -> list[str]:
+    redacted: list[str] = []
+    redact_next = False
+    for item in argv:
+        if redact_next:
+            redacted.append("<redacted>")
+            redact_next = False
+        elif item.startswith("--") and "=" in item:
+            redacted.append(item.split("=", 1)[0] + "=<redacted>")
+        else:
+            redacted.append(item if item in {"show", "doctor", "adopt", "update"} or item.startswith("-") else "<redacted>")
+            if item.startswith("--") and item not in {"--json"}:
+                redact_next = True
+    return redacted
+
+
+def execution_evidence(
+    argv: list[str],
+    started: float,
+    *,
+    input_identity: dict[str, Any] | str,
+    side_effect_ids: list[str],
+) -> dict[str, Any]:
+    evidence: dict[str, Any] = {
+        "argv": redacted_argv(argv),
+        "authority_mode": os.environ.get("CODEX_AUTHORITY_MODE", "ambient"),
+        "command": "codex-project-checkpoint",
+        "cwd": str(Path.cwd().resolve()),
+        "duration_ms": round((time.monotonic() - started) * 1000, 3),
+        "flags": sorted({item.split("=", 1)[0] for item in argv if item.startswith("--")}),
+        "input_identity": input_identity,
+        "retry_relationship": os.environ.get("CODEX_RETRY_RELATIONSHIP", "none"),
+        "side_effect_ids": side_effect_ids,
+    }
+    runtime_id = os.environ.get("CODEX_RUNTIME_PROCESS_ID")
+    if runtime_id:
+        evidence["runtime_process_id"] = runtime_id
+    return evidence
+
+
+def completed_side_effect_ids(args: argparse.Namespace) -> list[str]:
+    return list(getattr(args, "_completed_side_effect_ids", []))
+
+
+def record_side_effect(args: argparse.Namespace, identifier: str) -> None:
+    identifiers = completed_side_effect_ids(args)
+    if identifier not in identifiers:
+        identifiers.append(identifier)
+    args._completed_side_effect_ids = identifiers
+
+
+def boundary_failpoint(name: str) -> None:
+    configured = os.environ.get("CODEX_PROJECT_CHECKPOINT_BOUNDARY_FAILPOINT")
+    if configured == f"permission:{name}":
+        raise PermissionError(f"injected permission failure after {name}")
+    if configured == f"io:{name}":
+        raise OSError(f"injected I/O failure after {name}")
+
+
+def record_boundary(args: argparse.Namespace, identifier: str, boundary: str) -> None:
+    record_side_effect(args, identifier)
+    boundary_failpoint(boundary)
 
 
 def run_git(repo: Path, *args: str) -> str:
@@ -258,7 +338,14 @@ def failpoint(name: str) -> None:
         os._exit(70)
 
 
-def atomic_write(path: Path, data: bytes, *, mode: int = 0o600, private_parent: bool = True) -> None:
+def atomic_write(
+    path: Path,
+    data: bytes,
+    *,
+    mode: int = 0o600,
+    private_parent: bool = True,
+    on_replace: Callable[[], None] | None = None,
+) -> None:
     if private_parent:
         ensure_private_directory(path.parent)
     elif not path.parent.is_dir() or path.parent.is_symlink():
@@ -274,6 +361,8 @@ def atomic_write(path: Path, data: bytes, *, mode: int = 0o600, private_parent: 
         failpoint("after_temp_fsync")
         failpoint("before_replace")
         os.replace(temporary, path)
+        if on_replace is not None:
+            on_replace()
         failpoint("after_replace")
         fsync_directory(path.parent)
         failpoint("after_directory_fsync")
@@ -509,6 +598,37 @@ def render_body(model: dict[str, Any]) -> str:
     )
 
 
+def is_boilerplate_completion(row: dict[str, str]) -> bool:
+    """Recognize only the complete, unqualified retirement receipt payload."""
+    match = re.fullmatch(
+        r"fully_retired: selected work (\S+) is integrated and its owned local and remote task state is retired",
+        row["finding"],
+    )
+    if match is None:
+        return False
+    branch = match.group(1)
+    return (
+        row["evidence_status"] == "verified"
+        and row["impact"] == "selected outcome complete; other owners excluded"
+        and re.fullmatch(r"/[^#\n]+/\.git/codex-git-safe/state\.json#" + re.escape(branch), row["evidence_pointer"]) is not None
+    )
+
+
+def render_brief(resolution: Resolution) -> str:
+    # This is a presentation only, never an editing model or a hashed board.
+    _, body = parse_flat_front_matter(resolution.content, FRONT_MATTER_KEYS)
+    model = parse_model(body)
+    visible = [row for row in model["just_learned"] if not is_boilerplate_completion(row)]
+    count = len(model["just_learned"]) - len(visible)
+    return (
+        "Startup summary (read-only advisory view; full persisted checkpoint is unchanged).\n"
+        f"Project: {resolution.project_id} | Generation: {resolution.generation}\n"
+        f"Collapsed {count} boilerplate fully-retired completion receipts; use plain "
+        "`codex-project-checkpoint show --repo <repo>` or `show --repo <repo> --model` for full content.\n\n"
+        + render_body({**model, "just_learned": visible})
+    )
+
+
 def render_board(project_id: str, digest: str, generation: int, model: dict[str, Any]) -> str:
     body = render_body(model)
     body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
@@ -527,6 +647,57 @@ def render_board(project_id: str, digest: str, generation: int, model: dict[str,
     if len(text.encode("utf-8")) > MAX_BOARD_BYTES:
         raise CheckpointError("corrupt", "board_too_large", exit_code=5)
     return text
+
+
+def parse_model(body: str) -> dict[str, Any]:
+    """Read only the canonical Markdown emitted by schema version 1."""
+    try:
+        sections = {}
+        for index, heading in enumerate(BODY_HEADINGS):
+            section = body.split(heading + "\n\n", 1)[1]
+            if index + 1 < len(BODY_HEADINGS):
+                section = section.split(BODY_HEADINGS[index + 1] + "\n\n", 1)[0]
+            sections[heading] = section.strip().splitlines()
+        freshness = sections["## Freshness"]
+        model: dict[str, Any] = {"freshness": {
+            "coordinator": freshness[0].removeprefix("- Coordinator: "),
+            "last_verified_project_identity": freshness[1].removeprefix("- Last verified project identity: "),
+        }}
+        for heading, (section, fields) in zip(BODY_HEADINGS[1:5], TABLE_FIELDS.items()):
+            lines = sections[heading]
+            rows = []
+            if lines != ["_None._"]:
+                for line in lines[2:]:
+                    cells = line.split(" | ")
+                    cells[0] = cells[0].removeprefix("| ")
+                    cells[-1] = cells[-1].removesuffix(" |")
+                    rows.append(dict(zip(fields, cells, strict=True)))
+            model[section] = rows
+        references = sections["## References"]
+        model["references"] = [] if references == ["_None._"] else [line.removeprefix("- ") for line in references]
+        model, _ = validate_model(model)
+        # This also validates every header, delimiter, prefix and blank line.
+        # Never silently normalize an unsupported on-disk representation.
+        if render_body(model) != body:
+            raise ValueError("noncanonical board")
+        return model
+    except (IndexError, ValueError, CheckpointError) as exc:
+        raise CheckpointError("corrupt", "board_model_invalid", exit_code=5) from exc
+
+
+def validate_removals(old: dict[str, Any], new: dict[str, Any], removals: list[list[str]]) -> None:
+    missing = {(section, row["id"]) for section in PROTECTED_SECTIONS for row in old[section]
+               if row["id"] not in {item["id"] for item in new[section]}}
+    acknowledged: set[tuple[str, str]] = set()
+    for section, card_id, reason in removals:
+        key = (section, card_id)
+        if section not in PROTECTED_SECTIONS or key in acknowledged or key not in missing or not reason.strip():
+            raise CheckpointError("preservation_required", "removal_disposition_invalid", exit_code=3)
+        acknowledged.add(key)
+    if missing != acknowledged:
+        raise CheckpointError("preservation_required", "removal_disposition_required", exit_code=3,
+                              data={"unacknowledged_removals": [{"section": section, "id": card_id}
+                                    for section, card_id in sorted(missing - acknowledged)]})
 
 
 def parse_board(text: str, registration: Registration, repo: RepoIdentity) -> tuple[int, str]:
@@ -623,14 +794,28 @@ def resolve(repo_path: Path) -> Resolution:
     )
 
 
-def resolution_payload(resolution: Resolution) -> dict[str, Any]:
-    payload: dict[str, Any] = {"adopted": resolution.adopted, "ok": True, "state": resolution.state}
+def resolution_payload(
+    resolution: Resolution,
+    *,
+    mutation: bool,
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "adopted": resolution.adopted,
+        "mutation": mutation,
+        "ok": True,
+        "operation_status": "completed",
+        "state": resolution.state,
+        "target_state": resolution.state,
+    }
     if resolution.project_id:
         payload["project_id"] = resolution.project_id
     if resolution.generation is not None:
         payload["generation"] = resolution.generation
     if resolution.attention:
         payload["attention"] = list(resolution.attention)
+    if evidence:
+        payload["execution"] = evidence
     return payload
 
 
@@ -661,14 +846,25 @@ def project_lock(project_id: str, timeout: float) -> Iterator[None]:
         lock_file.close()
 
 
-def preserve_recovery(path: Path, generation: int, text: str) -> None:
+def preserve_recovery(
+    path: Path,
+    generation: int,
+    text: str,
+    *,
+    on_replace: Callable[[Path], None] | None = None,
+) -> Path:
     recovery = path.parent / "recovery"
     ensure_private_directory(recovery)
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     target = recovery / f"{timestamp}-g{generation:020d}-{digest}.md"
-    atomic_write(target, text.encode("utf-8"))
+    atomic_write(
+        target,
+        text.encode("utf-8"),
+        on_replace=(lambda: on_replace(target)) if on_replace is not None else None,
+    )
     failpoint("after_recovery")
+    return target
 
 
 def prune_recovery(path: Path) -> list[str]:
@@ -735,22 +931,56 @@ def command_adopt(args: argparse.Namespace) -> Resolution:
     if read_stub(checkpoint) is not None:
         raise CheckpointError("identity_mismatch", "stub_without_registration", exit_code=5)
     model, attention = load_model(Path(args.file))
+    args._model_sha256 = hashlib.sha256(compact_json(model).encode("utf-8")).hexdigest()
     project_id = new_project_id()
     external = board_path(project_id)
     with project_lock(project_id, args.lock_timeout):
         if external.exists():
             raise CheckpointError("identity_mismatch", "project_id_collision", exit_code=5)
         board = render_board(project_id, repo.digest, 1, model)
-        atomic_write(external, board.encode("utf-8"))
+        atomic_write(
+            external,
+            board.encode("utf-8"),
+            on_replace=lambda: record_boundary(
+                args,
+                f"project_checkpoint:{project_id}:generation:1",
+                "adopt_board",
+            ),
+        )
         registration = compact_json(registration_payload(project_id, repo)) + "\n"
-        atomic_write(reg_path, registration.encode("utf-8"))
+        atomic_write(
+            reg_path,
+            registration.encode("utf-8"),
+            on_replace=lambda: record_boundary(
+                args,
+                f"project_checkpoint_registration:{project_id}",
+                "adopt_registration",
+            ),
+        )
         atomic_write(
             checkpoint,
             render_stub(project_id).encode("utf-8"),
             mode=0o644,
             private_parent=False,
+            on_replace=lambda: record_boundary(
+                args,
+                f"project_checkpoint_stub:{project_id}",
+                "adopt_stub",
+            ),
         )
-    resolution = resolve(repo.repo_root)
+        registration_record = parse_registration(reg_path)
+        readback_generation, _, readback_text = read_board(external, registration_record, repo)
+        if readback_generation != 1 or readback_text != board:
+            raise CheckpointError(
+                "reconciliation_required",
+                "generation_bound_readback_mismatch",
+                exit_code=6,
+                data={
+                    "operation_status": "side_effect_completed_reconciliation_required",
+                    "side_effect_ids": [f"project_checkpoint:{project_id}:generation:1"],
+                },
+            )
+        resolution = resolve(repo.repo_root)
     if attention:
         resolution = Resolution(**{**resolution.__dict__, "attention": tuple(sorted(set((*resolution.attention, *attention))))})
     return resolution
@@ -761,6 +991,7 @@ def command_update(args: argparse.Namespace) -> Resolution:
     if not current.adopted or current.project_id is None or current.generation is None or current.board_path is None:
         raise CheckpointError("not_adopted", "project_not_adopted", exit_code=5)
     model, model_attention = load_model(Path(args.file))
+    args._model_sha256 = hashlib.sha256(compact_json(model).encode("utf-8")).hexdigest()
     attention = list(model_attention)
     with project_lock(current.project_id, args.lock_timeout):
         locked = resolve(Path(args.repo))
@@ -772,66 +1003,207 @@ def command_update(args: argparse.Namespace) -> Resolution:
                 data={"current_generation": locked.generation},
             )
         registration = parse_registration(registration_path(locked.repo.common_dir))
-        _, _, old_text = read_board(locked.board_path, registration, locked.repo)
-        new_text = render_board(locked.project_id, locked.repo.digest, locked.generation + 1, model)
+        _, old_body, old_text = read_board(locked.board_path, registration, locked.repo)
+        validate_removals(parse_model(old_body), model, args.remove)
+        expected_generation = locked.generation + 1
+        new_text = render_board(locked.project_id, locked.repo.digest, expected_generation, model)
         attention.extend(cleanup_stale_temps(locked.board_path.parent))
         attention.extend(prune_recovery(locked.board_path))
-        preserve_recovery(locked.board_path, locked.generation, old_text)
-        atomic_write(locked.board_path, new_text.encode("utf-8"))
+        recovery_path = preserve_recovery(
+            locked.board_path,
+            locked.generation,
+            old_text,
+            on_replace=lambda path: record_boundary(
+                args,
+                f"project_checkpoint_recovery:{locked.project_id}:generation:{locked.generation}:{path.name}",
+                "update_recovery",
+            ),
+        )
+        atomic_write(
+            locked.board_path,
+            new_text.encode("utf-8"),
+            on_replace=lambda: record_boundary(
+                args,
+                f"project_checkpoint:{locked.project_id}:generation:{expected_generation}",
+                "update_board",
+            ),
+        )
+        readback_generation, _, readback_text = read_board(locked.board_path, registration, locked.repo)
+        if readback_generation != expected_generation or readback_text != new_text:
+            raise CheckpointError(
+                "reconciliation_required",
+                "generation_bound_readback_mismatch",
+                exit_code=6,
+                data={
+                    "expected_generation": expected_generation,
+                    "operation_status": "side_effect_completed_reconciliation_required",
+                    "side_effect_ids": [
+                        f"project_checkpoint:{locked.project_id}:generation:{expected_generation}"
+                    ],
+                },
+            )
         attention.extend(prune_recovery(locked.board_path))
-    updated = resolve(Path(args.repo))
+        updated = resolve(Path(args.repo))
     if attention:
         updated = Resolution(**{**updated.__dict__, "attention": tuple(sorted(set((*updated.attention, *attention))))})
     return updated
 
 
-def print_resolution(resolution: Resolution, *, as_json: bool, show_content: bool) -> None:
+def print_resolution(
+    resolution: Resolution,
+    *,
+    as_json: bool,
+    show_content: bool,
+    mutation: bool,
+    evidence: dict[str, Any] | None = None,
+    show_model: bool = False,
+    show_brief: bool = False,
+) -> None:
+    if show_brief and resolution.adopted and resolution.content is not None:
+        sys.stdout.write(render_brief(resolution))
+        return
+    if show_model:
+        if not resolution.adopted or resolution.content is None:
+            raise CheckpointError("not_adopted", "project_not_adopted", exit_code=5)
+        _, body = parse_flat_front_matter(resolution.content, FRONT_MATTER_KEYS)
+        payload = resolution_payload(resolution, mutation=mutation, evidence=evidence)
+        payload["model"] = parse_model(body)
+        print(compact_json(payload))
+        return
     if as_json:
-        print(compact_json(resolution_payload(resolution)))
+        print(compact_json(resolution_payload(resolution, mutation=mutation, evidence=evidence)))
     elif show_content and resolution.content is not None:
         sys.stdout.write(resolution.content)
     else:
-        payload = resolution_payload(resolution)
+        payload = resolution_payload(resolution, mutation=mutation)
         print(" ".join(f"{key}={value}" for key, value in payload.items()))
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Resolve and update one worktree-independent project checkpoint.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    common = TypedArgumentParser(add_help=False)
+    common.add_argument("--repo", default=argparse.SUPPRESS)
+    common.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    parser = TypedArgumentParser(
+        description="Resolve and update one worktree-independent project checkpoint.",
+        parents=[common],
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True, parser_class=TypedArgumentParser)
     for name in ("show", "doctor"):
-        command = subparsers.add_parser(name)
-        command.add_argument("--repo", default=".")
-        command.add_argument("--json", action="store_true")
-    adopt = subparsers.add_parser("adopt")
-    adopt.add_argument("--repo", default=".")
+        reader = subparsers.add_parser(name, parents=[common])
+        if name == "show":
+            reader.add_argument("--brief", action="store_true", help="show a read-only presentation with boilerplate retirement receipts collapsed")
+            reader.add_argument("--model", action="store_true", help="emit the current model and its generation as JSON")
+    adopt = subparsers.add_parser("adopt", parents=[common])
     adopt.add_argument("--remote", default="origin")
     adopt.add_argument("--file", required=True)
     adopt.add_argument("--lock-timeout", type=float, default=5.0)
-    adopt.add_argument("--json", action="store_true")
-    update = subparsers.add_parser("update")
-    update.add_argument("--repo", default=".")
+    update = subparsers.add_parser("update", parents=[common])
     update.add_argument("--expected-generation", required=True, type=int)
     update.add_argument("--file", required=True)
     update.add_argument("--lock-timeout", type=float, default=5.0)
-    update.add_argument("--json", action="store_true")
+    update.add_argument("--remove", nargs=3, action="append", default=[], metavar=("SECTION", "ID", "REASON"),
+                        help="explicit disposition for one removed protected row; repeat for each removal")
     return parser
 
 
+def error_operation_status(exc: CheckpointError, command: str) -> str:
+    explicit = exc.data.get("operation_status")
+    if isinstance(explicit, str):
+        return explicit
+    if exc.state == "unreadable":
+        return "authority_required"
+    if command in {"adopt", "update"} and exc.reason.startswith("model_"):
+        return "invalid_invocation"
+    if exc.state in {"busy", "stale_generation", "preservation_required", "not_adopted", "missing", "corrupt", "identity_mismatch"}:
+        return "correctly_blocked"
+    return "internal_error"
+
+
 def main() -> int:
-    args = build_parser().parse_args()
+    started = time.monotonic()
+    raw_argv = sys.argv[1:]
+    try:
+        args = build_parser().parse_args()
+        if getattr(args, "brief", False) and (getattr(args, "json", False) or getattr(args, "model", False)):
+            raise CheckpointInvocationError("--brief cannot be combined with --json or --model")
+    except CheckpointInvocationError as exc:
+        payload = {
+            "mutation": False,
+            "ok": False,
+            "operation_status": "invalid_invocation",
+            "reason": "argument_parse_error",
+            "target_state": "not_evaluated",
+            "execution": execution_evidence(
+                raw_argv,
+                started,
+                input_identity="not_evaluated",
+                side_effect_ids=[],
+            ),
+        }
+        if "--json" in sys.argv[1:]:
+            print(compact_json(payload), file=sys.stderr)
+        else:
+            print(f"codex-project-checkpoint: invalid invocation: {exc}", file=sys.stderr)
+        return 2
+    args.repo = getattr(args, "repo", ".")
+    args.json = getattr(args, "json", False)
+    args._completed_side_effect_ids = []
     try:
         if args.command in {"show", "doctor"}:
             resolution = resolve(Path(args.repo))
-            print_resolution(resolution, as_json=args.json, show_content=args.command == "show")
+            mutation = False
         elif args.command == "adopt":
             resolution = command_adopt(args)
-            print_resolution(resolution, as_json=args.json, show_content=False)
+            mutation = True
         else:
             resolution = command_update(args)
-            print_resolution(resolution, as_json=args.json, show_content=False)
+            mutation = True
+        identity: dict[str, Any] = {
+            "repo_identity_sha256": resolution.repo.digest,
+        }
+        if args.command in {"adopt", "update"}:
+            identity["model_sha256"] = args._model_sha256
+        if args.command == "update" and args.remove:
+            identity["removal_dispositions"] = [{"section": section, "id": card_id,
+                "reason_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest()}
+                for section, card_id, reason in args.remove]
+        side_effect_ids = completed_side_effect_ids(args)
+        print_resolution(
+            resolution,
+            as_json=args.json,
+            show_content=args.command == "show",
+            mutation=mutation,
+            evidence=execution_evidence(raw_argv, started, input_identity=identity, side_effect_ids=side_effect_ids),
+            show_model=getattr(args, "model", False),
+            show_brief=getattr(args, "brief", False),
+        )
         return 0
     except CheckpointError as exc:
-        payload: dict[str, Any] = {"ok": False, "reason": exc.reason, "state": exc.state}
+        side_effect_ids = completed_side_effect_ids(args)
+        for identifier in exc.data.get("side_effect_ids", []):
+            if identifier not in side_effect_ids:
+                side_effect_ids.append(identifier)
+        operation_status = error_operation_status(exc, args.command)
+        if side_effect_ids:
+            operation_status = "side_effect_completed_reconciliation_required"
+        payload: dict[str, Any] = {
+            "mutation": bool(side_effect_ids),
+            "ok": False,
+            "operation_status": operation_status,
+            "reason": exc.reason,
+            "state": exc.state,
+            "target_state": exc.state,
+            "execution": execution_evidence(
+                raw_argv,
+                started,
+                input_identity={
+                    "repo_root_sha256": hashlib.sha256(
+                        str(Path(getattr(args, "repo", ".")).expanduser().resolve()).encode("utf-8")
+                    ).hexdigest()
+                },
+                side_effect_ids=side_effect_ids,
+            ),
+        }
         try:
             _, common_dir = resolve_repo_layout(Path(getattr(args, "repo", ".")))
             if registration_path(common_dir).exists():
@@ -840,7 +1212,45 @@ def main() -> int:
             pass
         payload.update({key: value for key, value in exc.data.items() if value is not None})
         print(compact_json(payload), file=sys.stderr)
-        return exc.exit_code
+        return 6 if side_effect_ids else exc.exit_code
+    except PermissionError:
+        side_effect_ids = completed_side_effect_ids(args)
+        payload = {
+            "mutation": bool(side_effect_ids),
+            "ok": False,
+            "operation_status": (
+                "side_effect_completed_reconciliation_required" if side_effect_ids else "authority_required"
+            ),
+            "reason": "permission_denied",
+            "target_state": "reconciliation_required" if side_effect_ids else "not_evaluated",
+            "execution": execution_evidence(
+                raw_argv,
+                started,
+                input_identity="not_evaluated",
+                side_effect_ids=side_effect_ids,
+            ),
+        }
+        print(compact_json(payload), file=sys.stderr)
+        return 6 if side_effect_ids else 3
+    except OSError:
+        side_effect_ids = completed_side_effect_ids(args)
+        payload = {
+            "mutation": bool(side_effect_ids),
+            "ok": False,
+            "operation_status": (
+                "side_effect_completed_reconciliation_required" if side_effect_ids else "internal_error"
+            ),
+            "reason": "io_error",
+            "target_state": "reconciliation_required" if side_effect_ids else "not_evaluated",
+            "execution": execution_evidence(
+                raw_argv,
+                started,
+                input_identity="not_evaluated",
+                side_effect_ids=side_effect_ids,
+            ),
+        }
+        print(compact_json(payload), file=sys.stderr)
+        return 6 if side_effect_ids else 5
 
 
 if __name__ == "__main__":

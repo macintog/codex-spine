@@ -2,6 +2,7 @@
 theme: "<system, workstream, decision, or evidence layer>"
 coverage: "<date range, release range, or superseded state>"
 status: "historical"
+authority: "none"
 superseded_by: "<current authority or none>"
 visibility: "<repo-shared, local-only, or public-safe>"
 ---

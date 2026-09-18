@@ -32,7 +32,7 @@ What maintainers get from depth: change, bugs, knowledge, and verification conce
 
 - Depth is a property of the interface, not the implementation.
 - A deep module can have internal seams used by its own implementation and tests without exposing them to callers.
-- The deletion test: if deleting a module makes complexity vanish, the module was probably pass-through; if complexity reappears across callers, the module was earning its keep.
+- The deletion test: ask whether the required behavior still needs the mechanism. If removing a module also removes needless responsibility, it was probably pass-through; if that responsibility reappears in callers, configuration, operations, or internals, it has moved. Necessary coordination may justify keeping the module. Preserve required behavior when making this comparison.
 - The interface is the test surface. If tests need to reach past the interface, the module shape may be wrong.
 - One adapter means a hypothetical seam. Two adapters means a real seam. Do not add a seam unless something actually varies across it.
 

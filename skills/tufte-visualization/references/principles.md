@@ -3,6 +3,14 @@
 Use this reference for deeper judgment about taste, composition, typography,
 color, tables, dashboards, maps, and explanatory diagrams.
 
+## Contents
+
+- Overall character, reading situation, and anti-reflex taste
+- Genre standards
+- Canvas, typography, color, lines, marks, scales, and grids
+- Annotation, documentation, and tables
+- Maps, diagrams, responsive composition, motion, and integrity
+
 ## Overall Character
 
 - Precise, calm, information-rich, and durable.
@@ -183,10 +191,9 @@ Use a table when exact lookup, many values, or mixed units matter.
   task.
 - Treat every connector and arrow as a claim. Label relationship type,
   direction, time, strength, or uncertainty when it matters.
-- Reserve connector lanes and endpoint air gaps. Do not let a line touch text,
-  enter an unrelated boundary, or imply attachment through a near-miss.
 - Prefer external notes for paths, identifiers, and audit detail that compact
   shapes cannot hold with dignity.
+- Apply `evidence-diagrams.md` when connectors or bounded nodes are present.
 
 ## Responsive And Motion Principles
 

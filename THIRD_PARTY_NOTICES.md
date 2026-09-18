@@ -53,7 +53,13 @@ through `uv`.
   - `skills/causal-explanation`, adapted from
     `pstack/skills/why/SKILL.md` and `pstack/skills/how/SKILL.md`
 
+  - `skills/prose-quality`, adapted from `pstack/skills/unslop/SKILL.md`
+    and `pstack/skills/technical-writing/SKILL.md`
+
 The full pstack MIT notice is retained in each listed skill's `LICENSE.txt`.
+The prose packet also retains its detailed source and adaptation record in
+`skills/prose-quality/references/source-and-license.md`. Credited writing
+books and standards are reference influences, not redistributed content.
 
 ## Matt Pocock skills
 

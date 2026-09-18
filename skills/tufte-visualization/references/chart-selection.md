@@ -2,12 +2,19 @@
 
 Choose a comparison architecture, not a fashionable chart type. Prefer designs that let the eye compare positions along common scales.
 
+## Contents
+
+- Selection map and default redesign moves
+- Time series, data sufficiency, slopegraphs, small multiples, and sparklines
+- Scatterplots, distributions, estimates, and uncertainty
+- Maps, network and causal diagrams, and responsive translation
+
 ## Selection Map
 
 | Analytical task | Preferred architecture | Avoid by default |
 | --- | --- | --- |
-| Compare magnitudes across categories | Sorted dot plot, lollipop, horizontal bar when zero baseline matters, table with in-cell bars | Pie or donut, radial chart, 3D bar, unsorted columns |
-| Show change over time | Line chart, horizon or sparkline table, indexed line, small multiples | Area chart when overlap hides values, undisclosed smoothing |
+| Compare magnitudes across categories | Sorted dot plot, horizontal bar when zero baseline matters, table with in-cell bars; lollipop only when its stem carries useful baseline context | Pie or donut, radial chart, 3D bar, unsorted columns |
+| Show change over time | Line chart for genuine continuity, sparkline table, indexed line, small multiples | Area chart when overlap hides values, undisclosed smoothing; horizon chart without dense-series need and reader familiarity |
 | Compare two time points | Slopegraph, paired dot plot, before/after table | Grouped bars with heavy legend, arrows without values |
 | Compare many groups over time | Small multiples with common scales, sparkline table | Spaghetti chart unless few series; tabs that hide comparisons |
 | Show distribution | Dot or strip plot, histogram, box plot plus raw points | Mean-only bar chart, decorative violin without explanation |
@@ -16,6 +23,12 @@ Choose a comparison architecture, not a fashionable chart type. Prefer designs t
 | Show composition | Small multiples of parts, simple stacked bars, part-to-whole table | Exploded pie, stacked area with many layers |
 | Show geography | Map when geography explains the result; sorted table or dot plot otherwise | Choropleth for non-spatial ranking tasks |
 | Monitor KPIs | Dense table with current value, prior value, target, trend, exceptions | Gauges, dials, traffic lights, giant numbers without context |
+| Compare actual with target or benchmark | Dot with reference, bullet-like linear display, compact variance table | Gauge, unscaled status icon, target encoded only by color |
+| Explain contribution to additive change | Reconciled waterfall, signed contribution bars, variance table | Waterfall when components do not reconcile to the total |
+| Compare a cohort or two-dimensional matrix | Ordered heatmap with labels, matrix table, small multiples | Unordered color grid with no value lookup |
+| Show ordered stage progression | Stage bars or stage table with explicit denominators | Funnel whose changing geometry obscures stage denominators |
+| Show flow between states | Sankey or alluvial only for real direction and conserved quantity; transition table otherwise | Decorative ribbons, implied conservation, unsupported causal arrows |
+| Show schedule, spans, or dependencies | Gantt, milestone timeline, or dependency view according to the question | Generic project boxes disconnected from time or dependency evidence |
 | Explain causal structure | Annotated diagram with verb-labeled links and evidence notes | Generic arrows implying causality without evidence |
 
 ## Default Redesign Moves
@@ -37,8 +50,22 @@ Choose a comparison architecture, not a fashionable chart type. Prefer designs t
 - Use dots or bars for discrete periods when individual observations matter.
 - Label lines directly at endpoints when possible.
 - Mark regime changes, measurement changes, missing gaps, and meaningful thresholds.
-- Use small multiples when more than five to seven series compete.
+- Use small multiples when overlap, near-coincidence, or decoding burden makes
+  the lines ambiguous. Series count alone is not a sufficient threshold.
 - Consider indexing to a common baseline for relative change.
+
+## Data Sufficiency And Continuity
+
+- For two meaningful periods, prefer a paired dot plot, slopegraph, or table.
+- For a handful of discrete periods, prefer dots, bars, or a table unless
+  continuity is genuinely the question.
+- If there are too few observations to reveal scatterplot structure, use a
+  labeled dot plot, table, or prose.
+- For sparse distributions, show raw points rather than a smooth density.
+- If denominator, coverage, or observation maturity is inadequate, suppress or
+  qualify the visual claim rather than inventing precision.
+- A line is a continuity claim. Do not connect categories, incomplete periods,
+  or isolated observations merely because the software defaults to a line.
 
 ## Slopegraphs
 
@@ -105,10 +132,10 @@ Use slopegraphs for two-point or few-point comparisons where the gradient is the
 - Treat every line and arrow as a claim.
 - Label links with verbs or relationship types when possible.
 - Encode strength, direction, time, uncertainty, or evidence quality when they matter.
-- Anchor connectors to deliberate points on the source and target marks; avoid floating endpoints, near-misses, and arrowheads that appear to attach to the wrong object.
-- Apply arrowheads, line styles, and emphasis per relationship when direction or meaning differs; inherited styling can create unintended claims.
 - Include citations or notes for contested links.
 - Do not let crisp nodes and generic arrows imply more knowledge than exists.
+- Apply `evidence-diagrams.md` for connector semantics, attachment geometry,
+  bounded text, and native-resolution rendered QA.
 
 ## Responsive Translation
 

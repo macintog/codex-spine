@@ -1,6 +1,6 @@
 # Same name, different contract
 
-`validated registered task → commit → publish or integrate → prove → retire`
+`validated task → ready review → remote-tip and task evidence → local retirement`
 
 `codex-spine` deliberately recycles `yeet`, familiar shorthand for "ship this,"
 for an operation built around its managed Git lifecycle. The name is reused;
@@ -26,9 +26,9 @@ lifecycle, including proof and task retirement.
 | Public OpenAI packets | `codex-spine` `yeet` |
 | --- | --- |
 | Act on the current checkout and branch. | Binds one registered managed task with a recorded isolation baseline. |
-| May run checks or install missing dependencies while publishing. | Reuses the working task's existing validation and stops when that proof is missing or failed. |
-| Push to GitHub and normally open a draft pull request. | Uses the repository's configured remote and task class for a ready review or a preselected integration. |
-| Finish after reporting the branch, commit, and pull request. | Proves the exact remote result, reconciles project coordination state, resumes safely after interruption, re-homes the session, and retires only task-owned local state. |
+| May run checks or install missing dependencies while publishing. | Reuses working-task validation; the root performs necessary integration checks when the exact integration tree changes. |
+| Push to GitHub and normally open a draft pull request. | Uses the selected completion intent: tested ready PR delivery and local retirement by default; integration only when selected or deliberately configured. |
+| Finish after reporting the branch, commit, and pull request. | Proves the exact remote result, persists durable task/queue evidence, resumes safely after interruption, re-homes the session, and retires the transaction's disposable local state and, for selected integration, eligible closed remote review refs. |
 
 `codex-spine` borrowed the short, useful name for the "take this all the way
 through" intent. The behavior, implementation, and safety contract come from

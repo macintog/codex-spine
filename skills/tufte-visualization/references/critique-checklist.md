@@ -2,6 +2,13 @@
 
 Use this checklist when reviewing an existing visualization or doing final QA before delivery.
 
+## Contents
+
+- Reading situation, truth, and analytical usefulness
+- Visual economy, anti-reflex taste, and craft
+- Accessibility, common failure modes, and completion grade
+- Final standard
+
 ## Reading Situation And House Style
 
 - Is the audience, medium, final size, viewing distance, and interaction model
@@ -20,9 +27,16 @@ Use this checklist when reviewing an existing visualization or doing final QA be
   rather than represented by generic error bars?
 - Are missing values or discontinuities visible?
 - Are denominators and units explicit?
+- Are base values and absolute deltas shown when relative change could distort
+  practical magnitude?
+- Are percent change and percentage-point change labeled correctly?
 - Would a skeptical reader know where the data came from?
 - Is the time window analytically justified rather than cherry-picked?
+- Are complete and partial periods, freshness, timezone, and observation
+  maturity handled honestly where material?
 - Are selected examples, top-N filters, and excluded groups declared?
+- Are metric definitions, populations, denominators, periods, units,
+  aggregation levels, and weighting actually comparable?
 
 ## Analytical Usefulness
 
@@ -35,6 +49,10 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Are annotations attached to evidence rather than floating as decoration?
 - Is the unit of analysis clear?
 - Is the default view complete enough without interaction?
+- Does the visible title, caption, and text equivalent match the active filters,
+  date range, cohort, denominator, scenario, and freshness?
+- Are interpretation-critical evidence and adjacent documentation preserved in
+  static export and responsive sibling compositions?
 
 ## Visual Economy
 
@@ -61,7 +79,8 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 
 - Is typography consistent and calm?
 - Are labels collision-free at final size?
-- Do arrows, connectors, callouts, brackets, and leader lines attach to the intended evidence without overlaps, near-misses, or inherited styles that change meaning?
+- For diagrams, was `evidence-diagrams.md` applied to connector semantics,
+  attachment, bounded text, and native-resolution crops?
 - Are margins adequate?
 - Are small multiples aligned and scaled consistently?
 - Were materially different print, desktop, mobile, or presentation outputs
@@ -70,15 +89,6 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Is the output format appropriate: vector for publication, high-resolution raster only when needed?
 - Are titles specific and factual?
 - Are source notes and caveats close enough to the figure?
-
-### Connector And Bounded-Text Geometry
-
-- Reserve whitespace channels for curves, arrows, spokes, leaders, brackets, and rules. They must not cross text, labels, unrelated boundaries, panel rules, table cells, or non-target marks.
-- Leave a visible air gap between connector endpoints or arrowheads and bounded marks. Marker geometry extends past mathematical path endpoints.
-- Inspect native-resolution crops around connector-label, connector-boundary, and connector-crossing relationships. One collision triggers inspection of every similar connector class.
-- Prove the longest bounded label fits inside a conservative safe zone. SVG and canvas text do not wrap automatically; move dense identifiers or file paths to external notes when needed.
-- Repair contact by shortening, offsetting, rerouting, using detached leaders or brackets, externalizing labels, replacing arrows with ordered labels, or removing the connector.
-- Re-render and re-inspect the same close-up after every repair. Source validity, z-order, white masks, or technical legibility do not override a visible defect.
 
 ## Accessibility
 
@@ -107,6 +117,16 @@ Use this checklist when reviewing an existing visualization or doing final QA be
 - Faux-book styling used as a substitute for evidence design.
 - Desktop figures mechanically shrunk until labels, notes, or uncertainty
   disappear on smaller outputs.
+
+## Completion Grade
+
+- Is the claimed grade limited to the checks actually demonstrated?
+- For reviewed work, were computation, chart form, and final-size rendering
+  checked?
+- For decision-grade work, are provenance, vintage, reproducibility, active
+  state, uncertainty or sensitivity, and a synchronized text equivalent proved?
+- For publication-grade work, were editorial and citation review, every target
+  size and export, and format-specific accessibility checks completed?
 
 ## Final Standard
 

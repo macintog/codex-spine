@@ -1,6 +1,6 @@
 interface:
   display_name: "Yeet"
-  short_description: "Validated task → commit → publish/integrate → prove → retire"
-  default_prompt: "Use $yeet to commit, publish or integrate, prove, and retire this validated registered task."
+  short_description: "Publish PR revisions or finish the selected Git outcome"
+  default_prompt: "Use $yeet to complete this validated registered task through tested ready PR delivery and owned local retirement; integrate only when explicitly selected or deliberately configured, and honor wait or review-only instructions."
 policy:
-  allow_implicit_invocation: false
+  allow_implicit_invocation: true

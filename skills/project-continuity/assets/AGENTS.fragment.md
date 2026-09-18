@@ -6,7 +6,9 @@ Routine startup context for this project is:
 
 1. the applicable `AGENTS.md` and `AGENTS.override.md` chain for the current working directory
 2. `PROJECT_CONTINUITY.md`
-3. `CHECKPOINT.md`
+3. volatile checkpoint state resolved through the installed environment's declared checkpoint resolver; when no resolver is declared, `CHECKPOINT.md` as advisory prior state
+
+When `codex-project-checkpoint` owns checkpoint resolution, run `codex-project-checkpoint show --repo .`. Read root `CHECKPOINT.md` directly only when it reports `not_adopted`; for an adopted resolver error, do not fall back to tracked prose.
 
 ## Working Rules
 
@@ -31,7 +33,7 @@ Routine startup context for this project is:
 
 - `README.md`: human entrypoint
 - `PROJECT_CONTINUITY.md`: durable purpose, strategy, constraints, and authority; update only for durable change
-- `CHECKPOINT.md`: advisory prior state, evidence, blockers, and a non-directive next-step candidate; never current-task authority
+- Checkpoint state: advisory prior state, evidence, blockers, and a non-directive next-step candidate; never current-task authority. When adopted by a resolver, root `CHECKPOINT.md` is a discovery stub, not the live handoff.
 - Native documentation tree: durable architecture, decisions, safety, and operations
 - Archive: themed historical evidence; move displaced history here and leave a narrow pointer
 - Environment-specific declarations: use only when their schema and owner are explicitly defined

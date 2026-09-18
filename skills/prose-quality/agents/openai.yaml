@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prose Quality"
+  short_description: "Make consequential prose clear and specific"
+  default_prompt: "Use $prose-quality to revise this prose without changing its meaning or evidence boundary."

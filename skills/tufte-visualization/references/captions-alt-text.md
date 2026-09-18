@@ -74,5 +74,9 @@ CSV the only explanation of the visual claim.
   and text equivalent.
 - Keep captions and alternatives synchronized with the final filtered or
   exported state.
+- For dynamic views, synchronize the active date range, filters, selected
+  cohort or series, denominator, scenario, freshness, exceptions, and
+  missingness. A generic static description is not equivalent after the
+  analytical state changes.
 - Verify the delivered SVG, HTML, PDF, slide, document, or image accessibility
   surface rather than assuming authoring metadata survived export.

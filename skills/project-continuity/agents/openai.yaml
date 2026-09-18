@@ -1,6 +1,6 @@
 interface:
   display_name: "Project Continuity"
-  short_description: "Keep continuity subject-bound and non-recursive"
-  default_prompt: "Use $project-continuity to inspect or repair this project's continuity packet without letting stale or nested artifacts select work."
+  short_description: "Keep project purpose, state, and handoffs trustworthy"
+  default_prompt: "Use $project-continuity to inspect this project's continuity, identify decisions that stale or missing context could distort, and recommend the smallest repair."
 policy:
   allow_implicit_invocation: true

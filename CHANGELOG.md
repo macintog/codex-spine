@@ -2,6 +2,12 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.5.7
+
+Add prose editing and measured performance-tradeoff skills. Refresh architecture,
+visualization, and Git delivery guidance, including publishing a PR revision
+while review continues. Strengthen checkpoint preservation and Git cleanup.
+
 ## 0.5.6
 
 This release keeps historical memory retrieval inside the active project and

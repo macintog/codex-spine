@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Read-only continuity front door with named generic and project checks."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CHECKPOINT_CLI = REPO_ROOT / "bin" / "codex-project-checkpoint"
+PACKET_AUDITOR = REPO_ROOT / "skills" / "project-continuity" / "scripts" / "audit-continuity.py"
+PROJECT_VERIFIER = Path("Scripts/verify-continuity.py")
+
+
+class InvocationError(RuntimeError):
+    pass
+
+
+class TypedArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise InvocationError(message)
+
+
+def compact_json(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+
+def redacted_argv(argv: list[str]) -> list[str]:
+    redacted: list[str] = []
+    redact_next = False
+    for item in argv:
+        if redact_next:
+            redacted.append("<redacted>")
+            redact_next = False
+        elif item.startswith("--") and "=" in item:
+            redacted.append(item.split("=", 1)[0] + "=<redacted>")
+        elif item in {"inspect", "show", "--json", "--run-project-contract"}:
+            redacted.append(item)
+        elif item.startswith("--"):
+            redacted.append(item)
+            redact_next = True
+        else:
+            redacted.append("<redacted>")
+    return redacted
+
+
+def repo_identity(root: Path) -> dict[str, str]:
+    result = run(["git", "-C", str(root), "rev-parse", "HEAD"], cwd=root)
+    identity = {"repo_root": str(root)}
+    if result.returncode == 0 and result.stdout.strip():
+        identity["head_sha"] = result.stdout.strip()
+    return identity
+
+
+def execution_evidence(argv: list[str], started: float, root: Path | None) -> dict[str, Any]:
+    evidence: dict[str, Any] = {
+        "argv": redacted_argv(argv),
+        "authority_mode": os.environ.get("CODEX_AUTHORITY_MODE", "ambient"),
+        "command": "codex-continuity",
+        "cwd": str(Path.cwd().resolve()),
+        "duration_ms": round((time.monotonic() - started) * 1000, 3),
+        "flags": sorted({item.split("=", 1)[0] for item in argv if item.startswith("--")}),
+        "input_identity": repo_identity(root) if root else "not_evaluated",
+        "retry_relationship": os.environ.get("CODEX_RETRY_RELATIONSHIP", "none"),
+        "side_effect_ids": [],
+    }
+    runtime_id = os.environ.get("CODEX_RUNTIME_PROCESS_ID")
+    if runtime_id:
+        evidence["runtime_process_id"] = runtime_id
+    return evidence
+
+
+def run(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, check=False)
+
+
+def parse_json_result(result: subprocess.CompletedProcess[str]) -> dict[str, Any] | None:
+    raw = result.stdout.strip() or result.stderr.strip()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def inspect_checkpoint(root: Path) -> dict[str, Any]:
+    result = run(
+        [sys.executable, "-B", str(CHECKPOINT_CLI), "doctor", "--repo", str(root), "--json"],
+        cwd=root,
+    )
+    payload = parse_json_result(result)
+    if payload is None:
+        return {"status": "internal_error", "detail": "checkpoint resolver returned invalid output"}
+    return {
+        "status": "pass" if result.returncode == 0 else "blocked",
+        "operation_status": payload.get("operation_status", "internal_error"),
+        "target_state": payload.get("target_state", payload.get("state", "unknown")),
+    }
+
+
+def inspect_packet(root: Path) -> dict[str, Any]:
+    result = run(
+        [sys.executable, "-B", str(PACKET_AUDITOR), "--root", str(root), "--json"],
+        cwd=root,
+    )
+    payload = parse_json_result(result)
+    if payload is None:
+        return {"status": "internal_error", "detail": "packet auditor returned invalid output"}
+    return {
+        "status": "pass" if payload.get("result") == "pass" else str(payload.get("result", "fail")),
+        "posture": str(payload.get("posture", "undetermined")),
+        "findings": payload.get("findings", []),
+    }
+
+
+def inspect_project_contract(root: Path, *, execute: bool) -> dict[str, Any]:
+    verifier = root / PROJECT_VERIFIER
+    if not verifier.is_file():
+        return {"status": "not_applicable", "detail": "no repo-owned Scripts/verify-continuity.py"}
+    if not execute:
+        return {
+            "status": "available_not_run",
+            "detail": "trusted repo-owned verifier is available; default inspection does not execute project code",
+            "path": str(PROJECT_VERIFIER),
+        }
+    child_env = os.environ.copy()
+    child_env["CODEX_CONTINUITY_READ_ONLY"] = "1"
+    result = run(
+        [sys.executable, "-B", str(verifier), "--root", str(root)],
+        cwd=root,
+        env=child_env,
+    )
+    output = (result.stdout + result.stderr).encode("utf-8")
+    return {
+        "status": "pass" if result.returncode == 0 else "fail",
+        "detail": "repo-owned continuity verifier passed" if result.returncode == 0 else "repo-owned continuity verifier failed",
+        "exit_code": result.returncode,
+        "output_sha256": hashlib.sha256(output).hexdigest(),
+    }
+
+
+def inspect(
+    root: Path,
+    *,
+    argv: list[str],
+    started: float,
+    run_project_contract: bool,
+) -> dict[str, Any]:
+    subchecks = {
+        "checkpoint": inspect_checkpoint(root),
+        "packet": inspect_packet(root),
+        "project_contract": inspect_project_contract(root, execute=run_project_contract),
+    }
+    statuses = {str(item.get("status")) for item in subchecks.values()}
+    if statuses & {"fail", "stale", "blocked", "internal_error"}:
+        target_status = "fail"
+    elif "available_not_run" in statuses:
+        target_status = "attention"
+    else:
+        target_status = "pass"
+    return {
+        "mutation": False,
+        "operation_status": "completed",
+        "repo": str(root),
+        "trusted_project_code_executed": run_project_contract,
+        "subchecks": subchecks,
+        "target_status": target_status,
+        "execution": execution_evidence(argv, started, root),
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    common = TypedArgumentParser(add_help=False)
+    common.add_argument("--repo", default=argparse.SUPPRESS)
+    common.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
+    common.add_argument(
+        "--run-project-contract",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="execute trusted repo-owned verification code under its documented read-only contract",
+    )
+    parser = TypedArgumentParser(description="Run the read-only continuity checks for one exact repository.", parents=[common])
+    actions = parser.add_subparsers(dest="command", required=True, parser_class=TypedArgumentParser)
+    for name in ("inspect", "show"):
+        actions.add_parser(name, parents=[common])
+    return parser
+
+
+def main() -> int:
+    started = time.monotonic()
+    raw_argv = sys.argv[1:]
+    try:
+        args = build_parser().parse_args()
+    except InvocationError as exc:
+        if "--json" in sys.argv[1:]:
+            print(
+                compact_json(
+                    {
+                        "mutation": False,
+                        "operation_status": "invalid_invocation",
+                        "reason": "argument_parse_error",
+                        "target_status": "not_evaluated",
+                        "execution": execution_evidence(raw_argv, started, None),
+                    }
+                ),
+                file=sys.stderr,
+            )
+        else:
+            print(f"codex-continuity: invalid invocation: {exc}", file=sys.stderr)
+        return 2
+    root = Path(getattr(args, "repo", ".")).expanduser().resolve()
+    payload = inspect(
+        root,
+        argv=raw_argv,
+        started=started,
+        run_project_contract=bool(getattr(args, "run_project_contract", False)),
+    )
+    if getattr(args, "json", False):
+        print(compact_json(payload))
+    else:
+        print(f"continuity {args.command}: {payload['target_status']} mutation=false repo={root}")
+        for name, result in payload["subchecks"].items():
+            detail = result.get("detail") or result.get("target_state") or result.get("posture", "")
+            print(f"- {name}: {result['status']} {detail}".rstrip())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

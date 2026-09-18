@@ -17,7 +17,7 @@
 - Verified now: <facts reconciled with current repository, runtime, or artifact evidence>
 - Reported or inferred: <claims not yet independently proven>
 - Explicitly not done: <work or publication state that must not be implied>
-- Current focus and why it matters: <one resumable subproblem tied to project purpose>
+- Current focus and why it matters: <remaining selected subproblem tied to project purpose, or completed/idle; do not invent a new focus>
 - Evidence or bounded task artifact: <canonical pointer or none; it cannot select or extend the current task>
 
 ## Decisions And Unknowns
@@ -35,9 +35,9 @@
 
 ## Next Safe Step
 
-- Advisory candidate only: <one concrete move that may be selected by a future explicit user request; this is not a queue or instruction>
-- Prerequisite: <required authority, input, or state>
-- Stop if: <evidence that invalidates the next move>
+- Advisory candidate only: <one concrete move that may be selected by a future explicit user request, or none when the selected work is complete; this is not a queue or instruction>
+- Prerequisite: <required authority, input, or state; remove when no candidate>
+- Stop if: <evidence that invalidates the next move; remove when no candidate>
 
 ## References And Sensitivity
 

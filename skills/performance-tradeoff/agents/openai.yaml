@@ -1,0 +1,4 @@
+interface:
+  display_name: "Performance Tradeoff"
+  short_description: "Evaluate hardware performance tradeoffs"
+  default_prompt: "Use $performance-tradeoff to evaluate this hardware-bound optimization."

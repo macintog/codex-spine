@@ -43,6 +43,8 @@ codex-spine/
 │   ├── causal-explanation/     # Evidence-calibrated why/how explanations
 │   ├── improve-codebase-architecture/ # Architecture deepening and interface review
 │   ├── skill-authoring-quality/ # Portable skill governance and audit workflow
+│   ├── prose-quality/         # Source-preserving prose editing and references
+│   ├── performance-tradeoff/   # Comparable measurement and optimization acceptance
 │   └── tufte-visualization/    # Evidence-first visualization skill and references
 ├── bin/                        # Durable wrappers and managed launcher entrypoints
 ├── shell/
@@ -134,8 +136,8 @@ The upstream [@jgravelle/jcodemunch-mcp](https://github.com/jgravelle/jcodemunch
 - `README.md` and `Makefile` are the public operator entrypoints; common commands dispatch into `scripts/`.
 - `codex/AGENTS.md` is the compact startup and operating policy for installed public use.
 - `codex/TOOLING.md` is the public on-demand guide for continuity, memory retrieval, indexed navigation, and managed Git lifecycle.
-- The seven declared trees under `skills/` are reusable public skill payloads.
-- `bin/codex-git-safe`, its public library modules, and the bundled Gitea helpers implement the `yeet` terminal transaction. GitHub review mechanics remain connector-owned and can be recorded through `review-import`.
+- The nine declared trees under `skills/` are reusable public skill payloads.
+- `bin/codex-git-safe`, its public library modules, and the bundled Gitea helpers implement the `yeet` terminal transaction. GitHub review mechanics remain connector-owned; ordinary connector-created reviews are recorded with `review-ready`, while `review-import` is reserved for integration tasks.
 - Repo-specific release, review, and local Git workflows stay outside the installed operating contract unless this repo documents them directly.
 
 That split is intentional. The public repo should explain installed product behavior and reusable workflow patterns without turning its docs into project-management history.
@@ -168,12 +170,13 @@ This skill is reusable scaffolding. It does not mean `codex-spine` itself owns t
 
 `validated registered task → commit → publish or integrate → prove → retire`
 
-This explicit-only tree ships that terminal transaction contract:
+This tree ships that terminal transaction contract:
 
-- `SKILL.md` limits `yeet` to the operator's exact instruction and forbids it
-  from running product tests or broad gates.
+- `SKILL.md` distinguishes publication during an active review from terminal
+  delivery; `references/terminal-delivery.md` owns the designated worker, proof,
+  and retirement contract. Product validation stays with the working task.
 - `bin/codex-git-safe` and `lib/codex_git_safe.py` own the resumable managed
-  worktree, commit, review/integration, proof, checkpoint, and retirement flow.
+  worktree, commit, review, proof, and owned retirement flow; selected integration adds keeper and shared-checkpoint proof.
 - The bundled Gitea helpers provide a direct hosted-review lane; GitHub review
   creation remains with the installed connector and can be imported into the
   lifecycle record.
@@ -192,6 +195,12 @@ retired `multi-step` controller and its recursive packet model do not ship.
 - `skills/skill-authoring-quality/` audits skill routing, packet structure,
   prompt economy, distribution, provenance, and collision safety.
 
+- `skills/prose-quality/` edits substantive writing without changing facts,
+  authority, or literal evidence.
+- `skills/performance-tradeoff/` compares hardware-bound candidates against
+  equivalent baselines and distinguishes measured capacity gains from memory
+  reductions alone.
+
 Adapted packets retain self-contained upstream notices and are indexed in
 `THIRD_PARTY_NOTICES.md`.
 
@@ -209,7 +218,7 @@ This skill is guidance for producing or reviewing evidence displays. It does not
 
 - [@tobi/qmd](https://github.com/tobi/qmd) and memory are part of the default public core.
 - Public skills ship under `skills/` as reusable scaffolding and guidance; the actual continuity packet files still live in the repo being worked in.
-- The public skill payload is intentionally declared and verifier-owned: `project-continuity`, `yeet`, `change-impact`, `causal-explanation`, `improve-codebase-architecture`, `skill-authoring-quality`, and `tufte-visualization`, plus only their declared resources. The retired `multi-step` packet is prohibited.
+- The public skill payload is intentionally declared and verifier-owned: `project-continuity`, `yeet`, `change-impact`, `causal-explanation`, `improve-codebase-architecture`, `skill-authoring-quality`, `tufte-visualization`, `prose-quality`, and `performance-tradeoff`, plus only their declared resources. The retired `multi-step` packet is prohibited.
 - `memory` is the only public MCP surface for transcript retrieval; `qmd-codex` remains an internal adapter.
 - Built-in Codex memories remain disabled by default; retained generated state under `~/.codex/memories/` is historical evidence only, and an intentional user-owned opt-in belongs in `codex/config/90-local.toml` rather than project guidance.
 - The optional jGravelle Munch MCP suite is optional but first-class.

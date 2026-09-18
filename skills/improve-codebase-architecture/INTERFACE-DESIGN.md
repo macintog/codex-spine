@@ -16,14 +16,12 @@ Before proposing designs, summarize:
 
 ### 2. Generate Alternatives
 
-Produce at least three meaningfully different interface designs:
+Compare meaningfully different interface designs only where they resolve a real tradeoff; use the current design as a baseline. Useful shapes include:
 
 - Minimal interface: 1 to 3 entry points with high depth per entry point.
 - Flexible interface: more extension points where real variation exists.
 - Common-case interface: make the normal caller path trivial.
 - Ports-and-adapters interface when remote owned dependencies or true externals dominate the seam.
-
-Use subagents for these alternatives only when the user explicitly asked for workers or parallel agent work.
 
 Each design should include:
 
@@ -31,7 +29,7 @@ Each design should include:
 2. Usage example.
 3. What the implementation hides behind the seam.
 4. Dependency and adapter strategy.
-5. Tradeoffs in depth, locality, and seam placement.
+5. Tradeoffs in depth, locality, seam placement, and remaining implementation or operational burden.
 
 ### 3. Recommend
 

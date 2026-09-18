@@ -18,7 +18,7 @@ UTC = timezone.utc
 
 
 HOME = Path.home()
-SCRATCH_ROOT = HOME / ".codex" / "worktrees"
+SCRATCH_ROOT = (HOME / ".codex" / "worktrees").resolve(strict=False)
 SCRATCH_REGISTRY_PATH = SCRATCH_ROOT / "registry.json"
 SCRATCH_RESCUE_ROOT = HOME / ".codex" / "rescue" / "parked-state"
 EPHEMERAL_CHECKOUT_ROOTS = tuple(
@@ -36,6 +36,10 @@ SESSIONS_ROOT = HOME / ".codex" / "sessions"
 RECENT_SESSION_LOOKBACK = timedelta(hours=24)
 
 
+class RegistryError(RuntimeError):
+    """An existing coordination registry cannot safely be consumed or replaced."""
+
+
 def atomic_write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=str(path.parent), delete=False) as handle:
@@ -45,12 +49,19 @@ def atomic_write_text(path: Path, content: str) -> None:
 
 
 def load_registry() -> dict:
-    if not SCRATCH_REGISTRY_PATH.exists():
-        return {"schema_version": 1, "entries": {}}
     try:
-        return json.loads(SCRATCH_REGISTRY_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        payload = json.loads(SCRATCH_REGISTRY_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
         return {"schema_version": 1, "entries": {}}
+    except PermissionError:
+        raise
+    except (json.JSONDecodeError, UnicodeError, OSError) as exc:
+        raise RegistryError(f"cannot read scratch registry {SCRATCH_REGISTRY_PATH}: {exc}; existing bytes retained") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("entries", {}), dict):
+        raise RegistryError(f"invalid scratch registry {SCRATCH_REGISTRY_PATH}: expected an object with an entries object")
+    if not all(isinstance(value, dict) for value in payload.get("entries", {}).values()):
+        raise RegistryError(f"invalid scratch registry {SCRATCH_REGISTRY_PATH}: each entry must be an object")
+    return payload
 
 
 def save_registry(payload: dict) -> None:
@@ -61,15 +72,21 @@ def save_registry(payload: dict) -> None:
 
 
 def load_index_registry() -> dict:
-    if not INDEX_REGISTRY_PATH.exists():
-        return {"version": 1, "discovery_roots": [], "projects": []}
     try:
         content = INDEX_REGISTRY_PATH.read_text(encoding="utf-8")
-        if not content.strip():
-            return {"version": 1, "discovery_roots": [], "projects": []}
         payload = tomllib.loads(content)
-    except (tomllib.TOMLDecodeError, OSError):
+    except FileNotFoundError:
         return {"version": 1, "discovery_roots": [], "projects": []}
+    except PermissionError:
+        raise
+    except (tomllib.TOMLDecodeError, UnicodeError, OSError) as exc:
+        raise RegistryError(f"cannot read index registry {INDEX_REGISTRY_PATH}: {exc}; existing bytes retained") from exc
+    for field in ("discovery_roots", "projects"):
+        if field in payload and (
+            not isinstance(payload[field], list)
+            or not all(isinstance(item, str) and item for item in payload[field])
+        ):
+            raise RegistryError(f"invalid index registry {INDEX_REGISTRY_PATH}: {field} must be an array of non-empty strings")
     payload.setdefault("version", 1)
     payload.setdefault("discovery_roots", [])
     payload.setdefault("projects", [])

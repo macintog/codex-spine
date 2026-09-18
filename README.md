@@ -4,7 +4,7 @@ Managed Codex environment for macOS. Install it on the Mac where you already run
 
 Every new chat starts blank. Paste old threads and the model treats last month's notes as today's plan. Leave them out and it forgets the decision you already made. `codex-spine` keeps a local index of your Codex transcripts and searches it when you ask about the past. It does not dump the archive into every thread. What you are doing now still comes from this chat and the files on disk.
 
-It also installs seven skills for work that goes badly when the model freestyles: project handoff, Git closeout, change impact, causal writeups, architecture cleanup, skill authoring, and evidence-heavy charts. They are ordinary Codex skills, not a second agent.
+It also installs nine skills for work that goes badly when the model freestyles: project handoff, Git closeout, change impact, causal writeups, architecture cleanup, skill authoring, evidence-heavy charts, prose editing, and performance tradeoffs. They are ordinary Codex skills, not a second agent.
 
 `make install` is the setup path. It writes a rendered `~/.codex/config.toml`, links the skills, enables the memory MCP, and loads a LaunchAgent that keeps the transcript index current. Skip this repo if you do not run Codex on a Mac, or if you do not want an installer that can touch Homebrew, your Codex config, and launchd.
 
@@ -40,6 +40,8 @@ Install turns Codex thread JSON into Markdown, indexes user and assistant turns,
 
 It searches that index when you ask about the past. It does not pour old threads into every new chat. What is true in this repo right now still comes from the files and Git refs in front of you.
 
+`codex-continuity inspect --repo <path> --json` is the single read-only continuity inspection front door. It runs the checkpoint and packet checks, reports repo-owned verification code as `available_not_run`, classifies that incomplete target as `attention`, and never executes project code by default. Its `show` alias is observational too, and neither action repairs state. Add `--run-project-contract` only as an explicit opt-in for trusted repo-owned code that honors the documented read-only contract.
+
 Exact names use lexical search first, then one source read. Semantic search is the fallback if that misses. QMD bounds the retrieved excerpt. Writing the answer can still take most of the time and tokens.
 
 Built-in Codex memories are disabled by the base config. Files retained under `~/.codex/memories/` are historical app-managed state and are not routed into work unless the current user explicitly asks about them. Use `/memories` or `codex/config/90-local.toml` if you want to opt back in.
@@ -60,20 +62,24 @@ Interactive install offers the suite early and defaults to yes. If you opt in, t
 
 The managed overlay runs compatible upstream releases under `<2.0` through `uv`. It also writes the default jCodeMunch profile to `~/.code-index/config.jsonc` and keeps anonymous docs/data savings sharing disabled. A repo-local `.jcodemunch.jsonc` can widen the default core profile when a project needs more tools.
 
+jCode project calls bind to the unique exact `(resolved source_root, git_head)` pair for the current checkout root and `HEAD`. Multiple retained generations may share one source root; matching filters by the pair first and fails closed if zero or multiple exact pairs remain.
+
 The suite is optional. `codex-spine` remains fully usable without it, and the upstream projects retain their own terms, including any commercial-use restrictions.
 
 ### Public workflow skills
 
-`make install` places seven reusable skill trees under `~/.codex/skills/`:
+`make install` places nine reusable skill trees under `~/.codex/skills/`:
 
 | Skill | Use it when |
 | --- | --- |
 | `project-continuity` | Long-lived repo: purpose, local rules, and a handoff that is not stuck to one worktree. |
-| `yeet` | Validated task → commit → publish or integrate → prove → retire. |
+| `yeet` | Publish a validated PR revision and continue review, or finish the selected task through proven delivery and owned retirement. |
 | `change-impact` | A change crosses interfaces, schemas, permissions, release boundaries, or several downstream consumers. |
 | `causal-explanation` | Why something already behaves this way, with the evidence named. |
 | `improve-codebase-architecture` | When you want architecture, terminology, interface, or testability improvements. |
 | `skill-authoring-quality` | When you are creating or auditing a portable Codex skill. |
+| `prose-quality` | When drafting or editing substantive writing while preserving facts and literal source material. |
+| `performance-tradeoff` | When judging latency, memory, capacity, or hardware tradeoffs from comparable measurements. |
 | `tufte-visualization` | When you are creating or critiquing an evidence-rich chart, dashboard, map, or report. |
 
 Skills are session guidance and scaffolding, not background services or MCP servers. See each tree under `skills/` for its full contract, references, and assets.
@@ -86,7 +92,7 @@ Skills are session guidance and scaffolding, not background services or MCP serv
 - checks `~/.codex/config.toml` before broader changes and asks how to handle an existing unmanaged config
 - installs Homebrew when needed, then installs missing baseline packages: `ripgrep`, `python`, `node`, `pnpm`, `uv`, and `jq`
 - creates missing local overlay examples
-- manages symlinks under `~/.codex/` and `~/.local/bin/`, including the shipped skills and `codex-git-safe`
+- manages symlinks under `~/.codex/` and `~/.local/bin/`, including the shipped skills, `codex-git-safe`, and `codex-task-temp` for creation-time ownership of disposable task scratch
 - manages `~/.config/uv/uv.toml` with `exclude-newer = "7 days"` as the default package quarantine and compatibility overrides for the optional Munch suite
 - updates managed blocks in `~/.zprofile` and `~/.zshrc` when the detected login shell is `zsh`
 - renders the final managed `~/.codex/config.toml`

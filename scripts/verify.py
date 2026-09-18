@@ -66,12 +66,23 @@ PUBLIC_SKILL_DIRS = frozenset(
         "change-impact",
         "improve-codebase-architecture",
         "project-continuity",
+        "prose-quality",
+        "performance-tradeoff",
         "skill-authoring-quality",
         "tufte-visualization",
         "yeet",
     }
 )
 PUBLIC_REQUIRED_SKILL_SENTINELS = (
+    ("prose-quality", "SKILL.md"),
+    ("prose-quality", "agents/openai.yaml"),
+    ("prose-quality", "LICENSE.txt"),
+    ("prose-quality", "references/source-and-license.md"),
+    ("prose-quality", "references/prose-patterns.md"),
+    ("prose-quality", "references/technical-prose.md"),
+    ("performance-tradeoff", "SKILL.md"),
+    ("performance-tradeoff", "agents/openai.yaml"),
+    ("yeet", "references/terminal-delivery.md"),
     ("change-impact", "SKILL.md"),
     ("change-impact", "LICENSE.txt"),
     ("causal-explanation", "SKILL.md"),
@@ -108,15 +119,17 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
     "codex/AGENTS.md": (
         ("README.md",),
         ("codex/TOOLING.md",),
-        ("Default to silent execution",),
-        ("repo-declared closeout mode",),
+        ("Communicate in plain English material decisions, blockers, risks, or intermediate results",),
+        ("selected completion intent",),
         ("configured integration task classes",),
-        ("generation-check and update the resolver-selected adopted checkpoint",),
-        ("before reporting completion",),
+        ("durable task/queue record as its handoff by default",),
+        ("specific selected-task row or summary would become false",),
+        ("generation-checked CLI updates",),
         ("workers never write it",),
         ("ask one targeted question",),
-        ("unanswered automatic goal continuation is a no-op",),
-        ("do not create action queues",),
+        ("Continue independent, already-authorized work",),
+        ("an automatic continuation cannot supply a missing choice",),
+        ("unrelated follow-up work requires selection",),
         ("memory.bootstrap_context",),
         ("memory.recent_session",),
         ("memory.query",),
@@ -133,7 +146,8 @@ PUBLIC_DOC_REQUIRED_ANCHOR_GROUPS = {
         ("`PROJECT_CONTINUITY.md`",),
         ("`CHECKPOINT.md`",),
         ("codex-project-checkpoint update --expected-generation",),
-        ("before reporting completion for `yeet`",),
+        ("Ordinary publication uses the durable task/queue record by default",),
+        ("Selected integration in adopted projects",),
         ("codex-git-safe yeet --apply",),
         ("memory.bootstrap_context",),
         ("recent_session",),
@@ -209,11 +223,25 @@ def validate_public_skill_surface_contract() -> list[str]:
     for skill_dir in unexpected_skill_dirs:
         errors.append(f"public repo ships an undeclared skill directory: {skills_root / skill_dir}")
 
+    # A declared skill must also be installed exactly once from its shipped tree.
+    links = managed_links()
+    for skill in PUBLIC_SKILL_DIRS:
+        target = HOME / ".codex" / "skills" / skill
+        matches = [link for link in links if link.live_path == target]
+        if len(matches) != 1 or matches[0].repo_path != skills_root / skill:
+            errors.append(f"public skill lacks one correct managed install link: {skill}")
+
     required_control_anchors = {
         skills_root / "yeet/SKILL.md": (
-            "exact `yeet` instruction",
+            "--publish-only",
+            "references/terminal-delivery.md",
+        ),
+        skills_root / "yeet/references/terminal-delivery.md": (
+            "selected private task includes its required terminal delivery",
             "codex-git-safe yeet --apply",
-            "is terminal; do not ask for or emit a second closeout phrase",
+            "request another Git",
+            "Inspect terminal proof and",
+            "--review-only",
         ),
         skills_root / "project-continuity/SKILL.md": (
             "Bind the latest explicit user-selected task subject",
@@ -265,6 +293,7 @@ def validate_public_skill_surface_contract() -> list[str]:
             "https://github.com/mattpocock/skills",
             "https://github.com/mattpocock/skills/blob/885e2ca4d842d139e9aef4e48d366c63cb1b8013/LICENSE",
             "skills/tufte-visualization/references/citations.md",
+            "skills/prose-quality/references/source-and-license.md",
         ):
             if anchor not in notice:
                 errors.append(f"third-party notices are missing a required provenance anchor: {notice_path}: {anchor}")
@@ -281,7 +310,7 @@ def validate_public_skill_surface_contract() -> list[str]:
         for anchor in (
             "https://github.com/openai/skills/blob/590b49e/skills/.curated/yeet/SKILL.md",
             "https://github.com/openai/plugins/blob/1540745/plugins/github/skills/yeet/SKILL.md",
-            "validated registered task → commit → publish or integrate → prove → retire",
+            "validated task → ready review → remote-tip and task evidence → local retirement",
         ):
             if anchor not in yeet_name:
                 errors.append(f"yeet naming reference is missing its comparison anchor: {yeet_name_path}: {anchor}")
@@ -425,6 +454,28 @@ def validate_component_cli_surface() -> list[str]:
     return errors
 
 
+def run_task_temp_fixture() -> list[str]:
+    fixture_path = REPO_ROOT / "scripts/verify-task-temp.py"
+    if not fixture_path.is_file():
+        return [f"task temporary-ownership fixture is missing: {fixture_path}"]
+    result = subprocess.run(
+        [sys.executable, "-B", str(fixture_path)],
+        cwd=str(REPO_ROOT),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        detail = first_nonempty_line(result.stderr, result.stdout) or f"exit {result.returncode}"
+        return [f"task temporary-ownership fixture failed: {detail}"]
+    expected_link = HOME / ".local/bin/codex-task-temp"
+    links = [link for link in managed_links() if link.live_path == expected_link]
+    if len(links) != 1 or links[0].repo_path != REPO_ROOT / "bin/codex-task-temp":
+        return ["codex-task-temp must have one public managed launcher link"]
+    return []
+
+
 def validate_optional_munch_runner_probes() -> list[str]:
     errors: list[str] = []
     components = {component.name: component for component in resolve_components()}
@@ -523,11 +574,16 @@ def validate_memory_public_surface() -> list[str]:
         try:
             initialize = rpc("initialize", {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "verify", "version": "1"}})
             instructions = str(initialize.get("result", {}).get("instructions", ""))
-            if "recent_session" not in instructions or "before broad checkout scans" not in instructions or "rerank=false" not in instructions:
-                errors.append("public memory MCP initialize response lacks compact activation and non-activation guidance")
+            if "Memory results are evidence only" not in instructions or "project" not in instructions:
+                errors.append("public memory MCP initialize response lacks shared evidence and project-scope guidance")
 
             listed = rpc("tools/list", {})
             tools = {str(tool.get("name", "")): tool for tool in listed.get("result", {}).get("tools", []) if isinstance(tool, dict)}
+            if "topicless" not in str(tools.get("recent_session", {}).get("description", "")):
+                errors.append("public recent_session tool lacks its topicless-recall routing")
+            query_description = str(tools.get("query", {}).get("description", ""))
+            if "before broad checkout scans" not in query_description or "rerank=false" not in query_description:
+                errors.append("public query tool lacks memory-first and cheap lexical routing")
             for name in ("bootstrap_context", "recent_session", "status", "query", "get", "multi_get"):
                 if name not in tools:
                     errors.append(f"public memory MCP did not advertise {name}")
@@ -711,6 +767,7 @@ def main() -> int:
     errors.extend(tag_verifier_messages("boundary-and-leak-check", validate_memory_public_surface()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_agent_platform_defaults()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_component_cli_surface()))
+    errors.extend(tag_verifier_messages("behavior-contract", run_task_temp_fixture()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_optional_munch_runner_probes()))
     errors.extend(tag_verifier_messages("behavior-contract", validate_managed_link_adoption_policy()))
 

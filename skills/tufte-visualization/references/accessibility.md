@@ -3,6 +3,13 @@
 Accessibility is precision applied to more readers. Treat it as part of the
 evidence contract, not as a tradeoff against elegance.
 
+## Contents
+
+- Delivery medium, contrast, typography, and density
+- Semantic and text alternatives
+- Interaction and keyboard access
+- Responsive siblings, motion, and rendered proof
+
 ## Start With The Delivery Medium
 
 Record the final size, viewport, reading distance, display or print medium,
@@ -59,6 +66,11 @@ entire dataset into one alt attribute. For SVG, documents, slides, and PDFs,
 use the semantic or accessibility features supported by the delivery format
 and verify the exported result rather than only the source authoring surface.
 
+A chart, image, animation, or interaction must not be the only carrier of a
+decision-relevant conclusion. Preserve the central comparison, key values,
+material uncertainty, and caveat in selectable surrounding text or a structured
+text equivalent.
+
 ## Interaction And Keyboard Access
 
 - The default view must show the central comparison.
@@ -69,6 +81,10 @@ and verify the exported result rather than only the source authoring surface.
 - Provide an equivalent way to reach pointer-dependent details.
 - Announce material state changes where the host platform requires it.
 - Do not make incompatible scales appear comparable after filtering.
+- Keep the text equivalent synchronized with active filters, selected cohort or
+  series, date range, denominator, scenario, freshness, exceptions, and
+  missingness. Generic static alt text is not equivalent to a changed
+  analytical state.
 
 ## Responsive Sibling Compositions
 

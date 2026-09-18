@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "lib"))
+
+import codex_git_safe as git_safe
+from codex_task_temp import TaskTempError, allocate_root, owner_identity, status_for_owner
+
+
+def _active_owner(state: git_safe.RepoState) -> dict[str, str]:
+    payload = git_safe._load_managed_state(state.common_dir)
+    identity = git_safe._checkout_identity(state.repo_root)
+    matches = [
+        item for item in payload.get("active_changes", [])
+        if git_safe._payload_checkout_identity(item) == identity
+    ]
+    if len(matches) != 1:
+        raise TaskTempError("temporary scratch creation requires one exact active managed task")
+    active = matches[0]
+    native = git_safe._worktree_entry_for_path(state, state.repo_root)
+    if (
+        active.get("mode") != "worktree"
+        or state.git_dir.resolve(strict=False) == state.common_dir.resolve(strict=False)
+        or native is None
+        or native.branch != active.get("branch")
+        or state.branch != active.get("branch")
+    ):
+        raise TaskTempError("temporary scratch creation requires the exact live attached managed task worktree and branch")
+    return owner_identity(active, common_dir=state.common_dir)
+
+
+def _selected_owner(state: git_safe.RepoState, task: str | None) -> dict[str, str]:
+    if task is None:
+        return _active_owner(state)
+    payload = git_safe._load_managed_state(state.common_dir)
+    records = [item for item in [*payload.get("retired_changes", []), *payload.get("submitted_changes", [])]
+               if item.get("branch") == task and item.get("checkout_path")]
+    owners = {json.dumps(owner_identity(item, common_dir=state.common_dir), sort_keys=True)
+              for item in records}
+    if len(owners) != 1:
+        raise TaskTempError(f"retired task selector matched {len(owners)} exact owners: {task}")
+    return json.loads(next(iter(owners)))
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="codex-task-temp", description="Allocate task-owned temporary scratch roots.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    create = subparsers.add_parser("create")
+    create.add_argument("--repo", required=True)
+    create.add_argument("--label", required=True)
+    create.add_argument("--storage", choices=("temporary", "durable"), default="temporary",
+                        help="Use durable disposable storage for fixtures that require non-temporary placement.")
+    create.add_argument("--json", action="store_true")
+    status = subparsers.add_parser("status")
+    status.add_argument("--repo", required=True)
+    status.add_argument("--task", help="Exact retired task branch to inspect.")
+    status.add_argument("--json", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    try:
+        state = git_safe._repo_state(Path(args.repo).expanduser().resolve())
+        if args.command == "create":
+            with git_safe._task_mutation(state) as state, git_safe._integration_lock(state.common_dir):
+                owner = _active_owner(state)
+                entry = allocate_root(
+                    owner=owner,
+                    common_dir=state.common_dir,
+                    label=args.label,
+                    storage=args.storage,
+                    load_state=lambda: git_safe._load_managed_state(state.common_dir),
+                    save_state=lambda payload: git_safe._save_managed_state(state.common_dir, payload),
+                )
+            payload = {"command": "create", "ok": True, "root": entry["path"], "artifact": entry}
+        else:
+            owner = _selected_owner(state, args.task)
+            payload = {"command": "status", "ok": True, "task": owner, **status_for_owner(git_safe._load_managed_state(state.common_dir), owner)}
+    except (TaskTempError, git_safe.GitSafeError, OSError) as exc:
+        payload = {"command": getattr(args, "command", None), "ok": False, "error": str(exc), "blockers": [str(exc)]}
+        if getattr(args, "json", False):
+            print(json.dumps(payload, sort_keys=True))
+        else:
+            print(f"codex-task-temp: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif args.command == "create":
+        print(payload["root"])
+    else:
+        print(f"pending: {payload['pending_count']}")
+        for item in payload["artifacts"]:
+            print(f"- {item['phase']}: {item['path']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
