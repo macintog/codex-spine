@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tufte Visualization"
-  short_description: "Evidence-first visualization design and rendered QA"
-  default_prompt: "Use $tufte-visualization as an evidence-design overlay to design, revise, or critique this display. Define the intended comparison, preserve units, denominators, uncertainty, and provenance, and verify the rendered result at delivery size."

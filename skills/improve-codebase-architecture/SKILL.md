@@ -1,73 +1,18 @@
 ---
 name: improve-codebase-architecture
-description: Find evidence-backed simplification, module deepening, terminology, and semantic-symmetry opportunities in a codebase. Use for architecture or refactoring audits, unnecessary architectural complexity, tightly coupled or shallow modules, weak test seams, scattered domain concepts, overloaded names, or sibling workflows whose ownership and transitions drift unexpectedly. Do not use for a narrow fix or an implementation whose architecture is already selected.
+description: Audit a codebase or subsystem for architecture simplification - shallow or pass-through modules, scattered concepts, naming drift, sibling workflows that disagree, weak test seams. Use when the user asks what to simplify or restructure. Not for a narrow fix or for implementing an already chosen design.
 ---
 
-# Improve Codebase Architecture
+# Architecture audit
 
-Adapted for Codex from Matt Pocock's `improve-codebase-architecture`,
-`domain-modeling`, and `codebase-design` skill packets, reviewed at commit
-`885e2ca4d842d139e9aef4e48d366c63cb1b8013`.
+Goal: less effort to use, change, and debug the code, with required behavior preserved. Fewer files or lines is not by itself an improvement.
 
-Use this skill to reduce the effort of using, changing, and diagnosing a codebase. First establish what behavior is needed; then consider removing unnecessary mechanisms or deepening modules that still earn their keep. Fewer files, lines, or entry points alone do not establish an improvement.
-
-## Routing
-
-Use for architecture or refactoring discovery when shallow or coupled modules
-obscure a concept, test-only helpers leave bugs in caller choreography, or
-product concepts do not match code structure. Keep narrow fixes, reviews, and
-features in their ordinary lane when architecture is not the blocker. Follow a
-stronger repo-local architecture doc, ADR, or skill. An implementation with a
-selected architecture does not trigger discovery; if this skill is already in a
-selected finite outcome, implement and verify without reopening that choice.
-
-## Vocabulary
-
-Use these words consistently in architecture suggestions. Full definitions are in [LANGUAGE.md](LANGUAGE.md).
-
-- **Module**: anything with an interface and an implementation.
-- **Interface**: everything a caller must know to use the module correctly: types, invariants, ordering, errors, configuration, and performance shape.
-- **Implementation**: the code inside a module.
-- **Depth**: how much useful behavior sits behind an interface.
-- **Seam**: where an interface lives; a place behavior can change without editing in place.
-- **Adapter**: a concrete thing satisfying an interface at a seam.
-- **Payoff**: what callers and maintainers get from depth.
-- **Locality**: how much related behavior can be understood or changed in one place.
-
-## Workflow
-
-1. Bind the review to the selected scope and required behavior.
-   - Prefer `PROJECT_CONTINUITY.md`, `CHECKPOINT.md`, `CONTEXT.md`, `CONTEXT-MAP.md`, `docs/adr/`, `docs/architecture*`, and repo-local agent docs when they exist.
-   - Do not flag missing context or ADR files as a problem.
-   - Identify the need behind the mechanism before optimizing it. Use current callers, requirements, history, and operational evidence to distinguish a necessary constraint from an obsolete assumption. Do not silently relax an explicit user requirement; flag a consequential unresolved choice.
-   - Establish the relevant behavior baseline: normal outcomes, failure and recovery paths, and performance or operational constraints that the proposed change could affect. Missing evidence limits the recommendation.
-   - Build a small term map from product language to types, state, logs, and user-visible behavior. Flag one concept with several names and one overloaded name used for several concepts.
-
-2. Explore architecture friction.
-   - Look for places where one product concept is scattered across many modules.
-   - Identify shallow modules whose interface is nearly as complex as their implementation.
-   - Apply the deletion test from [LANGUAGE.md](LANGUAGE.md): consider removing the need or mechanism before reorganizing it. Trace the remaining responsibility through callers, configuration, operations, and module internals; a smaller interface can relocate complexity without eliminating it.
-   - Compare the current design with the smallest plausible simplification. Deepening can be worthwhile when it contains necessary complexity, but account for added internal state, coupling, and diagnostic burden.
-   - Notice where tests cross past the interface into implementation details.
-   - Compare sibling modes, states, or pipelines for semantic symmetry. Parallel concepts should use parallel names, owners, transitions, and proof; preserve an asymmetry when domain evidence shows that the concepts genuinely differ.
-
-3. Present candidates.
-   - Present only evidence-backed opportunities. Identify the affected code, demonstrated friction, proposed change, and relevant proof; scale detail to the decision.
-   - Describe a concrete before/after use, change, or diagnosis that becomes easier. Explain which responsibilities disappear, which move, and what remains necessary; connect locality, depth, or test improvements to that observable payoff.
-   - Retain the current design when its burden is justified or the change costs more than it helps. Report insufficient evidence when a material uncertainty prevents judgment; do not manufacture a candidate or a metric.
-   - Use project vocabulary for product concepts and this skill's vocabulary for architecture.
-   - Name terminology or symmetry evidence only when it changes ownership, interface shape, or verification; do not turn naming consistency into cosmetic churn.
-   - If a candidate contradicts an ADR, mention it only when the friction is strong enough to justify reopening that decision.
-
-4. Choose the next action.
-   - If the user asked for an audit or exploration, stop with findings and recommendations; selection of a candidate for implementation requires user authority.
-   - If the user already authorized audit and in-scope fixes, complete that finite outcome without requiring selection again. Do not turn residual findings into successor work.
-   - If the user asked to implement an already chosen direction, continue with the smallest owned change and verify it.
-   - If a new module name introduces a durable domain term, update the repo's domain vocabulary only when the repo already has such a surface or the user asks for one.
-
-5. Design the interface when needed.
-   - Use [DEEPENING.md](DEEPENING.md) to classify dependencies and testing strategy.
-   - Use [INTERFACE-DESIGN.md](INTERFACE-DESIGN.md) when the user wants alternative interface shapes.
-   - Verify the affected behavior against the baseline, including relevant failure, recovery, and performance cases. Keep tests at the module interface once the deepened module exists; delete old shallow tests only when replacement coverage proves the same behavior. Preserve diagnostic visibility needed to operate and debug it.
-
-For implementation, report the selected simplification or seam and its proof.
+1. Establish the need first. Read callers, docs, ADRs, tests, and history before judging a mechanism; code that looks redundant may encode a domain rule.
+2. Look for:
+   - One rule implemented in two places that disagree, especially across languages or processes (a pre-check here, an enforcer there). Name the inputs on which they diverge.
+   - Sibling paths (create/update, push/PR, CLI/API) whose names, owners, validation, or failure handling differ without a domain reason. Keep asymmetries the domain justifies.
+   - Shallow modules whose callers must know their internals (protocols, sentinels, ordering). Deepen; do not split.
+   - Deletion test: if a module were removed, would its responsibility vanish or move into callers? Name what would move.
+3. Avoid: new interfaces or ports with one implementation, merging code that changes for different reasons, rewrites, cosmetic renames, invented metrics.
+4. Report a few ranked candidates, each with file:line evidence, the concrete friction, the change, its migration cost, and the test that pins current behavior. "Keep as is" and "insufficient evidence" are valid results. Write in the project's own vocabulary, not architecture jargon.
+5. Stop at recommendations unless the user selected a candidate to implement.

@@ -2,6 +2,13 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.7.0
+
+Every skill was re-tested blind against a short rewrite and against no guidance. What won ships:
+`chart-integrity` replaces `tufte-visualization`, `skill-audit` replaces `skill-authoring-quality`,
+and `improve-codebase-architecture`, `performance-tradeoff` and `prose-quality` are their short
+versions. `causal-explanation` and `change-impact` became two standing instructions in the README.
+
 ## 0.6.0
 
 Skills only. The managed Codex environment (installer, transcript memory, code and document
