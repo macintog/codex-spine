@@ -31,12 +31,10 @@ finding; do not invent cross-boundary risks to fill a report.
    revision or worktree state. Describe the relevant before/after behavior and
    the decision being supported. A proposal's intent is not proof of what an
    existing patch does.
-2. Use the repo-declared retrieval lane that matches the evidence: `jcode` for
-   definitions and callers, `jdocs` for authored contracts and runbooks, and
-   `jdata` for material tabular evidence. Where those tools are unavailable,
-   inspect the relevant current files or runtime evidence directly. Keep index
-   coverage and freshness attributable to the selected source; do not sweep all
-   lanes or connectors after a miss.
+2. Gather the evidence that matches the question: search the current source for
+   definitions and callers, read authored contracts and runbooks, and inspect
+   tabular or runtime evidence only when it is material. Name the sources you
+   relied on; do not sweep every tool or connector after a miss.
 3. Trace the changed behavior across concrete boundaries. Symbol callers may
    miss serialized data, configuration, generated code, lifecycle ordering,
    dependency versions, automation, and consumers in another runtime or repo.

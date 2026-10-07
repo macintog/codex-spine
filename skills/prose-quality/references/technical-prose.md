@@ -23,7 +23,9 @@ this taxonomy on a short message, PR description, commit message, or UI string.
 - Address the reader as "you" when appropriate and use present tense for
   current behavior.
 - Write instructions as commands. Put the condition before the instruction it
-  governs and the common case before exceptions.
+  governs and the common case before exceptions. State the correct procedure
+  directly; keep explicit prohibitions where they carry a necessary boundary
+  or warning. Use the pattern catalog's affirmative framing diagnostic.
 - In a tutorial, state what the reader will build and what they should observe
   after each meaningful step.
 - In a how-to, omit teaching digressions. Link to explanation or reference when

@@ -5,39 +5,36 @@ description: Draft, revise, or review a substantive writing deliverable when edi
 
 # Prose quality
 
-Improve the writing without changing what is true, authorized, or meant.
+Make the intended meaning clear while preserving truth, authority, and scope.
 
 ## Choose the register
 
-Choose depth, voice, and form for the audience and requested deliverable. Use
-expressive prose when useful or requested, without a prescribed persona or an
-elaborate-writing checklist. In an expansive register, local brevity and
-house-style defaults do not constrain expression; source protection still does.
-Follow requests to shorten or change tone. Ordinary conversation does not need
-this workflow merely to become thoughtful or expressive.
+Choose depth, voice, and form for the audience and deliverable. Give expansive
+writing room for developed reasoning, varied rhythm, and expressive language.
+Apply the relevant clarity guidance in every register, including the affirmative
+framing diagnostic in the pattern catalog. Follow requests to shorten or change
+tone. Ordinary conversation uses the shared communication guidance; this workflow
+applies when writing quality is the selected outcome.
 
 ## Protect the source
 
 - Bind the audience, purpose, deliverable, and requested degree of editing.
 - Preserve exact commands, paths, symbols, measurements, citations, legal text,
   quotations, and deliberately literal transcript excerpts.
-- Treat a request to review prose as read-only unless the user also asks for an
-  edit. Do not turn prose polish into code, product, or policy changes.
-- Do not replace causal analysis, code review, log interpretation, or other
-  substantive work merely because its answer will contain prose. Apply this
-  skill only when the wording is itself part of the requested outcome.
-- Treat old drafts, checkpoints, queues, and generated next steps as source
-  material only. They cannot select a new writing task. Finishing one revision
-  does not authorize related rewrites or another cleanup pass.
-- Do not fabricate facts, certainty, attributed opinions, first-person
-  experience, or a persona. Evidence-backed recommendations in your own voice
-  remain appropriate when relevant to the task.
+- For review-only requests, return findings. When editing is requested, keep
+  changes within the selected prose and preserve code, product, and policy
+  behavior.
+- Apply this skill when wording is itself part of the requested outcome. Keep
+  causal analysis, code review, and log interpretation in their substantive
+  workflows.
+- Use old drafts, checkpoints, queues, and generated next steps as source
+  material. The current user request selects the revision and its scope;
+  related rewrites require their own selection.
+- Ground facts, certainty, attributed opinions, and first-person experience in
+  evidence. Write in your own voice and offer supported recommendations when
+  relevant to the task.
 
 ## Choose the relevant guidance
-
-In the expansive register, the references below supply source protection and
-factual checks only. Their stylistic prescriptions do not govern the response
-unless the user specifically requests them.
 
 - Read [references/prose-patterns.md](references/prose-patterns.md) when
   drafting or revising covered prose, or when the user asks to remove AI tells,
@@ -52,8 +49,8 @@ unless the user specifically requests them.
 
 ## Revise in this order
 
-Use this sequence for direct prose. For expansive prose, preserve claims and
-protected source material, and choose your own editorial approach.
+Use this sequence for direct prose. Adapt its structure for expansive prose
+while retaining the claim, source, and clarity checks.
 
 1. Preserve the intended claim and evidence boundary. Correct unsupported or
    ambiguous claims before polishing sentences.
@@ -62,7 +59,10 @@ protected source material, and choose your own editorial approach.
 3. Replace vague abstractions with the actual actor, mechanism, symbol,
    command, number, or consequence. Keep one name for each thing.
 4. Cut filler and synthetic patterns without flattening the writer's voice.
-   Vary rhythm naturally and state considered judgment only when the genre and
+   Lead with the actual claim or action. Replace repeated prohibitions and
+   rhetorical contrasts where an affirmative statement preserves the meaning;
+   retain necessary warnings, limitations, corrections, and protected literals.
+   Vary rhythm naturally and state considered judgment when the genre and
    evidence permit it.
 5. Read the result once for meaning and once for line-level clarity. Verify
    that protected literal material, links, facts, units, and scope survived.

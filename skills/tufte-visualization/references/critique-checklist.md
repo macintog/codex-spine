@@ -1,137 +1,78 @@
 # Visualization Critique Checklist
 
-Use this checklist when reviewing an existing visualization or doing final QA before delivery.
+Use for an existing display or final rendered QA. Apply the skill's invariants,
+stop rules, and grade gates; inspect the delivered artifact, not only source.
 
-## Contents
+## Reading Situation
 
-- Reading situation, truth, and analytical usefulness
-- Visual economy, anti-reflex taste, and craft
-- Accessibility, common failure modes, and completion grade
-- Final standard
+- Is audience, medium, final size, viewing distance, and interaction known?
+- Does the design respect host conventions where truthful and accessible?
+- Was genre chosen for the evidence and medium rather than the words “Tufte,”
+  “dashboard,” or “scientific”?
 
-## Reading Situation And House Style
+## Truth And Analytical Use
 
-- Is the audience, medium, final size, viewing distance, and interaction model
-  known well enough to judge the artifact?
-- Does the design preserve the host publication or product's established visual
-  system where it remains truthful and accessible?
-- Was the genre selected from the use and medium, or inferred mechanically from
-  words such as "Tufte," "dashboard," or "scientific"?
+- Are visual differences proportional to data differences? Disclose scales,
+  transformations, filters, smoothing, and justified time window.
+- Are definitions, populations, denominators, units, periods, aggregation, and
+  weighting comparable? Label percent versus percentage-point change; show
+  bases and absolute deltas when relative change distorts magnitude.
+- Are intervals, distributions, sample, forecast, or model quantities named?
+  Are uncertainty, missing values, discontinuities, complete versus partial
+  periods, freshness, timezone, and observation maturity visible when material?
+- Declare top-N, examples, selected or excluded groups; can a skeptical reader
+  find source and vintage? Are annotations attached to evidence and supported,
+  including causal claims?
+- Does the display answer a thinking task, with one immediate dominant
+  comparison and supporting evidence? Are sorting, alignment, indexing, or
+  facets doing useful work? Is the unit of analysis clear, and are exact values
+  available where needed?
+- Is the default complete without interaction? Do title, caption, text
+  equivalent, and exported or responsive siblings match active filters, date
+  range, cohort, denominator, scenario, freshness, caveats, and adjacent
+  documentation?
 
-## Truth And Integrity
+## Economy, Taste, And Craft
 
-- Are visual differences proportional to data differences?
-- Are scales, transformations, filters, and smoothing disclosed?
-- Is uncertainty shown or explained when inference is involved?
-- Is the interval, distribution, sample, forecast, or model quantity named
-  rather than represented by generic error bars?
-- Are missing values or discontinuities visible?
-- Are denominators and units explicit?
-- Are base values and absolute deltas shown when relative change could distort
-  practical magnitude?
-- Are percent change and percentage-point change labeled correctly?
-- Would a skeptical reader know where the data came from?
-- Is the time window analytically justified rather than cherry-picked?
-- Are complete and partial periods, freshness, timezone, and observation
-  maturity handled honestly where material?
-- Are selected examples, top-N filters, and excluded groups declared?
-- Are metric definitions, populations, denominators, periods, units,
-  aggregation levels, and weighting actually comparable?
+- Remove any gridline, border, legend, tick, decimal, color, icon, background,
+  or label that adds no meaning, but retain necessary context and enough data
+  density to reward attention. Keep marks stronger than scaffolding and labels
+  near evidence.
+- Does color encode meaning rather than mood? Could type, palette, and layout
+  have been chosen before inspecting evidence? Cream paper, prestige serif,
+  tiny mono, hairlines, marginalia, muted accents, novelty, brand theater,
+  cards, and generic arrows require an analytical or house-style reason.
+- Check typography, margins, factual titles, label collisions, aligned and
+  consistently scaled multiples, and nearby source notes and caveats at final
+  size. Inspect each panel or viewport section of long artifacts.
+- Recompose materially different print, desktop, mobile, and presentation
+  outputs. Choose vector for publication or high-resolution raster when
+  needed; do not mechanically shrink away labels, notes, or uncertainty.
+- For diagrams, apply `evidence-diagrams.md` to connector semantics,
+  attachment, bounded text, and native-resolution crops. Check unintended
+  arrowheads, missed targets, and spacing that falsely implies a relationship.
 
-## Analytical Usefulness
+## Accessibility And Failure Patterns
 
-- Does the chart answer a real thinking task?
-- Is the key comparison immediate?
-- Is there one dominant comparison with supporting evidence, rather than many
-  equally weighted claims?
-- Is the chart sorted, aligned, indexed, or faceted to reveal the comparison?
-- Are exact values available where needed?
-- Are annotations attached to evidence rather than floating as decoration?
-- Is the unit of analysis clear?
-- Is the default view complete enough without interaction?
-- Does the visible title, caption, and text equivalent match the active filters,
-  date range, cohort, denominator, scenario, and freshness?
-- Are interpretation-critical evidence and adjacent documentation preserved in
-  static export and responsive sibling compositions?
+- Is meaning preserved without color, with sufficient contrast and readable
+  actual-size labels? Is alt text or a textual summary present when needed?
+  Does an adjacent equivalent preserve comparison, key values, exceptions,
+  uncertainty, and source?
+- Can keyboard users reach interactive controls with visible focus? Does
+  pointer-only detail have an equivalent? Is the core evidence visible before
+  animation, with static or pause/stop access when practical?
+- Watch for erased context masquerading as minimalism; low-information
+  dashboards; dense clutter; novelty forms; legends, filters, or hover that
+  force readers to assemble the evidence; status colors replacing analysis;
+  noisy or cherry-picked annotations; default software settings; faux-book
+  styling; and unsupported causal arrows.
 
-## Visual Economy
+## Closeout
 
-- Can any gridline, border, legend, tick, decimal, color, icon, background, or label be removed without loss?
-- Has necessary context been over-erased?
-- Are data marks stronger than scaffolding?
-- Are labels direct and close to the data?
-- Does the display have enough data density to reward attention?
-- Does color encode meaning rather than mood?
-
-## Anti-Reflex Taste
-
-- Could the typography, palette, and layout have been selected before the
-  evidence was inspected?
-- Does the artifact perform a stock "Tufte" or editorial lane through cream
-  paper, prestige serif, tiny mono labels, hairline rules, marginalia, or a
-  muted accent without an analytical or house-style reason?
-- Is distinctiveness coming from evidence structure and comparison rather than
-  novelty, brand theater, or decorative strangeness?
-- Are boxes, cards, arrows, and panel boundaries carrying information, or merely
-  making the artifact look designed?
-
-## Craft
-
-- Is typography consistent and calm?
-- Are labels collision-free at final size?
-- For diagrams, was `evidence-diagrams.md` applied to connector semantics,
-  attachment, bounded text, and native-resolution crops?
-- Are margins adequate?
-- Are small multiples aligned and scaled consistently?
-- Were materially different print, desktop, mobile, or presentation outputs
-  recomposed and inspected as sibling evidence displays?
-- For multi-panel or long-scrolling artifacts, has each panel or viewport section been inspected at final size?
-- Is the output format appropriate: vector for publication, high-resolution raster only when needed?
-- Are titles specific and factual?
-- Are source notes and caveats close enough to the figure?
-
-## Accessibility
-
-- Is meaning preserved without color?
-- Is contrast sufficient?
-- Is there alt text or a textual summary when needed?
-- Are labels readable at actual display size?
-- Are interactive controls keyboard-accessible with visible focus states?
-- Does motion have a static equivalent or pause/stop control when practical?
-- Is the core evidence visible before animation or interaction?
-- Does an adjacent text equivalent preserve the central comparison, key values,
-  exceptions, uncertainty, and source?
-
-## Common Failure Modes
-
-- Minimalist charts that erase units, context, uncertainty, and comparison.
-- Beautiful dashboards that are low-information status theater.
-- Dense charts that are cluttered rather than rich.
-- Fancy chart types chosen for novelty.
-- Legends, filters, and hover states that make the reader assemble the evidence manually.
-- Causal arrows without causal evidence.
-- Diagram connectors that miss their targets, inherit unintended arrowheads or emphasis, or make spacing imply a relationship the evidence does not support.
-- Red/yellow/green indicators that replace analysis with mood.
-- Overconfident annotations on noisy or cherry-picked data.
-- Default software settings accepted without editing.
-- Faux-book styling used as a substitute for evidence design.
-- Desktop figures mechanically shrunk until labels, notes, or uncertainty
-  disappear on smaller outputs.
-
-## Completion Grade
-
-- Is the claimed grade limited to the checks actually demonstrated?
-- For reviewed work, were computation, chart form, and final-size rendering
-  checked?
-- For decision-grade work, are provenance, vintage, reproducibility, active
-  state, uncertainty or sensitivity, and a synchronized text equivalent proved?
-- For publication-grade work, were editorial and citation review, every target
-  size and export, and format-specific accessibility checks completed?
-
-## Final Standard
-
-A finished evidence display should let a thoughtful reader see what was
-measured, compare what matters, understand uncertainty and why the comparison
-is credible, notice exceptions, recover exact values where needed, and trust
-that neither the styling nor the interaction has exaggerated or concealed the
-evidence.
+Match the claimed completion grade to demonstrated computation, form,
+final-size rendering, provenance, vintage, reproducibility, active state,
+uncertainty or sensitivity, synchronized text equivalent, and—at publication
+grade—editorial/citation, every target/export, and format-specific accessibility
+checks. A finished display lets readers recover what was measured, compare
+what matters, understand uncertainty and exceptions, find exact values where
+needed, and see why the interpretation is credible.

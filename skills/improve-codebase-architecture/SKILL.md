@@ -11,19 +11,15 @@ Adapted for Codex from Matt Pocock's `improve-codebase-architecture`,
 
 Use this skill to reduce the effort of using, changing, and diagnosing a codebase. First establish what behavior is needed; then consider removing unnecessary mechanisms or deepening modules that still earn their keep. Fewer files, lines, or entry points alone do not establish an improvement.
 
-## When To Use This Skill
+## Routing
 
-- The user asks to improve architecture, find refactoring opportunities, simplify an overcomplicated design, consolidate modules, or make a codebase easier to test.
-- Understanding a concept requires bouncing through many shallow modules.
-- Extracted helpers exist mainly for testability, but bugs still live in caller choreography.
-- Tightly coupled modules leak details across their seams.
-- The repo is hard for agents to navigate because important concepts do not line up with code structure.
-
-## When Not To Use This Skill
-
-- The task is a narrow bug fix, review, or feature request where architecture is not the blocker.
-- A repo-local architecture doc, ADR, or skill already gives a stronger task-specific route.
-- The user asked for implementation and the architecture direction is already clear.
+Use for architecture or refactoring discovery when shallow or coupled modules
+obscure a concept, test-only helpers leave bugs in caller choreography, or
+product concepts do not match code structure. Keep narrow fixes, reviews, and
+features in their ordinary lane when architecture is not the blocker. Follow a
+stronger repo-local architecture doc, ADR, or skill. An implementation with a
+selected architecture does not trigger discovery; if this skill is already in a
+selected finite outcome, implement and verify without reopening that choice.
 
 ## Vocabulary
 
@@ -43,7 +39,6 @@ Use these words consistently in architecture suggestions. Full definitions are i
 1. Bind the review to the selected scope and required behavior.
    - Prefer `PROJECT_CONTINUITY.md`, `CHECKPOINT.md`, `CONTEXT.md`, `CONTEXT-MAP.md`, `docs/adr/`, `docs/architecture*`, and repo-local agent docs when they exist.
    - Do not flag missing context or ADR files as a problem.
-   - If the repo has a structured code-navigation lane such as `jcode`, use it for symbol, file-outline, and call-site discovery.
    - Identify the need behind the mechanism before optimizing it. Use current callers, requirements, history, and operational evidence to distinguish a necessary constraint from an obsolete assumption. Do not silently relax an explicit user requirement; flag a consequential unresolved choice.
    - Establish the relevant behavior baseline: normal outcomes, failure and recovery paths, and performance or operational constraints that the proposed change could affect. Missing evidence limits the recommendation.
    - Build a small term map from product language to types, state, logs, and user-visible behavior. Flag one concept with several names and one overloaded name used for several concepts.
@@ -75,17 +70,4 @@ Use these words consistently in architecture suggestions. Full definitions are i
    - Use [INTERFACE-DESIGN.md](INTERFACE-DESIGN.md) when the user wants alternative interface shapes.
    - Verify the affected behavior against the baseline, including relevant failure, recovery, and performance cases. Keep tests at the module interface once the deepened module exists; delete old shallow tests only when replacement coverage proves the same behavior. Preserve diagnostic visibility needed to operate and debug it.
 
-## Output Shape
-
-For an architecture audit with actionable candidates, this is an optional compact shape:
-
-```markdown
-1. Candidate name
-   Files: ...
-   Problem: ...
-   Solution: ...
-   Benefits: ...
-   Proof to gather before editing: ...
-```
-
-For implementation, explain the selected simplification or seam and its validation, then patch within scope. A successful review may conclude that no change is warranted.
+For implementation, report the selected simplification or seam and its proof.

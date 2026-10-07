@@ -18,7 +18,7 @@ pruning, and no-op testing. It does not import Claude invocation fields, router
 skills, hidden post-completion sequences, or a competing skill control plane.
 
 The September 2026 calibration also draws on OpenAI's
-[Astra instruction-following guidance](https://developers.openai.com/api/docs/guides/latest-model#instruction-following)
+[OpenAI instruction-following guidance](https://developers.openai.com/api/docs/guides/latest-model#instruction-following)
 and [testing guidance](https://developers.openai.com/api/docs/guides/latest-model#testing-and-verification):
 make authority conditions explicit and match verification to the actual task.
 The current platform skill-creation guidance remains the authoring authority;

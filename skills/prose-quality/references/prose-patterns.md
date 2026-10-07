@@ -6,13 +6,9 @@ clearest accurate choice for the audience.
 
 ## Restore voice without inventing one
 
-- State a considered judgment when the genre permits it and the evidence
-  supports it. Do not manufacture a reaction for neutral reference material.
-- Vary sentence length according to the thought. Short sentences can land a
-  point. Longer sentences can carry one condition and its consequence.
 - Name real tensions instead of sanding them into a generic pros-and-cons list.
 - Use first person when the actual speaker owns the judgment or action.
-- Prefer concrete detail over polished generality.
+- Do not manufacture a reaction for neutral reference material.
 
 ## Content patterns
 
@@ -32,14 +28,15 @@ clearest accurate choice for the audience.
 
 ## Language patterns
 
-7. **Stock AI vocabulary.** Words such as "additionally", "crucial", "delve",
-   "interplay", "intricate", "landscape", "pivotal", "showcase", "tapestry",
-   "testament", "underscore", and "vibrant" deserve a second look. Use the
-   plain precise word when the stock term adds no information.
+7. **Stock AI vocabulary.** Reconsider words such as "crucial", "delve",
+   "landscape", "pivotal", "tapestry", and "vibrant". Use the precise word when
+   the stock term adds nothing.
 8. **Decorated forms of `is` or `has`.** "Serves as", "stands as", "boasts",
    and "features" are often longer without being more exact.
-9. **`Not just X, but Y`.** State the stronger point directly unless the
-   contrast itself matters.
+9. **Negation-defined prose.** Repeated "do not", "X is not Y", "not just X,
+   but Y", and "rather than" constructions can make readers work through
+   discarded alternatives before reaching the point. Use the affirmative
+   framing diagnostic below.
 10. **Forced groups of three.** Use the number of items the subject requires.
     Do not add a third item for rhythm.
 11. **Synonym cycling.** Give one concept one stable name instead of rotating
@@ -86,13 +83,10 @@ clearest accurate choice for the audience.
 
 ## Jargon
 
-26. **Abstract metaphor nouns.** Scrutinize words such as "substrate", "wedge",
-    "vector", "locus", "nexus", "primitive", "harness", "surface",
-    "bedrock", "scaffolding", "modality", "paradigm", "gold-plating",
-    "ratchet", "evacuate", "endgame", "north star", and "flywheel" when used
-    metaphorically. Name the concrete base, method, boundary, mechanism, move,
-    limit, or final phase instead. Keep established domain terminology when it
-    is genuinely the most precise name, and define it for the audience.
+26. **Abstract metaphor nouns.** Scrutinize metaphorical "substrate", "wedge",
+    "vector", "surface", "north star", and "flywheel". Name the actual base,
+    method, boundary, or mechanism. Keep precise domain terms and define them
+    for the audience.
 
 ## Plain speech
 
@@ -110,6 +104,35 @@ clearest accurate choice for the audience.
 31. **Prefer the plain precise word.** "Use" usually beats "utilize" or
     "leverage"; "help" usually beats "facilitate"; "if" beats "in the event
     that". Keep a longer term when it carries needed technical precision.
+
+## State the claim or action directly
+
+Read each paragraph for what it asks the reader to understand or do. Lead with
+that claim, behavior, or action. If several sentences explain what something
+isn't, or what the reader shouldn't do, rewrite around its actual purpose or
+the correct procedure. Check the paragraph's cumulative effect as well as each
+sentence. A string of individually defensible contrasts can still obscure the
+point.
+
+For each negation, identify the information it adds. Keep a warning about a
+concrete hazard, a material limitation, or a correction to a misconception the
+reader actually expressed or is likely to encounter. Preserve quotations,
+legal text, commands, and other protected literals. Where the negative half
+merely introduces an irrelevant alternative, remove it and state the supported
+point. Prefer a positive instruction when it carries the same boundary; keep
+an explicit prohibition when it is clearer or safer.
+
+Examples:
+
+- "The checkpoint is not authority; it is not a work queue" becomes "Use the
+  checkpoint as historical context. The current user request selects work."
+- "Do not run recovery on a writable volume" becomes "Mount the volume read-only
+  before running recovery."
+- "This isn't about speed. It's about reliability" becomes "The change targets
+  reliability."
+- "Do not mix bleach and ammonia" stays: the prohibition names a concrete hazard.
+- "The benchmark did not measure memory use" stays when that limitation affects
+  the conclusion. Rewriting it as "Memory use was unchanged" would invent a result.
 
 ## Final diagnostic
 

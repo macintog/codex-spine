@@ -5,272 +5,199 @@ description: Use as an evidence-design overlay to create, revise, or critique ch
 
 # Tufte Visualization
 
-Design evidence displays that help a capable reader compare, question, verify,
-and think. Preserve data resolution and useful context; remove decoration that
-competes with them. This is a Tufte-inspired reasoning standard, not a recipe
-for imitating a recognizable Tufte aesthetic.
+Design evidence displays that let readers compare, question, and verify. Preserve
+resolution and useful context; remove competing decoration. Derive principles,
+not a stock Tufte appearance. Do not copy protected book pages, proprietary
+examples, or another designer's finished visual artifact.
 
-Derive principles. Do not copy protected book pages, proprietary examples, or
-another designer's finished visual artifact.
+## Invariants
 
-## Stable Requirements
-
-- **EV-01 Metric contract**: Preserve the metric definition, unit, grain,
-  population, numerator, denominator, and time window that materially govern
-  interpretation.
-- **EV-02 Named comparison**: Name the comparator, why it is valid, and the
-  conclusion the comparison can support.
-- **EV-03 Magnitude**: When base effects matter, show the base values and
-  absolute delta as well as relative change. Distinguish percent change from
-  percentage-point change and statistical detectability from practical or
-  decision significance.
+- **EV-01 Metric contract**: Preserve the material metric definition, unit,
+  grain, population, numerator, denominator, and time window.
+- **EV-02 Named comparison**: Name the comparator, its validity, and the
+  conclusion it can support.
+- **EV-03 Magnitude**: When base effects matter, show base values and absolute
+  as well as relative change. Distinguish percent from percentage-point change
+  and statistical detectability from practical or decision significance.
 - **EV-04 Evidence status**: Distinguish observed, estimated, modeled,
   forecast, scenario, imputed, and causally identified quantities.
 - **EV-05 Qualification**: Preserve material uncertainty, missingness,
-  selection, exclusions, sensitivity, data freshness, and partial or
-  provisional periods.
+  selection, exclusions, sensitivity, freshness, and partial or provisional periods.
 - **EV-06 Default-view integrity**: Keep interpretation-critical evidence out
   of hover-only, narration-only, or export-excluded states.
 - **QA-01 Final artifact**: Inspect the exact artifact at delivery size.
-- **QA-02 Required states**: Inspect every required viewport, analytical
-  state, sibling composition, and export.
-- **QA-03 Repair loop**: Re-render and re-inspect after every visible-defect
-  repair.
-- **QA-04 Equivalent state**: Verify that captions, text equivalents, copied
-  links, screenshots, and static exports describe the same analytical state.
+- **QA-02 Required states**: Inspect every required viewport, analytical state,
+  sibling composition, and export.
+- **QA-03 Repair loop**: Re-render and re-inspect after every visible-defect repair.
+- **QA-04 Equivalent state**: Verify captions, text equivalents, copied links,
+  screenshots, and static exports against the same analytical state.
 - **STOP-01 Causality**: Do not imply unsupported causality.
 - **STOP-02 Comparability**: Do not encode incompatible definitions,
-  populations, periods, denominators, units, or aggregation levels as though
-  they were comparable.
-- **STOP-03 Completion grade**: Do not claim a completion grade whose gates
-  were not demonstrated.
+  populations, periods, denominators, units, or aggregation levels as comparable.
+- **STOP-03 Completion grade**: Claim only a grade whose gates were demonstrated.
 
-## Evidence Display Contract
+## Frame And Route
 
-Before implementing a non-trivial display, record this compact contract. It may
-remain internal for routine work; include it in the handoff for decision-grade
-or publication-grade work.
+For a non-trivial display, record this compact contract before implementation.
+It may stay internal for routine work; include it in decision-grade and
+publication-grade handoffs.
 
 ```text
 Mode: exploratory | explanatory | operational | reference
-Reader: audience, viewing distance, ambient conditions, expected reading time, decision or action
-Question or supported claim: one sentence
-Unit of analysis: meaning of one row, point, line, interval, area, or node
+Reader: audience, distance, conditions, reading time, decision or action
+One-sentence claim/question; unit of analysis: what each row, mark, interval, area, or node means
 Metric: definition, unit, numerator, denominator, population, grain, time window
-Comparison: comparator, validity, supported conclusion
-Magnitude: base values, absolute delta, relative delta, threshold significance
+Comparison: comparator, validity, supported conclusion; base/absolute/relative magnitude, consequential threshold
 Scale: baseline, domain, indexing, normalization, smoothing, aggregation
-Evidence status: observed | estimated | modeled | forecast | scenario | imputed
-Qualification: uncertainty, exclusions, gaps, sensitivity, missingness
-State: filters, data vintage, update lag, partial or provisional periods
+Evidence: observed | estimated | modeled | forecast | scenario | imputed; uncertainty, exclusions, gaps, sensitivity, missingness
+State: filters, vintage, update lag, partial or provisional periods
 Delivery: medium, dimensions, viewports, interaction states, static fallback
 Verification: data checks, rendered inspections, accessibility, text equivalent
 ```
 
-Choose mode independently from visual genre:
+Choose mode independently of genre. **Exploratory** work reveals alternatives
+with a neutral question or metric title. **Explanatory** work foregrounds one
+supported conclusion with a proportional claim title and focused annotation.
+**Operational** work supports repeated scanning and action, showing state,
+freshness, comparator, target, and data quality. **Reference** work favors
+lookup, completeness, stable ordering, and durable documentation.
 
-- **Exploratory** reveals structure and alternatives. Use a neutral question or
-  metric title and avoid prematurely asserting a takeaway.
-- **Explanatory** foregrounds one supported conclusion. Use a proportional
-  claim title and focused annotation.
-- **Operational** supports repeated scanning, exception detection, and action.
-  Show state, freshness, comparator, target, and data quality.
-- **Reference** optimizes lookup, completeness, stable ordering, and durable
-  documentation.
+Inspect the host publication or product; preserve its typography, palette,
+and chart grammar unless truth, comparison, legibility, or accessibility
+requires a change. Choose genre and finish bar—academic plate, technical
+atlas, operational monitor, presentation figure, or interactive analytical
+view—from audience, medium, final size, viewing distance, and interaction.
+Read `references/principles.md` when selecting a new genre or when host
+conventions and these rules do not settle composition, type, color, table,
+dashboard, map, or annotation choices. A routine chart within settled host
+conventions does not need that deeper reference.
 
-## Evidence Disclosure Layers
+Before drawing, audit sources, column meanings, definitions, units, dates,
+denominators, filters, missing values, duplicates, outliers, joins, and
+transformations. Distinguish counts, rates, percentages, percentage points,
+indexes, ranks, residuals, estimates, predictions, and modeled values.
+Do not fabricate production data. If unavailable, specify the needed schema
+and comparison architecture; use clearly labeled synthetic data only when
+the user explicitly requests a mockup.
 
-Keep the default view complete without forcing the full audit trail into the
-mark layer.
+Load only the references the task invokes:
 
-1. **Default evidence view**: question or supported claim, units and scale,
-   named comparator, material denominator, active analytical state, and any
-   uncertainty or missingness that could change interpretation.
-2. **Immediately adjacent documentation**: concise source and vintage, metric
-   definition, consequential filters or exclusions, interval definition,
-   caveats, and a short caption or note.
-3. **Recoverable audit trail**: full lineage, query or notebook,
-   transformation log or commit, extensive methods, detailed sensitivity, and
-   an accessible table or long description.
+| Task condition | Reference and purpose |
+| --- | --- |
+| Comparing values, groups, periods, rankings, targets, scenarios, or cohorts | `references/comparison-integrity.md`: validity, magnitude, timing, aggregation, freshness, active state, stop conditions |
+| Choosing or replacing chart form | `references/chart-selection.md`: architecture and data sufficiency |
+| Estimates, samples, models, forecasts, rankings, causal claims, sensitivity, or material measurement error | `references/uncertainty.md`: quantity and qualification |
+| Connectors, bounded nodes, causal or system maps, technical atlases, networks, or flows | `references/evidence-diagrams.md`: semantics, geometry, native-resolution proof |
+| Reviewing an existing display or final rendered QA | `references/critique-checklist.md`: inspection and finding severity |
+| Public, interactive, or durable artifact | `references/accessibility.md`: medium, semantics, interaction, responsive and exported proof |
+| Final artifact, caption, documentation note, or text equivalent | `references/captions-alt-text.md`: visible and accessible explanation |
+| Public source or provenance map | `references/citations.md`: attribution and further reading |
 
-Nothing in Layers 1 or 2 may be hover-only or disappear from export. Layer 3
-may be linked or disclosed when it remains durable and discoverable. Prefer
-direct labels or embedded keys when they reduce decoding burden; use a compact
-legend when it is clearer.
+## Create Or Revise
 
-## Workflow
+Choose the comparison architecture after the evidence audit. Use the fewest
+encodings that answer the question; prefer position and length to area,
+volume, angle, or metaphor. If form is ambiguous or stakes are high, compare
+materially different sketches for what each reveals, hides, and makes the
+reader decode. Use a table for exact lookup, mixed units, or many values; use
+prose or a few numbers when a visual would add no evidence.
 
-### 1. Frame The Reading Situation
+Visual magnitude must track data magnitude. Bars and other length encodings
+need a zero baseline. Compare magnitudes on common scales; when panels use
+independent scales, label them and avoid cross-panel magnitude claims. A
+non-zero line-chart range is valid when variation is the question, but disclose
+it and avoid sensational framing.
 
-- Complete the Evidence Display Contract and name the unit of analysis.
-- Inspect the host publication, product, or report. Preserve its established
-  typography, palette, and chart conventions unless they compromise integrity,
-  comparison, legibility, or accessibility.
-- Select a visual genre and finish bar from the reading situation: academic
-  plate, technical atlas, operational monitor, presentation figure, or
-  interactive analytical view. Read `references/principles.md` for genre,
-  composition, typography, color, table, and annotation guidance.
+Build data marks, scales and units, references, direct labels or a compact
+key, uncertainty, annotation, documentation, title, then polish. Keep marks
+stronger than scaffolding. Define color roles—ink, context, focus,
+uncertainty, exception, interaction state—before hues; use color to encode,
+distinguish, or emphasize, never as the sole carrier of meaning. Use position,
+measure, spacing, annotation, and rule weight before ornamental boxes or
+shadows. Direct labels are useful when they reduce decoding; a compact legend
+is better when direct labels collide.
 
-### 2. Audit The Evidence And Comparison
+Avoid styling that could have been chosen from the word “Tufte” before seeing
+the evidence: cream paper, prestige serif, hairline rules, marginalia, tiny
+mono labels, and muted accents require a medium, house-style, or analytical
+reason. Novelty, maximalism, brand theater, card grids, and generic
+box-and-arrow posters likewise do not replace precise comparison. Prefer
+alignment, grouping, sequence, brackets, small multiples, or direct annotation
+when they convey the relationship.
 
-- Check sources, column meanings, definitions, units, date range,
-  denominators, filters, missing values, duplicates, outliers, joins, and
-  transformations before drawing.
-- Apply `references/comparison-integrity.md` whenever values, groups, periods,
-  rankings, targets, or scenarios are compared.
-- Distinguish counts, rates, percentages, percentage points, indexed values,
-  ranks, residuals, estimates, predictions, and modeled values.
-- Do not fabricate production data. If data is unavailable, provide the needed
-  schema and comparison architecture; use clearly labeled synthetic data only
-  when the user explicitly asks for a mockup.
+For materially different print, desktop, mobile, or presentation constraints,
+recompose sibling displays instead of shrinking one layout; preserve claim,
+comparison, units, uncertainty, documentation, and analytical state. An
+interactive default must be intelligible before motion or disclosure, with
+reduced-motion and static paths. Never gate evidence on animation.
 
-### 3. Choose The Comparison Architecture
+## Disclose And Verify
 
-- Read `references/chart-selection.md` when selecting a chart form or replacing
-  a weak one.
-- Use the smallest set of encodings that answers the thinking task. Prefer
-  position and length over area, volume, angle, or decorative metaphor.
-- When the form is ambiguous or the stakes are high, sketch materially
-  different architectures and compare what each reveals, hides, and asks the
-  reader to decode.
-- Choose a table when exact lookup, mixed units, or many values matter more than
-  shape. Choose no visualization when prose or a few numbers answer the task
-  more honestly.
+Keep the default view complete without putting the whole audit trail on marks:
 
-### 4. Compose From Evidence Outward
+1. **Visible evidence**: claim or question, units and scale, comparator,
+   material denominator, active state, and consequential uncertainty or gaps.
+2. **Adjacent caption or note**: source and vintage, metric definition,
+   consequential filters or exclusions, interval definition, and caveats.
+3. **Recoverable audit trail**: lineage, query or notebook, transformations or
+   commit, methods, sensitivity, and accessible table or long description.
 
-Build in this order: data marks, scales and units, reference values, direct
-labels or compact key, uncertainty, annotations, documentation note, title,
-then polish.
+Layers 1–2 must not be hover-only or disappear from export; layer 3 may be
+linked or disclosed if durable and discoverable. Keep captions and text
+equivalents synchronized with filters, cohort, denominator, scenario,
+freshness, exceptions, and missingness. Interaction, copied links, screenshots,
+responsive siblings, and static exports must preserve the interpretation.
 
-- Make data marks stronger than scaffolding.
-- Define color roles before choosing hues: ink, context, focus, uncertainty,
-  exception, and interaction state. Use color only when it encodes,
-  distinguishes, or emphasizes.
-- Build hierarchy through position, scale, measure, spacing, annotation, and
-  rule weight before boxes, shadows, or ornament.
-- Design print, desktop, mobile, and presentation outputs as sibling
-  compositions when their constraints differ. Preserve the same analytical
-  state and evidence contract instead of shrinking one layout.
-- Make an interactive default intelligible before motion or disclosure. Provide
-  reduced-motion and static paths; never gate evidence on animation.
+Render or export the exact deliverable at final size. Apply the critique
+checklist; inspect pixels or pages, required interactive states, every sibling
+composition, and each section of long or multi-panel artifacts. Check scale,
+units, state, missing intervals, uncertainty, contrast, reading and focus
+order, clipping, overflow, label collisions, panel consistency,
+documentation placement, and text-equivalent parity. For diagrams, inspect
+native-resolution connector crops using `references/evidence-diagrams.md`.
+Visible defects block completion: repair, re-render, and re-inspect the same
+mark class. If rendering is impossible, state the limitation, do the best
+static check, and do not claim reviewed, decision-grade, or publication-grade.
 
-### 5. Apply The Anti-Reflex Taste Check
+## Authority, Stops, And Grades
 
-- If typography, palette, or composition could have been chosen from the word
-  "Tufte" before inspecting the evidence, restart the styling pass.
-- Do not simulate seriousness with cream paper, prestige serif typography,
-  hairline rules, marginalia, tiny mono labels, or a muted accent by reflex.
-- Do not substitute novelty, maximalism, or brand theater for analytical
-  distinctiveness. A display should be memorable because the evidence became
-  unusually clear.
-- Avoid card grids and generic box-and-arrow posters when alignment, grouping,
-  sequence, brackets, small multiples, or direct annotation carry the
-  relationship more precisely.
+Resolve conflicts in this order: (1) truth and non-deception; (2)
+accessibility and actual-size legibility; (3) reader task and named comparison;
+(4) evidence completeness and auditability; (5) host conventions and brand;
+(6) aesthetics and convenience. Medium-specific skills own implementation,
+runtime, integration, and format-specific validation; this skill owns
+comparison, magnitude, scale meaning, evidence hierarchy, qualification,
+visible state, and documentation. Geometry may change; those semantics may not.
 
-### 6. Verify The Rendered Artifact
+Stop or reframe when a common scale would conceal an invalid comparison, or
+the display cannot preserve comparison, uncertainty, documentation, state, or
+legibility. Do not connect missing intervals or present excluded groups,
+selected examples, partial periods, or top-N subsets as the whole. Arrows,
+sequence, fitted lines, color, and annotation must not imply unsupported
+causality.
 
-Treat rendered QA as a hard gate.
+Use the highest demonstrated grade:
 
-- Render or export the exact deliverable at its intended size. Inspect pixels,
-  pages, required interactive states, and sibling compositions rather than
-  relying on source validity or successful export.
-- Apply `references/critique-checklist.md`. For diagrams, also apply
-  `references/evidence-diagrams.md` at native-resolution connector crops.
-- Check scale, units, state, missing intervals, uncertainty, contrast, reading
-  order, clipping, overflow, label collisions, small-multiple consistency,
-  documentation placement, and text-equivalent parity.
-- A visible defect blocks completion. Repair it, re-render, and re-inspect the
-  same mark class.
-- If rendered inspection is impossible, state that limitation, perform the
-  best static check, and do not claim reviewed, decision-grade, or
-  publication-grade completion.
+| Grade | Required evidence |
+| --- | --- |
+| **Provisional** | Identified source and question; unknowns visibly labeled; no completeness claim. |
+| **Reviewed** | Complete metric/comparison contract, checked computation, justified form, final-size rendered inspection. |
+| **Decision-grade** | Reviewed plus denominators, material uncertainty or sensitivity, provenance, vintage, visible active state, accessible text equivalent, reproducible query or specification. |
+| **Publication-grade** | Decision-grade plus editorial and citation review, every target size and export inspected, format-specific accessibility verified, no unresolved visible defects. |
 
-## Coordination And Authority
+Polish, source quality, and successful export alone establish no grade.
 
-### Requirement Precedence
+## Handoff
 
-When requirements conflict, apply this order:
+For creation or revision, return the artifact path or exact changed file,
+comparison architecture and rationale, material data or interpretation caveat,
+and the sizes, viewports, pages, and states actually inspected. For
+decision-grade or publication-grade work, also return the full Evidence
+Display Contract, grade evidence, semantic color roles, accessibility proof,
+and verification manifest.
 
-1. Truth and non-deception.
-2. Accessibility and actual-size legibility.
-3. The reader's analytical task and named comparison.
-4. Evidence completeness and auditability.
-5. Host conventions and brand identity.
-6. Aesthetic refinement and implementation convenience.
-
-Medium-specific skills own implementation mechanics, runtime behavior,
-integration, and format-specific validation. This skill owns the semantic
-design contract: named comparison, visual magnitude, scale meaning, evidence
-hierarchy, material uncertainty, visible analytical state, and documentation.
-A medium-specific adaptation may change geometry but must not silently change
-those semantics.
-
-## Completion Grades
-
-Use the highest grade whose requirements have actually been demonstrated:
-
-- **Provisional**: source identified, provisional question stated, unknowns
-  visibly labeled, and no completeness claim.
-- **Reviewed**: metric and comparison contracts complete, computation checked,
-  chart form justified, and final-size render inspected.
-- **Decision-grade**: reviewed requirements plus denominators, material
-  uncertainty or sensitivity, provenance, data vintage, visible active state,
-  accessible text equivalent, and reproducible query or specification.
-- **Publication-grade**: decision-grade requirements plus editorial and
-  citation review, inspection of every target size and export, format-specific
-  accessibility verification, and no unresolved visible defects.
-
-Polish, source quality, and successful export do not establish a grade.
-
-## Reference Routing
-
-Read only the references implicated by the Evidence Display Contract. Do not
-load the entire reference set by default.
-
-- `references/principles.md`: genre, taste, composition, typography, color,
-  tables, dashboards, maps, and annotations.
-- `references/comparison-integrity.md`: comparisons, magnitude, temporal
-  alignment, aggregation, significance, freshness, and active state.
-- `references/chart-selection.md`: chart form, redesign, and data sufficiency.
-- `references/uncertainty.md`: estimates, samples, models, forecasts, rankings,
-  causal claims, sensitivity, or material measurement error.
-- `references/evidence-diagrams.md`: connectors, bounded nodes, causal or
-  system maps, technical atlases, networks, and flows.
-- `references/critique-checklist.md`: review and final rendered QA.
-- `references/accessibility.md`: public, interactive, or durable artifacts.
-- `references/captions-alt-text.md`: final artifacts, captions, documentation
-  notes, or text equivalents.
-- `references/citations.md`: public source and provenance map.
-
-## Stop Rules
-
-- Stop or reframe when a common scale would conceal an invalid comparison.
-- Do not silently connect across missing intervals, hide excluded groups, or
-  present selected examples, partial periods, or top-N subsets as the whole.
-- Do not imply causality with arrows, sequencing, fitted lines, color, or
-  annotation unless the evidence supports a causal claim.
-- Stop and change form when the display cannot preserve required comparison,
-  uncertainty, documentation, state, or legibility.
-
-## Output Contract
-
-For routine creation or revision, return:
-
-- the artifact path or exact changed file
-- one sentence naming the comparison architecture and rationale
-- any material data or interpretation caveat
-- the final size, viewport, pages, or states actually inspected
-
-For decision-grade or publication-grade work, also return the full Evidence
-Display Contract, completion-grade evidence, semantic color roles,
-accessibility proof, and verification manifest.
-
-For critique, classify findings as:
-
-- **Blocker**: materially false, misleading, or unsupported
-- **Major**: impairs comparison, interpretation, accessibility, or auditability
-- **Minor**: craft defect that does not change the conclusion
-
-Lead with blockers, then majors, and report the highest-consequence findings
-instead of narrating every checklist item.
+For critique, lead with highest-consequence findings: **blocker** for
+materially false, misleading, or unsupported claims; **major** for impaired
+comparison, interpretation, accessibility, or auditability; **minor** for
+craft defects that do not change the conclusion. Do not narrate every
+checklist item.

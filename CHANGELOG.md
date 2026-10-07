@@ -2,6 +2,14 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## 0.6.0
+
+Skills only. The managed Codex environment (installer, transcript memory, code and document
+indexing, LaunchAgents, and the `codex-git-safe` Git runtime) is retired, along with the `yeet`
+and `project-continuity` skills that depended on it. The seven remaining skills are refreshed
+from their maintained sources and no longer route to the retired retrieval tools. Earlier
+releases stay available at their tags.
+
 ## 0.5.7
 
 Add prose editing and measured performance-tradeoff skills. Refresh architecture,

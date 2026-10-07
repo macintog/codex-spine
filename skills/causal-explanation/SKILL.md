@@ -14,8 +14,8 @@ distinct. Do not turn an explanation request into implementation work.
 - Bind the question to the exact behavior, decision, regression, threshold, or
   tradeoff. Infer the referent from current context only when the interpretation
   is safe; otherwise ask one targeted question.
-- Use `jcode` for a symbol lookup, file map, caller trace, or adjacent source
-  context. Use the repo's QA intake or attribution lane for reproducing,
+- A plain symbol lookup, file map, or caller trace needs only `rg` and targeted
+  reads, not this skill. Use the repo's QA intake or attribution lane for reproducing,
   diagnosing, or attributing an active failure, including a request to find an
   unknown root cause. An established cause alone does not select this skill;
   use it when reconstructing and documenting the causal account is the selected
@@ -29,12 +29,12 @@ distinct. Do not turn an explanation request into implementation work.
    preserve their uncertainty and distinguish observations from causal claims.
    Do not demand independent corroboration merely because the user is the source.
    Identify the existing sources that can answer the question. Choose the
-   cheapest authoritative evidence; pure historical recall uses memory first,
-   while a current mechanism may be settled directly from source or an artifact.
-2. Consult only sources likely to resolve the causal question. Use `jcode` for
-   source structure and callers, `jdocs` for authored documentation or reference
-   trees, direct QMD retrieval plus `get` or `multi_get` for exact prior wording
-   or history, and `jdata` only when tabular evidence is material. Consult a
+   cheapest authoritative evidence; pure historical recall starts from git history
+   and recorded decisions, while a current mechanism may be settled directly from source or an artifact.
+2. Consult only sources likely to resolve the causal question: `rg` and targeted
+   reads for source structure and callers, `git log -S`/`git log -L`/`git blame`
+   for when and why code changed, authored docs for stated intent, and tabular
+   data only when it is material. Consult a
    relevant issue or review connector only when current evidence points there.
    Do not require an all-source sweep or enumerate and sweep connectors.
 3. Record each source actually consulted. Mark relevant searches that returned
