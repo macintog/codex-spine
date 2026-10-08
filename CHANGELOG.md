@@ -2,20 +2,20 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
-## 0.7.0
-
-Every skill was re-tested blind against a short rewrite and against no guidance. What won ships:
-`chart-integrity` replaces `tufte-visualization`, `skill-audit` replaces `skill-authoring-quality`,
-and `improve-codebase-architecture`, `performance-tradeoff` and `prose-quality` are their short
-versions. `causal-explanation` and `change-impact` became two standing instructions in the README.
-
 ## 0.6.0
 
 Skills only. The managed Codex environment (installer, transcript memory, code and document
 indexing, LaunchAgents, and the `codex-git-safe` Git runtime) is retired, along with the `yeet`
-and `project-continuity` skills that depended on it. The seven remaining skills are refreshed
-from their maintained sources and no longer route to the retired retrieval tools. Earlier
-releases stay available at their tags.
+and `project-continuity` skills that depended on it. Earlier releases stay available at their tags.
+
+Each remaining skill was tested blind against a short rewrite and against no guidance, and the
+winner ships:
+
+- `chart-integrity` replaces `tufte-visualization`.
+- `skill-audit` replaces `skill-authoring-quality`.
+- `improve-codebase-architecture`, `performance-tradeoff`, and `prose-quality` ship as their short
+  rewrites.
+- `causal-explanation` and `change-impact` become two standing instructions in the README.
 
 ## 0.5.7
 

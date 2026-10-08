@@ -13,6 +13,7 @@ each adaptation came from.
   - `skills/prose-quality`, adapted from `pstack/skills/unslop` and `pstack/skills/technical-writing`
   - the two standing instructions in the README, distilled from `pstack/skills/why`, `pstack/skills/how`
     and `pstack/skills/blast-radius`
+- Full license text: [`skills/prose-quality/LICENSE.txt`](skills/prose-quality/LICENSE.txt)
 
 ## Matt Pocock skills
 

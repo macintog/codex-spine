@@ -27,11 +27,16 @@ agent's global instructions:
 
 ## How these were chosen
 
-Each candidate was tested blind on a current frontier model: the same tasks, each with a planted
-trap, run with the long original skill, with a short rewrite, and with no guidance, then ranked by
-an independent judge that did not know which was which. The short versions won most tasks; the long
-originals often placed last because their ceremony leaked into the answers. What is published is what
-won. Skills that showed no benefit were dropped.
+Each candidate went through a three-arm blind test on one model (Claude Opus 5.5): three tasks per
+skill, each with a planted trap, run with the long original skill, with a short rewrite, and with no
+guidance, then ranked by independent judges that did not know which was which. The short versions
+placed first in most tasks; the long originals often placed last because their ceremony leaked into
+the answers. What is published is what won. That is a small sample on a single model, so treat it as
+evidence for these versions, not a benchmark.
+
+Two earlier skills, `causal-explanation` and `change-impact`, lost to two plain lines and became the
+standing instructions above. `yeet` and `project-continuity` were retired with the managed
+environment described under History.
 
 ## Install
 
@@ -42,8 +47,11 @@ Copy or symlink the skill folders you want into your agent's skills directory:
 
 ```sh
 git clone https://github.com/macintog/codex-spine.git
+mkdir -p ~/.agents/skills
 ln -s "$PWD/codex-spine/skills/chart-integrity" ~/.agents/skills/chart-integrity
 ```
+
+For Claude Code, use `~/.claude/skills` in the last two lines instead.
 
 Restart the agent or open a new session so it discovers the skill.
 
