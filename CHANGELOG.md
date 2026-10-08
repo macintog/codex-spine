@@ -2,6 +2,11 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
+## Unreleased
+
+- The history standing instruction lists session transcripts among the sources to check, matching
+  the tested wording.
+
 ## 0.6.0
 
 Skills only. The managed Codex environment (installer, transcript memory, code and document

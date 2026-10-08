@@ -23,11 +23,11 @@ agent's global instructions:
 ```markdown
 - When explaining why existing code, behavior, an incident, or a past decision
   is the way it is: code and runtime behavior establish mechanism, not motive.
-  Check history (`git log -S`/`-L`, blame, linked PRs/issues, design docs)
-  before attributing intent; cite the source for any stated reason, label the
-  rest as inference, and say plainly when the rationale is unrecorded. For
-  incidents and regressions, name enabling conditions as well as the trigger;
-  timing alone is not cause.
+  Check history (`git log -S`/`-L`, blame, linked PRs/issues, design docs,
+  session transcripts) before attributing intent; cite the source for any
+  stated reason, label the rest as inference, and say plainly when the
+  rationale is unrecorded. For incidents and regressions, name enabling
+  conditions as well as the trigger; timing alone is not cause.
 - When a change touches a shared contract (function behavior, CLI output,
   config/env key, file or state format, path, hook, schema): find consumers by
   literal strings as well as symbols (other scripts and repos, symlinked
