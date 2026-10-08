@@ -2,7 +2,7 @@
 
 All notable user-visible changes to `codex-spine` should be tracked here.
 
-## Unreleased
+## 0.6.1
 
 - The history standing instruction lists session transcripts among the sources to check, matching
   the tested wording.
