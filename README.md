@@ -20,9 +20,24 @@ Two tasks did better as a few always-loaded lines than as skills, because they c
 work where a skill would never be triggered. Paste them into `AGENTS.md`, `CLAUDE.md`, or your
 agent's global instructions:
 
-```
-- When explaining why existing code, behavior, an incident, or a past decision is the way it is: code and runtime behavior establish mechanism, not motive. Check history (`git log -S`/`-L`, blame, linked PRs/issues, design docs) before attributing intent; cite the source for any stated reason, label the rest as inference, and say plainly when the rationale is unrecorded. For incidents and regressions, name enabling conditions as well as the trigger; timing alone is not cause.
-- When a change touches a shared contract (function behavior, CLI output, config/env key, file or state format, path, hook, schema): find consumers by literal strings as well as symbols (other scripts and repos, symlinked installs, settings/hook/scheduler entries, data already on disk) and state the scope searched. Same signature can still break callers (defaults, key absent vs false/null, stdout cleanliness, interpreter version). For persisted formats, check old data with new code and new data with old code. For each real consumer, say whether it fails loudly or silently and the cheapest check that would show it; a passing test clears only the inputs and runtime it ran. Report reachable risks only.
+```markdown
+- When explaining why existing code, behavior, an incident, or a past decision
+  is the way it is: code and runtime behavior establish mechanism, not motive.
+  Check history (`git log -S`/`-L`, blame, linked PRs/issues, design docs)
+  before attributing intent; cite the source for any stated reason, label the
+  rest as inference, and say plainly when the rationale is unrecorded. For
+  incidents and regressions, name enabling conditions as well as the trigger;
+  timing alone is not cause.
+- When a change touches a shared contract (function behavior, CLI output,
+  config/env key, file or state format, path, hook, schema): find consumers by
+  literal strings as well as symbols (other scripts and repos, symlinked
+  installs, settings/hook/scheduler entries, data already on disk) and state
+  the scope searched. Same signature can still break callers (defaults, key
+  absent vs false/null, stdout cleanliness, interpreter version). For persisted
+  formats, check old data with new code and new data with old code. For each
+  real consumer, say whether it fails loudly or silently and the cheapest check
+  that would show it; a passing test clears only the inputs and runtime it ran.
+  Report reachable risks only.
 ```
 
 ## How these were chosen
